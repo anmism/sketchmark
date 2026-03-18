@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>sketchmark Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body   { display: flex; flex-direction: column; height: 100vh; font-family: system-ui, sans-serif; background: #18160e; color: #e0c898; }
+    header { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; background: #12100a; border-bottom: 2px solid #3a2a12; flex-shrink: 0; }
+    header h1 { font-size: 16px; font-weight: 500; color: #f0c96a; }
+    select, button { background: #22190e; color: #dcc48a; border: 1px solid #4a3520; border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 13px; }
+    button.primary { background: #c85428; color: #fff; border-color: #c85428; font-weight: 500; }
+    button:hover { border-color: #c06030; }
+    main   { flex: 1; display: flex; overflow: hidden; }
+    #editor-pane { width: 340px; display: flex; flex-direction: column; background: #131008; border-right: 2px solid #3a2a12; flex-shrink: 0; }
+    #toolbar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #1c1608; border-bottom: 1px solid #3a2a12; }
+    textarea { flex: 1; background: #131008; color: #e0c898; border: none; outline: none; resize: none; padding: 12px 14px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.75; caret-color: #f0c96a; }
+    #error { padding: 6px 12px; background: #280a0a; color: #f07070; font-family: monospace; font-size: 11px; display: none; border-top: 1px solid #5a1818; }
+    #canvas-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #anim-bar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: #eee7d8; border-bottom: 1.5px solid #caba98; flex-shrink: 0; }
+    #anim-bar button { background: #f5eedd; color: #3a2010; border: 1.5px solid #caba98; }
+    #anim-bar button:hover { background: #c8a060; color: #fff; border-color: #c8a060; }
+    #step-display { font-size: 12px; color: #6a4820; min-width: 110px; text-align: center; }
+    #step-label   { font-size: 12px; color: #8a6040; font-style: italic; }
+    .sep { flex: 1; }
+    #stats { font-size: 11px; color: #9a7848; font-family: monospace; }
+    #diagram-wrap { flex: 1; overflow: auto; background: #f8f4ea; background-image: linear-gradient(rgba(170,145,100,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(170,145,100,.14) 1px, transparent 1px); background-size: 28px 28px; padding: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>✏ sketchmark playground</h1>
+    <select id="examples">
+      <option value="arch">🏗 Architecture</option>
+      <option value="auth">🔐 Auth Flow + Animation</option>
+      <option value="micro">⚙ Microservices</option>
+      <option value="nested">📦 Nested Groups</option>
+      <option value="pyramid">🔺 Pyramid Layout</option>
+      <option value="network">🌐 Network Stack</option>
+    </select>
+    <div class="sep"></div>
+    <button id="export-svg">↓ SVG</button>
+    <button id="export-png">↓ PNG</button>
+  </header>
+  <main>
+    <div id="editor-pane">
+      <div id="toolbar">
+        <button class="primary" id="run">▶ Run</button>
+        <span style="font-size:11px;color:#6a5030;font-family:monospace">Ctrl+Enter</span>
+      </div>
+      <textarea id="dsl" spellcheck="false"></textarea>
+      <div id="error"></div>
+    </div>
+    <div id="canvas-pane">
+      <div id="anim-bar">
+        <button id="reset-anim">↺</button>
+        <button id="prev-step" disabled>←</button>
+        <span id="step-display">No steps</span>
+        <button id="next-step" disabled>→</button>
+        <button id="play-anim">▶ Play</button>
+        <span id="step-label"></span>
+        <div class="sep"></div>
+        <span id="stats"></span>
+      </div>
+      <div id="diagram-wrap"></div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+
+
+  <script type="module">
+    import { render } from '../dist/index.js';
+
+    const EXAMPLES = {
+
+      arch: `diagram
+title label="System Architecture"
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=60 padding=0
+{
+  box client  label="Client App"   theme=primary width=140 height=55
+  box gateway label="API Gateway"  theme=warning width=140 height=55
+
+  group services label="Microservices" layout=column gap=16 padding=30 theme=muted
+  {
+    box auth    label="Auth Service"    theme=primary width=140 height=55
+    box billing label="Billing Service" theme=primary width=140 height=55
+  }
+
+  box database label="PostgreSQL" theme=success width=140 height=55
+}
+
+client  --> gateway  label="HTTPS"
+gateway --> auth
+gateway --> billing
+auth    --> database label="SQL"
+billing --> database label="SQL"
+
+step highlight client
+step draw client-->gateway
+step highlight gateway
+step draw gateway-->auth
+step draw gateway-->billing
+step highlight auth
+step draw auth-->database
+step highlight database
+end`,
+
+      auth: `diagram
+title label="Authentication Flow"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=50 padding=0
+{
+  group col1 layout=column gap=20 padding=0
+  {
+    box user   label="User Browser"  theme=primary width=150 height=58
+    box mobile label="Mobile App"    theme=primary width=150 height=58
+  }
+
+  group gateway label="API Gateway" layout=column gap=16 padding=30 theme=muted
+  {
+    box waf       label="WAF"           theme=danger  width=160 height=55
+    box ratelimit label="Rate Limiter"  theme=warning width=160 height=55
+    box router    label="Router"        theme=primary width=160 height=55
+  }
+
+  group authsvc label="Auth Service" layout=column gap=16 padding=30 theme=muted
+  {
+    box validate label="Validate Creds"  theme=primary width=160 height=55
+    box mfa      label="MFA Check"       theme=warning width=160 height=55
+    box tokengen label="Token Generator" theme=success width=160 height=55
+  }
+
+  group col4 layout=column gap=30 padding=0
+  {
+    group datastores label="Data Stores" layout=column gap=16 padding=30 theme=muted
+    {
+      cylinder userdb   label="Users DB"    theme=primary width=150 height=65
+      cylinder sessions label="Sessions"    theme=warning width=150 height=65
+      cylinder cache    label="Redis Cache" theme=danger  width=150 height=65
+    }
+    box audit label="Audit Log" theme=muted width=150 height=55
+  }
+}
+
+user      --> waf        label="POST /login"
+mobile    --> waf        label="POST /login"
+waf       --> ratelimit
+ratelimit --> router
+router    --> validate   label="credentials"
+validate  --> userdb     label="lookup"
+validate  --> mfa        label="if enabled"
+mfa       --> cache      label="OTP store"
+validate  --> tokengen   label="on success"
+tokengen  --> sessions   label="store token"
+tokengen  --> cache      label="cache token"
+tokengen  --> user       label="JWT"
+tokengen  --> mobile     label="JWT"
+validate  --> audit      label="log attempt"
+tokengen  --> audit      label="log success"
+
+step highlight user
+step draw user-->waf
+step highlight waf
+step draw waf-->ratelimit
+step draw ratelimit-->router
+step highlight router
+step draw router-->validate
+step highlight validate
+step draw validate-->userdb
+step highlight userdb
+step draw validate-->mfa
+step highlight mfa
+step draw mfa-->cache
+step draw validate-->tokengen
+step highlight tokengen
+step draw tokengen-->sessions
+step draw tokengen-->cache
+step highlight user
+step draw tokengen-->user
+step draw tokengen-->mobile
+step fade validate
+step fade mfa
+step pulse tokengen
+step draw validate-->audit
+step draw tokengen-->audit
+step highlight audit
+end`,
+
+      micro: `diagram
+title label="E-Commerce Microservices"
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=60 padding=0
+{
+  group left layout=column gap=20 padding=0
+  {
+    circle user    label="User"         theme=primary width=90  height=90
+    box    mobile  label="Mobile"       theme=primary width=120 height=55
+    box    partner label="Partner API"  theme=muted   width=120 height=55
+  }
+
+  group middle layout=column gap=30 padding=0
+  {
+    group gateway label="Gateway" layout=column gap=16 padding=30 theme=muted
+    {
+      box lb      label="Load Balancer" theme=warning width=140 height=55
+      box auth_gw label="Auth"          theme=danger  width=140 height=55
+    }
+
+    group services label="Core Services" layout=grid columns=2 gap=16 padding=30 theme=muted
+    {
+      box svc_order   label="Orders"   theme=primary width=120 height=55
+      box svc_product label="Products" theme=primary width=120 height=55
+      box svc_payment label="Payments" theme=danger  width=120 height=55
+      box svc_notify  label="Notify"   theme=success width=120 height=55
+    }
+  }
+
+  group right layout=column gap=30 padding=0
+  {
+    group messaging label="Messaging" layout=column gap=16 padding=30 theme=muted
+    {
+      cylinder kafka label="Kafka" theme=warning width=140 height=65
+      cylinder redis label="Redis" theme=danger  width=140 height=65
+    }
+
+    group dbs label="Databases" layout=grid columns=2 gap=16 padding=30 theme=muted
+    {
+      cylinder db_order   label="Orders DB"   theme=primary width=120 height=65
+      cylinder db_product label="Products DB" theme=primary width=120 height=65
+      cylinder db_payment label="Payments DB" theme=danger  width=120 height=65
+      cylinder db_user    label="Users DB"    theme=muted   width=120 height=65
+    }
+  }
+}
+
+user        --> lb           label="HTTP"
+mobile      --> lb
+partner     --> lb           label="API Key"
+lb          --> auth_gw
+auth_gw     --> svc_order    label="route"
+auth_gw     --> svc_product  label="route"
+auth_gw     --> svc_payment  label="route"
+auth_gw     --> svc_notify   label="route"
+svc_order   --> kafka        label="OrderPlaced"
+svc_payment --> kafka        label="PaymentDone"
+kafka       --> svc_notify   label="consume"
+svc_order   --> db_order
+svc_product --> db_product
+svc_payment --> db_payment
+svc_order   --> redis        label="cache"
+end`,
+
+      nested: `diagram
+title label="Nested Groups Demo"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+theme purple  fill="#f3e8ff" stroke="#7700cc" color="#4400aa"
+
+group page layout=row gap=50 padding=0
+{
+  group platform label="Platform" layout=column gap=30 padding=30 theme=muted
+  {
+    group frontend label="Frontend" layout=row gap=16 padding=24 theme=primary
+    {
+      box react  label="React"      width=100 height=50
+      box next   label="Next.js"    width=100 height=50
+      box vite   label="Vite"       width=100 height=50
+    }
+
+    group backend label="Backend" layout=row gap=16 padding=24 theme=success
+    {
+      box api    label="REST API"   width=100 height=50
+      box grpc   label="gRPC"       width=100 height=50
+      box ws     label="WebSocket"  width=100 height=50
+    }
+
+    group workers label="Workers" layout=row gap=16 padding=24 theme=warning
+    {
+      box queue  label="Queue"      width=100 height=50
+      box cron   label="Cron"       width=100 height=50
+      box events label="Events"     width=100 height=50
+    }
+  }
+
+  group data label="Data" layout=column gap=30 padding=30 theme=muted
+  {
+    group primary_db label="Primary" layout=column gap=16 padding=24 theme=primary
+    {
+      cylinder pg    label="Postgres" width=130 height=65
+      cylinder mongo label="MongoDB"  width=130 height=65
+    }
+
+    group cache_layer label="Cache" layout=column gap=16 padding=24 theme=danger
+    {
+      cylinder redis   label="Redis"     width=130 height=65
+      cylinder memcache label="Memcache" width=130 height=65
+    }
+
+    group search_layer label="Search" layout=column gap=16 padding=24 theme=purple
+    {
+      cylinder elastic label="Elastic"   width=130 height=65
+    }
+  }
+}
+
+react  --> api
+next   --> api
+api    --> pg
+api    --> redis   label="cache"
+api    --> elastic label="search"
+grpc   --> mongo
+queue  --> pg
+events --> redis
+end`,
+
+      pyramid: `diagram
+title label="Pyramid Layout"
+layout column
+config gap=40
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group page layout=column gap=40 padding=0 align=center
+{
+  box top label="CEO" theme=danger width=120 height=55
+
+  group row2 layout=row gap=30 padding=0 justify=center
+  {
+    box cto label="CTO"  theme=warning width=120 height=55
+    box cfo label="CFO"  theme=warning width=120 height=55
+    box coo label="COO"  theme=warning width=120 height=55
+  }
+
+  group row3 layout=row gap=30 padding=0 justify=center
+  {
+    box eng   label="Engineering" theme=primary width=130 height=55
+    box design label="Design"    theme=primary width=130 height=55
+    box fin   label="Finance"    theme=primary width=130 height=55
+    box ops   label="Operations" theme=primary width=130 height=55
+  }
+
+  group row4 layout=row gap=20 padding=0 justify=center
+  {
+    box fe    label="Frontend"  theme=success width=110 height=50
+    box be    label="Backend"   theme=success width=110 height=50
+    box qa    label="QA"        theme=success width=110 height=50
+    box ui    label="UI/UX"     theme=success width=110 height=50
+    box data  label="Data"      theme=success width=110 height=50
+    box sec   label="Security"  theme=success width=110 height=50
+  }
+
+  box bottom label="All Teams" theme=muted width=200 height=55
+}
+
+top    --> cto
+top    --> cfo
+top    --> coo
+cto    --> eng
+cto    --> design
+cfo    --> fin
+coo    --> ops
+eng    --> fe
+eng    --> be
+eng    --> qa
+design --> ui
+fin    --> data
+ops    --> sec
+end`,
+
+      network: `diagram
+title label="OSI Network Stack"
+layout column
+config gap=30
+
+theme l7  fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme l6  fill="#e8f0ff" stroke="#2200cc" color="#1100aa"
+theme l5  fill="#ede8ff" stroke="#4400cc" color="#2200aa"
+theme l4  fill="#f3e8ff" stroke="#6600cc" color="#4400aa"
+theme l3  fill="#f8e8ff" stroke="#8800cc" color="#5500aa"
+theme l2  fill="#ffe8ff" stroke="#aa00cc" color="#770088"
+theme l1  fill="#ffe8f8" stroke="#cc0088" color="#880055"
+
+group stack layout=column gap=0 padding=20
+{
+  box app       label="7 · Application"   theme=l7 width=280 height=52
+  box pres      label="6 · Presentation"  theme=l6 width=280 height=52
+  box session   label="5 · Session"       theme=l5 width=280 height=52
+  box transport label="4 · Transport"     theme=l4 width=280 height=52
+  box network   label="3 · Network"       theme=l3 width=280 height=52
+  box datalink  label="2 · Data Link"     theme=l2 width=280 height=52
+  box physical  label="1 · Physical"      theme=l1 width=280 height=52
+}
+
+app       --> pres      label="data"
+pres      --> session   label="encoded"
+session   --> transport label="established"
+transport --> network   label="segment"
+network   --> datalink  label="packet"
+datalink  --> physical  label="frame"
+
+step highlight app
+step draw app-->pres
+step highlight pres
+step draw pres-->session
+step highlight session
+step draw session-->transport
+step highlight transport
+step draw transport-->network
+step highlight network
+step draw network-->datalink
+step highlight datalink
+step draw datalink-->physical
+step highlight physical
+end`,
+
+    };
+
+    let instance = null;
+
+    function runDiagram() {
+      const dsl  = document.getElementById('dsl').value;
+      const err  = document.getElementById('error');
+      const wrap = document.getElementById('diagram-wrap');
+      try {
+        err.style.display = 'none';
+        wrap.innerHTML    = '';
+        instance = render({
+          container:  wrap,
+          dsl,
+          renderer:   'svg',
+          svgOptions: { interactive: true, showTitle: true },
+        });
+        syncAnim();
+        document.getElementById('stats').textContent =
+          `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e`;
+      } catch (e) {
+        err.style.display = 'block';
+        err.textContent   = '⚠ ' + e.message;
+        console.error(e);
+      }
+    }
+
+    function syncAnim() {
+      if (!instance) return;
+      const { anim }  = instance;
+      const display   = document.getElementById('step-display');
+      const label     = document.getElementById('step-label');
+      if (!anim.total) { display.textContent = 'No steps'; label.textContent = ''; return; }
+      display.textContent = anim.currentStep < 0
+        ? `${anim.total} steps`
+        : `${anim.currentStep + 1} / ${anim.total}`;
+      label.textContent = anim.currentStep >= 0
+        ? `${anim.steps[anim.currentStep].action} ${anim.steps[anim.currentStep].target}`
+        : '';
+      document.getElementById('prev-step').disabled = !anim.canPrev;
+      document.getElementById('next-step').disabled = !anim.canNext;
+    }
+
+    document.getElementById('run').onclick = runDiagram;
+    document.getElementById('dsl').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runDiagram();
+    });
+    document.getElementById('reset-anim').onclick = () => { instance?.anim.reset(); syncAnim(); };
+    document.getElementById('prev-step').onclick  = () => { instance?.anim.prev();  syncAnim(); };
+    document.getElementById('next-step').onclick  = () => { instance?.anim.next();  syncAnim(); };
+    document.getElementById('play-anim').onclick  = async () => {
+      await instance?.anim.play(800); syncAnim();
+    };
+    document.getElementById('export-svg').onclick = () => instance?.exportSVG();
+    document.getElementById('export-png').onclick = () => instance?.exportPNG();
+    document.getElementById('examples').onchange  = function () {
+      document.getElementById('dsl').value = EXAMPLES[this.value];
+      runDiagram();
+    };
+
+    // Load default on startup
+    document.getElementById('dsl').value = EXAMPLES.arch;
+    runDiagram();
+  </script>
+</body>
+</html>

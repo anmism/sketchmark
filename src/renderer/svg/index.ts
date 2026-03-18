@@ -1,0 +1,780 @@
+// ============================================================
+// sketchmark — SVG Renderer  (rough.js hand-drawn)
+// ============================================================
+
+import type {
+  SceneGraph,
+  SceneNode,
+  SceneGroup,
+  SceneTable,
+  SceneNote,
+  SceneChart,
+} from "../../scene";
+import { connPoint } from "../../layout";
+import { nodeMap, groupMap, tableMap, noteMap, chartMap } from "../../scene";
+import { renderRoughChartSVG } from "./roughChartSVG";
+import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
+import type { DiagramPalette } from "../../theme";
+
+declare const rough: { svg(el: SVGSVGElement): RoughSVG };
+
+interface RoughSVG {
+  rectangle(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts?: RoughOpts,
+  ): SVGElement;
+  circle(cx: number, cy: number, d: number, opts?: RoughOpts): SVGElement;
+  ellipse(
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    opts?: RoughOpts,
+  ): SVGElement;
+  line(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    opts?: RoughOpts,
+  ): SVGElement;
+  polygon(pts: [number, number][], opts?: RoughOpts): SVGElement;
+  path(d: string, opts?: RoughOpts): SVGElement;
+}
+
+interface RoughOpts {
+  roughness?: number;
+  bowing?: number;
+  seed?: number;
+  fill?: string;
+  fillStyle?: string;
+  fillWeight?: number;
+  stroke?: string;
+  strokeWidth?: number;
+  strokeLineDash?: number[];
+  strokeLineDashOffset?: number;
+  hachureAngle?: number;
+  hachureGap?: number;
+}
+
+const NS = "http://www.w3.org/2000/svg";
+const se = (tag: string) => document.createElementNS(NS, tag);
+
+function hashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
+  return h;
+}
+
+const BASE_ROUGH: RoughOpts = { roughness: 1.3, bowing: 0.7 };
+
+// ── SVG helpers ───────────────────────────────────────────
+function mkText(
+  txt: string,
+  x: number,
+  y: number,
+  sz = 14,
+  wt: number | string = 500,
+  col = "#1a1208",
+  anchor = "middle",
+): SVGTextElement {
+  const t = se("text") as SVGTextElement;
+  t.setAttribute("x", String(x));
+  t.setAttribute("y", String(y));
+  t.setAttribute("text-anchor", anchor);
+  t.setAttribute("dominant-baseline", "middle");
+  t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
+  t.setAttribute("font-size", String(sz));
+  t.setAttribute("font-weight", String(wt));
+  t.setAttribute("fill", col);
+  t.setAttribute("pointer-events", "none");
+  t.setAttribute("user-select", "none");
+  t.textContent = txt;
+  return t;
+}
+
+function mkGroup(id?: string, cls?: string): SVGGElement {
+  const g = se("g") as SVGGElement;
+  if (id) g.setAttribute("id", id);
+  if (cls) g.setAttribute("class", cls);
+  return g;
+}
+
+// ── Arrow direction from connector ────────────────────────
+function connMeta(connector: string): {
+  arrowAt: "end" | "start" | "both" | "none";
+  dashed: boolean;
+} {
+  if (connector === "--") return { arrowAt: "none", dashed: false };
+  if (connector === "---") return { arrowAt: "none", dashed: true };
+  const bidir = connector.includes("<") && connector.includes(">");
+  if (bidir) return { arrowAt: "both", dashed: connector.includes("--") };
+  const back = connector.startsWith("<");
+  const dashed = connector.includes("--");
+  if (back) return { arrowAt: "start", dashed };
+  return { arrowAt: "end", dashed };
+}
+
+// ── Generic rect connection point ─────────────────────────
+function rectConnPoint(
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number,
+  ox: number,
+  oy: number,
+): [number, number] {
+  const cx = rx + rw / 2,
+    cy = ry + rh / 2;
+  const dx = ox - cx,
+    dy = oy - cy;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return [cx, cy];
+  const hw = rw / 2 - 2,
+    hh = rh / 2 - 2;
+  const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
+  const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
+  const t = Math.min(tx, ty);
+  return [cx + t * dx, cy + t * dy];
+}
+
+function resolveEndpoint(
+  id: string,
+  nm: Map<string, SceneNode>,
+  tm: Map<string, SceneTable>,
+  gm: Map<string, SceneGroup>,
+  cm: Map<string, SceneChart>,
+  ntm: Map<string, SceneNote>,
+): { x: number; y: number; w: number; h: number; shape?: string } | null {
+  return (
+    nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null
+  );
+}
+
+function getConnPoint(
+  src: { x: number; y: number; w: number; h: number; shape?: string },
+  dstCX: number,
+  dstCY: number,
+): [number, number] {
+  if ("shape" in src && (src as SceneNode).shape) {
+    return connPoint(
+      src as SceneNode,
+      {
+        x: dstCX - 1,
+        y: dstCY - 1,
+        w: 2,
+        h: 2,
+        shape: "box",
+      } as SceneNode,
+    );
+  }
+  return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
+}
+
+// ── Group depth (for paint order) ─────────────────────────
+function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number {
+  let d = 0;
+  let cur: SceneGroup | undefined = g;
+  while (cur?.parentId) {
+    d++;
+    cur = gm.get(cur.parentId);
+  }
+  return d;
+}
+
+// ── Node shapes ───────────────────────────────────────────
+function renderShape(
+  rc: RoughSVG,
+  n: SceneNode,
+  palette: DiagramPalette,
+): SVGElement[] {
+  const s = n.style ?? {};
+  const fill = String(s.fill ?? palette.nodeFill);
+  const stroke = String(s.stroke ?? palette.nodeStroke);
+  const opts: RoughOpts = {
+    ...BASE_ROUGH,
+    seed: hashStr(n.id),
+    fill,
+    fillStyle: "solid",
+    stroke,
+    strokeWidth: Number(s.strokeWidth ?? 1.9),
+  };
+  const cx = n.x + n.w / 2,
+    cy = n.y + n.h / 2;
+  const hw = n.w / 2 - 2;
+
+  switch (n.shape) {
+    case "circle":
+      return [rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts)];
+    case "diamond":
+      return [
+        rc.polygon(
+          [
+            [cx, n.y + 2],
+            [cx + hw, cy],
+            [cx, n.y + n.h - 2],
+            [cx - hw, cy],
+          ],
+          opts,
+        ),
+      ];
+    case "hexagon": {
+      const hw2 = hw * 0.56;
+      return [
+        rc.polygon(
+          [
+            [cx - hw2, n.y + 3],
+            [cx + hw2, n.y + 3],
+            [cx + hw, cy],
+            [cx + hw2, n.y + n.h - 3],
+            [cx - hw2, n.y + n.h - 3],
+            [cx - hw, cy],
+          ],
+          opts,
+        ),
+      ];
+    }
+    case "triangle":
+      return [
+        rc.polygon(
+          [
+            [cx, n.y + 3],
+            [n.x + n.w - 3, n.y + n.h - 3],
+            [n.x + 3, n.y + n.h - 3],
+          ],
+          opts,
+        ),
+      ];
+    case "parallelogram":
+      return [
+        rc.polygon(
+          [
+            [n.x + 18, n.y + 1],
+            [n.x + n.w - 1, n.y + 1],
+            [n.x + n.w - 18, n.y + n.h - 1],
+            [n.x + 1, n.y + n.h - 1],
+          ],
+          opts,
+        ),
+      ];
+    case "cylinder": {
+      const eH = 18;
+      return [
+        rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts),
+        rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 }),
+        rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, {
+          ...opts,
+          roughness: 0.6,
+          fill: "none",
+        }),
+      ];
+    }
+    case "text":
+      return [];
+    case "image": {
+      if (n.imageUrl) {
+        const img = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "image",
+        );
+        img.setAttribute("href", n.imageUrl);
+        img.setAttribute("x", String(n.x + 1));
+        img.setAttribute("y", String(n.y + 1));
+        img.setAttribute("width", String(n.w - 2));
+        img.setAttribute("height", String(n.h - 2));
+        img.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        // optional: clip to rounded rect
+        const clipId = `clip-${n.id}`;
+        const defs = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "defs",
+        );
+        const clip = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "clipPath",
+        );
+        clip.setAttribute("id", clipId);
+        const rect = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect",
+        );
+        rect.setAttribute("x", String(n.x + 1));
+        rect.setAttribute("y", String(n.y + 1));
+        rect.setAttribute("width", String(n.w - 2));
+        rect.setAttribute("height", String(n.h - 2));
+        rect.setAttribute("rx", "6");
+        clip.appendChild(rect);
+        defs.appendChild(clip);
+        img.setAttribute("clip-path", `url(#${clipId})`);
+        // border box drawn on top
+        const border = rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+          ...opts,
+          fill: "none",
+          fillStyle: "solid",
+        });
+        return [defs as unknown as SVGElement, img, border];
+      }
+      // fallback: no URL → grey placeholder box
+      return [
+        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+          ...opts,
+          fill: "#e0e0e0",
+          stroke: "#999999",
+        }),
+      ];
+    }
+    default:
+      return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
+  }
+}
+
+// ── Arrowhead ─────────────────────────────────────────────
+function arrowHead(
+  rc: RoughSVG,
+  x: number,
+  y: number,
+  angle: number,
+  col: string,
+  seed: number,
+): SVGElement {
+  const as = 12;
+  return rc.polygon(
+    [
+      [x, y],
+      [
+        x - as * Math.cos(angle - Math.PI / 6.5),
+        y - as * Math.sin(angle - Math.PI / 6.5),
+      ],
+      [
+        x - as * Math.cos(angle + Math.PI / 6.5),
+        y - as * Math.sin(angle + Math.PI / 6.5),
+      ],
+    ],
+    {
+      roughness: 0.35,
+      seed,
+      fill: col,
+      fillStyle: "solid",
+      stroke: col,
+      strokeWidth: 0.8,
+    },
+  );
+}
+
+// ── Public API ────────────────────────────────────────────
+export interface SVGRendererOptions {
+  roughness?: number;
+  bowing?: number;
+  showTitle?: boolean;
+  interactive?: boolean;
+  onNodeClick?: (nodeId: string) => void;
+  theme?: "light" | "dark";
+}
+
+export function renderToSVG(
+  sg: SceneGraph,
+  container: HTMLElement | SVGSVGElement,
+  options: SVGRendererOptions = {},
+): SVGSVGElement {
+  if (typeof rough === "undefined") {
+    throw new Error(
+      'rough.js is not loaded. Add <script src="https://unpkg.com/roughjs/bundled/rough.js"></script>',
+    );
+  }
+
+  const isDark =
+    options.theme === "dark" ||
+    (options.theme === undefined &&
+      window.matchMedia?.("(prefers-color-scheme:dark)").matches);
+
+  // Resolve palette: DSL config takes priority, then options.theme, then light
+  const themeName = String(
+    sg.config[THEME_CONFIG_KEY] ?? (isDark ? "dark" : "light"),
+  );
+  const palette = resolvePalette(themeName);
+
+  BASE_ROUGH.roughness = options.roughness ?? 1.3;
+  BASE_ROUGH.bowing = options.bowing ?? 0.7;
+
+  let svg: SVGSVGElement;
+  if (container instanceof SVGSVGElement) {
+    svg = container;
+  } else {
+    svg = se("svg") as SVGSVGElement;
+    container.appendChild(svg);
+  }
+  svg.innerHTML = "";
+  svg.setAttribute("xmlns", NS);
+  svg.setAttribute("width", String(sg.width));
+  svg.setAttribute("height", String(sg.height));
+  svg.setAttribute("viewBox", `0 0 ${sg.width} ${sg.height}`);
+  svg.style.fontFamily = "var(--font-sans, system-ui, sans-serif)";
+
+  // Background rect so exported SVGs have correct bg
+  const bgRect = se("rect") as SVGRectElement;
+  bgRect.setAttribute("x", "0");
+  bgRect.setAttribute("y", "0");
+  bgRect.setAttribute("width", String(sg.width));
+  bgRect.setAttribute("height", String(sg.height));
+  bgRect.setAttribute("fill", palette.background);
+  svg.appendChild(bgRect);
+
+  const rc = rough.svg(svg);
+
+  // ── Title ────────────────────────────────────────────────
+  if (options.showTitle && sg.title) {
+    const titleColor = String(sg.config["title-color"] ?? palette.titleText);
+    const titleSize = Number(sg.config["title-size"] ?? 18);
+    const titleWeight = Number(sg.config["title-weight"] ?? 600);
+    svg.appendChild(
+      mkText(sg.title, sg.width / 2, 26, titleSize, titleWeight, titleColor),
+    );
+  }
+
+  // ── Groups (depth-sorted: outermost first) ────────────────
+  const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
+  const sortedGroups = [...sg.groups].sort(
+    (a, b) => groupDepth(a, gmMap) - groupDepth(b, gmMap),
+  );
+
+  const GL = mkGroup("grp-layer");
+  for (const g of sortedGroups) {
+    if (!g.w) continue;
+    const gs = g.style ?? {};
+    const gg = mkGroup(`group-${g.id}`, "gg");
+
+    gg.appendChild(
+      rc.rectangle(g.x, g.y, g.w, g.h, {
+        ...BASE_ROUGH,
+        roughness: 1.7,
+        bowing: 0.4,
+        seed: hashStr(g.id),
+        fill: String(gs.fill ?? palette.groupFill),
+        fillStyle: "solid",
+        stroke: String(gs.stroke ?? palette.groupStroke),
+        strokeWidth: Number(gs.strokeWidth ?? 1.2),
+        strokeLineDash: (gs as any).strokeDash ?? palette.groupDash,
+      }),
+    );
+
+    const labelColor = gs.color ? String(gs.color) : palette.groupLabel;
+    gg.appendChild(
+      mkText(g.label, g.x + 14, g.y + 14, 12, 500, labelColor, "start"),
+    );
+    GL.appendChild(gg);
+  }
+  svg.appendChild(GL);
+
+  // ── Edges ─────────────────────────────────────────────────
+  const nm = nodeMap(sg);
+  const tm = tableMap(sg);
+  const cm = chartMap(sg);
+  const ntm = noteMap(sg);
+
+  const EL = mkGroup("edge-layer");
+  for (const e of sg.edges) {
+    const src = resolveEndpoint(e.from, nm, tm, gmMap, cm, ntm);
+    const dst = resolveEndpoint(e.to, nm, tm, gmMap, cm, ntm);
+    if (!src || !dst) continue;
+
+    const dstCX = dst.x + dst.w / 2,
+      dstCY = dst.y + dst.h / 2;
+    const srcCX = src.x + src.w / 2,
+      srcCY = src.y + src.h / 2;
+    const [x1, y1] = getConnPoint(src, dstCX, dstCY);
+    const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+
+    const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
+    const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
+    const nx = (x2 - x1) / len,
+      ny = (y2 - y1) / len;
+    const ecol = String(e.style?.stroke ?? palette.edgeStroke);
+    const { arrowAt, dashed } = connMeta(e.connector);
+
+    const HEAD = 13;
+    const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
+    const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
+    const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
+    const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
+
+    eg.appendChild(
+      rc.line(sx1, sy1, sx2, sy2, {
+        ...BASE_ROUGH,
+        roughness: 0.9,
+        seed: hashStr(e.from + e.to),
+        stroke: ecol,
+        strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
+        ...(dashed ? { strokeLineDash: [6, 5] } : {}),
+      }),
+    );
+
+    if (arrowAt === "end" || arrowAt === "both")
+      eg.appendChild(
+        arrowHead(
+          rc,
+          x2,
+          y2,
+          Math.atan2(y2 - y1, x2 - x1),
+          ecol,
+          hashStr(e.to),
+        ),
+      );
+    if (arrowAt === "start" || arrowAt === "both")
+      eg.appendChild(
+        arrowHead(
+          rc,
+          x1,
+          y1,
+          Math.atan2(y1 - y2, x1 - x2),
+          ecol,
+          hashStr(e.from + "back"),
+        ),
+      );
+
+    if (e.label) {
+      const mx = (x1 + x2) / 2 - ny * 14;
+      const my = (y1 + y2) / 2 + nx * 14;
+      const tw = Math.max(e.label.length * 7 + 12, 36);
+      const bg = se("rect") as SVGRectElement;
+      bg.setAttribute("x", String(mx - tw / 2));
+      bg.setAttribute("y", String(my - 8));
+      bg.setAttribute("width", String(tw));
+      bg.setAttribute("height", "15");
+      bg.setAttribute("fill", palette.edgeLabelBg);
+      bg.setAttribute("rx", "3");
+      bg.setAttribute("opacity", "0.9");
+      eg.appendChild(bg);
+      eg.appendChild(mkText(e.label, mx, my, 11, 400, palette.edgeLabelText));
+    }
+    EL.appendChild(eg);
+  }
+  svg.appendChild(EL);
+
+  // ── Nodes ─────────────────────────────────────────────────
+  const NL = mkGroup("node-layer");
+  for (const n of sg.nodes) {
+    const ng = mkGroup(`node-${n.id}`, "ng");
+    renderShape(rc, n, palette).forEach((s) => ng.appendChild(s));
+
+    const fontSize = Number(
+      n.style?.fontSize ?? (n.shape === "text" ? 13 : 14),
+    );
+    const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
+    ng.appendChild(
+      mkText(
+        n.label,
+        n.x + n.w / 2,
+        n.y + n.h / 2,
+        fontSize,
+        fontWeight,
+        String(
+          n.style?.color ??
+            (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
+        ),
+      ),
+    );
+
+    if (options.interactive) {
+      ng.style.cursor = "pointer";
+      ng.addEventListener("click", () => options.onNodeClick?.(n.id));
+      ng.addEventListener("mouseenter", () => {
+        ng.style.filter = "brightness(0.92)";
+      });
+      ng.addEventListener("mouseleave", () => {
+        ng.style.filter = "";
+      });
+    }
+    NL.appendChild(ng);
+  }
+  svg.appendChild(NL);
+
+  // ── Tables ────────────────────────────────────────────────
+  const TL = mkGroup("table-layer");
+  for (const t of sg.tables) {
+    const tg = mkGroup(`table-${t.id}`, "tg");
+    const gs = t.style ?? {};
+    const fill = String(gs.fill ?? palette.tableFill);
+    const strk = String(gs.stroke ?? palette.tableStroke);
+    const textCol = String(gs.color ?? palette.tableText);
+    const hdrFill = palette.tableHeaderFill;
+    const hdrText = String(gs.color ?? palette.tableHeaderText);
+    const divCol = palette.tableDivider;
+    const pad = t.labelH;
+
+    // Outer border
+    tg.appendChild(
+      rc.rectangle(t.x, t.y, t.w, t.h, {
+        ...BASE_ROUGH,
+        seed: hashStr(t.id),
+        fill,
+        fillStyle: "solid",
+        stroke: strk,
+        strokeWidth: 1.5,
+      }),
+    );
+
+    // Label strip separator
+    tg.appendChild(
+      rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
+        roughness: 0.6,
+        seed: hashStr(t.id + "l"),
+        stroke: strk,
+        strokeWidth: 1,
+      }),
+    );
+
+    // Label text
+    tg.appendChild(
+      mkText(t.label, t.x + 10, t.y + pad / 2, 12, 500, textCol, "start"),
+    );
+
+    // Rows
+    let rowY = t.y + pad;
+    for (const row of t.rows) {
+      const rh = row.kind === "header" ? t.headerH : t.rowH;
+
+      // Header background fill
+      if (row.kind === "header") {
+        const hdrBg = se("rect") as SVGRectElement;
+        hdrBg.setAttribute("x", String(t.x + 1));
+        hdrBg.setAttribute("y", String(rowY + 1));
+        hdrBg.setAttribute("width", String(t.w - 2));
+        hdrBg.setAttribute("height", String(rh - 1));
+        hdrBg.setAttribute("fill", hdrFill);
+        tg.appendChild(hdrBg);
+      }
+
+      // Row separator
+      tg.appendChild(
+        rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
+          roughness: 0.4,
+          seed: hashStr(t.id + rowY),
+          stroke: row.kind === "header" ? strk : divCol,
+          strokeWidth: row.kind === "header" ? 1.2 : 0.6,
+        }),
+      );
+
+      // Cell text + col separators
+      let cx = t.x;
+      row.cells.forEach((cell, i) => {
+        const cw = t.colWidths[i] ?? 60;
+        const fw = row.kind === "header" ? 600 : 400;
+        tg.appendChild(
+          mkText(
+            cell,
+            cx + cw / 2,
+            rowY + rh / 2,
+            12,
+            fw,
+            row.kind === "header" ? hdrText : textCol,
+          ),
+        );
+
+        if (i < row.cells.length - 1) {
+          tg.appendChild(
+            rc.line(cx + cw, t.y + pad, cx + cw, t.y + t.h, {
+              roughness: 0.3,
+              seed: hashStr(t.id + "c" + i),
+              stroke: divCol,
+              strokeWidth: 0.5,
+            }),
+          );
+        }
+        cx += cw;
+      });
+
+      rowY += rh;
+    }
+
+    if (options.interactive) {
+      tg.style.cursor = "pointer";
+      tg.addEventListener("click", () => options.onNodeClick?.(t.id));
+    }
+    TL.appendChild(tg);
+  }
+  svg.appendChild(TL);
+
+  // ── Notes ─────────────────────────────────────────────────
+  const NoteL = mkGroup("note-layer");
+  for (const n of sg.notes) {
+    const ng = mkGroup(`note-${n.id}`, "ntg");
+    const gs = n.style ?? {};
+    const fill = String(gs.fill ?? palette.noteFill);
+    const strk = String(gs.stroke ?? palette.noteStroke);
+    const fold = 14;
+    const { x, y, w, h } = n;
+
+    ng.appendChild(
+      rc.polygon(
+        [
+          [x, y],
+          [x + w - fold, y],
+          [x + w, y + fold],
+          [x + w, y + h],
+          [x, y + h],
+        ],
+        {
+          ...BASE_ROUGH,
+          seed: hashStr(n.id),
+          fill,
+          fillStyle: "solid",
+          stroke: strk,
+          strokeWidth: 1.2,
+        },
+      ),
+    );
+
+    ng.appendChild(
+      rc.polygon(
+        [
+          [x + w - fold, y],
+          [x + w, y + fold],
+          [x + w - fold, y + fold],
+        ],
+        {
+          roughness: 0.4,
+          seed: hashStr(n.id + "f"),
+          fill: palette.noteFold,
+          fillStyle: "solid",
+          stroke: strk,
+          strokeWidth: 0.8,
+        },
+      ),
+    );
+
+    n.lines.forEach((line, i) => {
+      ng.appendChild(
+        mkText(
+          line,
+          x + 12,
+          y + 12 + i * 20 + 10,
+          12,
+          400,
+          String(gs.color ?? palette.noteText),
+          "start",
+        ),
+      );
+    });
+
+    NoteL.appendChild(ng);
+  }
+  svg.appendChild(NoteL);
+
+  // ── Charts ────────────────────────────────────────────────
+  const CL = mkGroup("chart-layer");
+  for (const c of sg.charts) {
+    CL.appendChild(renderRoughChartSVG(rc, c, palette, themeName !== "light"));
+  }
+  svg.appendChild(CL);
+
+  return svg;
+}
+
+export function svgToString(svg: SVGSVGElement): string {
+  return (
+    '<?xml version="1.0" encoding="utf-8"?>\n' +
+    new XMLSerializer().serializeToString(svg)
+  );
+}
