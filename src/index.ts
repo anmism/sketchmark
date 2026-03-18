@@ -155,3 +155,5 @@ export function render(options: RenderOptions): DiagramInstance {
 
   return instance;
 }
+
+export { PALETTES, resolvePalette, THEME_CONFIG_KEY, listThemes, THEME_NAMES } from './theme';

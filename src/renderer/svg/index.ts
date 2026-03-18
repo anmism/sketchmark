@@ -72,6 +72,41 @@ function hashStr(s: string): number {
 const BASE_ROUGH: RoughOpts = { roughness: 1.3, bowing: 0.7 };
 
 // ── SVG helpers ───────────────────────────────────────────
+
+function mkMultilineText(
+  lines: string[],
+  x: number,
+  cy: number, // vertical center of the whole block
+  sz = 14,
+  wt: number | string = 500,
+  col = "#1a1208",
+  anchor = "middle",
+  lineH = 18,
+): SVGTextElement {
+  const t = se("text") as SVGTextElement;
+  t.setAttribute("text-anchor", anchor);
+  t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
+  t.setAttribute("font-size", String(sz));
+  t.setAttribute("font-weight", String(wt));
+  t.setAttribute("fill", col);
+  t.setAttribute("pointer-events", "none");
+  t.setAttribute("user-select", "none");
+
+  // vertically centre the whole block
+  const totalH = (lines.length - 1) * lineH;
+  const startY = cy - totalH / 2;
+
+  lines.forEach((line, i) => {
+    const ts = se("tspan") as SVGTSpanElement;
+    ts.setAttribute("x", String(x));
+    ts.setAttribute("y", String(startY + i * lineH));
+    ts.setAttribute("dominant-baseline", "middle");
+    ts.textContent = line;
+    t.appendChild(ts);
+  });
+  return t;
+}
+
 function mkText(
   txt: string,
   x: number,
@@ -370,7 +405,8 @@ export interface SVGRendererOptions {
   showTitle?: boolean;
   interactive?: boolean;
   onNodeClick?: (nodeId: string) => void;
-  theme?: "light" | "dark";
+  theme?: "light" | "dark" | "auto";
+  transparent?: boolean;
 }
 
 export function renderToSVG(
@@ -386,7 +422,7 @@ export function renderToSVG(
 
   const isDark =
     options.theme === "dark" ||
-    (options.theme === undefined &&
+    (options.theme === "auto" &&
       window.matchMedia?.("(prefers-color-scheme:dark)").matches);
 
   // Resolve palette: DSL config takes priority, then options.theme, then light
@@ -413,14 +449,23 @@ export function renderToSVG(
   svg.style.fontFamily = "var(--font-sans, system-ui, sans-serif)";
 
   // Background rect so exported SVGs have correct bg
-  const bgRect = se("rect") as SVGRectElement;
-  bgRect.setAttribute("x", "0");
-  bgRect.setAttribute("y", "0");
-  bgRect.setAttribute("width", String(sg.width));
-  bgRect.setAttribute("height", String(sg.height));
-  bgRect.setAttribute("fill", palette.background);
-  svg.appendChild(bgRect);
-
+  // const bgRect = se("rect") as SVGRectElement;
+  // bgRect.setAttribute("x", "0");
+  // bgRect.setAttribute("y", "0");
+  // bgRect.setAttribute("width", String(sg.width));
+  // bgRect.setAttribute("height", String(sg.height));
+  // bgRect.setAttribute("fill", palette.background);
+  // svg.appendChild(bgRect);
+  if (!options.transparent) {
+    const bgRect = se("rect") as SVGRectElement;
+    bgRect.setAttribute("x", "0");
+    bgRect.setAttribute("y", "0");
+    bgRect.setAttribute("width", String(sg.width));
+    bgRect.setAttribute("height", String(sg.height));
+    bgRect.setAttribute("fill", palette.background);
+    svg.appendChild(bgRect);
+  }
+  
   const rc = rough.svg(svg);
 
   // ── Title ────────────────────────────────────────────────
@@ -562,18 +607,31 @@ export function renderToSVG(
       n.style?.fontSize ?? (n.shape === "text" ? 13 : 14),
     );
     const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
+    const lines = n.label.split("\n");
     ng.appendChild(
-      mkText(
-        n.label,
-        n.x + n.w / 2,
-        n.y + n.h / 2,
-        fontSize,
-        fontWeight,
-        String(
-          n.style?.color ??
-            (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
-        ),
-      ),
+      lines.length > 1
+        ? mkMultilineText(
+            lines,
+            n.x + n.w / 2,
+            n.y + n.h / 2,
+            fontSize,
+            fontWeight,
+            String(
+              n.style?.color ??
+                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
+            ),
+          )
+        : mkText(
+            n.label,
+            n.x + n.w / 2,
+            n.y + n.h / 2,
+            fontSize,
+            fontWeight,
+            String(
+              n.style?.color ??
+                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
+            ),
+          ),
     );
 
     if (options.interactive) {

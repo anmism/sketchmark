@@ -71,7 +71,7 @@ const instance = render({
     a --> b label="connects"
   `,
   renderer:   'svg',
-  svgOptions: { showTitle: true, interactive: true },
+  svgOptions: { showTitle: true, interactive: true,transparent: true },
 });
 
 // Step through animation

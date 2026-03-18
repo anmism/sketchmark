@@ -39,8 +39,9 @@ export interface CanvasRendererOptions {
   background?: string;
   roughness?: number;
   bowing?: number;
-  theme?: "light" | "dark";
+  theme?: "light" | "dark" | "auto";
   animate?: boolean;
+  transparent?: boolean;
 }
 
 // ── Arrow direction from connector (mirrors svg/index.ts) ─
@@ -306,19 +307,25 @@ export function renderToCanvas(
   const ctx = canvas.getContext("2d")!;
   ctx.scale(scale, scale);
 
+  if (options.transparent) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
   // ── Resolve palette (mirrors SVG renderer) ───────────────
   const isDark =
     options.theme === "dark" ||
-    (options.theme === undefined &&
-      typeof window !== "undefined" &&
+    (options.theme === "auto" &&
       window.matchMedia?.("(prefers-color-scheme:dark)").matches);
+
   const themeName = String(
     sg.config[THEME_CONFIG_KEY] ?? (isDark ? "dark" : "light"),
   );
   const palette = resolvePalette(themeName);
 
-  ctx.fillStyle = options.background ?? palette.background;
-  ctx.fillRect(0, 0, sg.width, sg.height);
+  if (!options.transparent) {
+    ctx.fillStyle = options.background ?? palette.background;
+    ctx.fillRect(0, 0, sg.width, sg.height);
+  }
 
   const rc = rough.canvas(canvas);
   const R = {
@@ -447,7 +454,16 @@ export function renderToCanvas(
     ctx.fillStyle = textColor;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(n.label, n.x + n.w / 2, n.y + n.h / 2);
+    const lines = n.label.split("\n");
+    if (lines.length === 1) {
+      ctx.fillText(n.label, n.x + n.w / 2, n.y + n.h / 2);
+    } else {
+      const lineH = fontSize * 1.35;
+      const startY = n.y + n.h / 2 - ((lines.length - 1) * lineH) / 2;
+      lines.forEach((line, i) => {
+        ctx.fillText(line, n.x + n.w / 2, startY + i * lineH);
+      });
+    }
     ctx.restore();
   }
 

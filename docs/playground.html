@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>sketchmark Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #18160e;
+      --bg2:       #12100a;
+      --bg3:       #1c1608;
+      --bg4:       #22190e;
+      --border:    #3a2a12;
+      --border2:   #4a3520;
+      --accent:    #c85428;
+      --gold:      #f0c96a;
+      --text:      #e0c898;
+      --text2:     #dcc48a;
+      --text3:     #9a7848;
+      --anim-bg:   #eee7d8;
+      --anim-border: #caba98;
+      --anim-text: #3a2010;
+      --canvas-bg: #f8f4ea;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text);
+      user-select: none;
+    }
+
+    /* ── Header ─────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 44px;
+      padding: 0 14px;
+      background: var(--bg2);
+      border-bottom: 2px solid var(--border);
+      flex-shrink: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: .04em;
+      white-space: nowrap;
+      font-family: 'Courier New', monospace;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .hdr-sep { flex: 1; }
+
+    .hdr-btn {
+      background: var(--bg4);
+      color: var(--text2);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 3px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      transition: border-color .15s, color .15s;
+    }
+    .hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ── Layout ─────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Sidebar ────────────────────────── */
+    #sidebar {
+      width: 320px;
+      min-width: 180px;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg3);
+      border-right: 2px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+      transition: width .18s ease;
+      z-index: 10;
+    }
+
+    #sidebar.collapsed { width: 36px !important; min-width: 36px; }
+    #sidebar.collapsed .sidebar-inner { display: none; }
+
+    .sidebar-inner { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* example picker */
+    #example-tabs {
+      display: flex;
+      gap: 0;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      flex-shrink: 0;
+      scrollbar-width: none;
+    }
+    #example-tabs::-webkit-scrollbar { display: none; }
+
+
+    ::-webkit-scrollbar {
+    width: 0;  /* Remove scrollbar space */
+    background: transparent;  /* Optional: just make scrollbar invisible */
+}
+
+    .ex-tab {
+      background: none;
+      color: var(--text3);
+      border: none;
+      border-right: 1px solid var(--border);
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      white-space: nowrap;
+      transition: background .12s, color .12s;
+    }
+    .ex-tab:hover  { background: var(--bg4); color: var(--text2); }
+    .ex-tab.active { background: var(--bg3); color: var(--gold); border-bottom: 2px solid var(--accent); }
+
+    /* toolbar */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .run-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+      letter-spacing: .04em;
+    }
+    .run-btn:hover { filter: brightness(1.1); }
+
+    .kbd {
+      font-size: 10px;
+      color: var(--text3);
+      flex: 1;
+    }
+
+    .tool-btn {
+      background: var(--bg4);
+      color: var(--text3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 3px 7px;
+      cursor: pointer;
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+    }
+    .tool-btn:hover { border-color: var(--border2); color: var(--text2); }
+
+    /* editor */
+    #dsl {
+      flex: 1;
+      background: var(--bg3);
+      color: var(--text);
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 10px 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 11.5px;
+      line-height: 1.8;
+      caret-color: var(--gold);
+      tab-size: 2;
+      user-select: text;
+    }
+
+    #error {
+      padding: 5px 10px;
+      background: #280a0a;
+      color: #f07070;
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      border-top: 1px solid #5a1818;
+      display: none;
+      flex-shrink: 0;
+    }
+
+    /* collapse toggle */
+    #collapse-btn {
+      position: absolute;
+      right: -13px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 40px;
+      background: var(--border);
+      border: 1px solid var(--border2);
+      border-radius: 0 4px 4px 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: var(--text3);
+      z-index: 20;
+      transition: background .12s;
+    }
+    #collapse-btn:hover { background: var(--border2); color: var(--text2); }
+
+    /* resize handle */
+    #resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 4px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 30;
+      background: transparent;
+    }
+    #resize-handle:hover { background: var(--accent); opacity: .4; }
+
+    #sidebar.collapsed #resize-handle { display: none; }
+
+    /* when collapsed show arrow pointing right to expand */
+    #sidebar.collapsed #collapse-btn { right: -1px; border-radius: 0 4px 4px 0; }
+    #sidebar.collapsed .collapse-icon::before { content: '▶'; }
+    .collapse-icon::before { content: '◀'; }
+
+    /* collapsed drag strip — full-height visible target */
+    #expand-strip {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 36px;
+      height: 100%;
+      cursor: col-resize;
+      background: var(--bg3);
+      border-right: 2px solid var(--border);
+      z-index: 9;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 3px;
+    }
+    #sidebar.collapsed ~ #expand-strip { display: flex; }
+    #expand-strip .strip-dot {
+      width: 3px; height: 3px;
+      background: var(--border2);
+      border-radius: 50%;
+    }
+    #expand-strip:hover { background: var(--bg4); }
+    #expand-strip:hover .strip-dot { background: var(--gold); }
+
+    /* ── Canvas pane ─────────────────────── */
+    #canvas-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* anim bar */
+    #anim-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      background: var(--anim-bg);
+      border-bottom: 1.5px solid var(--anim-border);
+      flex-shrink: 0;
+      font-family: 'Courier New', monospace;
+       position: relative;  
+  z-index: 15;  
+    }
+
+    .anim-btn {
+      background: #f5eedd;
+      color: var(--anim-text);
+      border: 1.5px solid var(--anim-border);
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      transition: background .1s;
+    }
+    .anim-btn:hover:not(:disabled) { background: #c8a060; color: #fff; border-color: #c8a060; }
+    .anim-btn:disabled { opacity: .4; cursor: default; }
+
+    #step-display {
+      font-size: 11px;
+      color: #6a4820;
+      min-width: 100px;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+    }
+
+    #step-label {
+      font-size: 10px;
+      color: #8a6040;
+      font-style: italic;
+      font-family: 'Courier New', monospace;
+    }
+
+    #stats {
+      font-size: 10px;
+      color: #9a7848;
+      font-family: 'Courier New', monospace;
+    }
+
+    .anim-sep { flex: 1; }
+
+    /* ── Infinite canvas ─────────────────── */
+    #viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: var(--canvas-bg);
+      cursor: grab;
+      transition: background .2s;
+    }
+    #viewport.dark-canvas { background: #12100a; }
+    #viewport.dark-canvas #dot-grid circle { fill: rgba(80,60,20,0.45); }
+    #viewport.panning { cursor: grabbing; }
+
+    #dot-grid {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #diagram-world {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    /* ── Canvas controls ─────────────────── */
+    #canvas-controls {
+      position: absolute;
+      bottom: 14px;
+      right: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      z-index: 20;
+    }
+
+    .ctrl-btn {
+      width: 28px;
+      height: 28px;
+      background: rgba(255,248,234,.94);
+      color: #3a2010;
+      border: 1px solid var(--anim-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      transition: background .1s;
+    }
+    .ctrl-btn:hover { background: #ffe8c0; }
+
+    #zoom-label {
+      font-size: 9px;
+      color: #8a6040;
+      font-family: 'Courier New', monospace;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    /* ── Mini-map ────────────────────────── */
+    #minimap-wrap {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      width: 120px;
+      height: 80px;
+      background: rgba(255,248,234,.9);
+      border: 1px solid var(--anim-border);
+      border-radius: 4px;
+      overflow: hidden;
+      z-index: 20;
+      display: none;  /* hidden until first render */
+    }
+    #minimap-wrap.visible { display: block; }
+    #minimap-viewport-indicator {
+      position: absolute;
+      border: 1.5px solid var(--accent);
+      background: rgba(200,84,40,.08);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>✏ sketch<span>mark</span></h1>
+    <div class="hdr-sep"></div>
+    <button class="hdr-btn" id="btn-export-svg">↓ SVG</button>
+    <button class="hdr-btn" id="btn-export-png">↓ PNG</button>
+    <button class="hdr-btn" id="btn-export-html">↓ HTML</button>
+    <button class="hdr-btn" id="btn-theme-toggle">☀ light</button>
+  </header>
+
+  <main>
+    <!-- ── Sidebar ───────────────────────── -->
+    <div id="sidebar">
+      <div class="sidebar-inner">
+        <!-- example tabs -->
+        <div id="example-tabs">
+          <button class="ex-tab active" data-example="arch">🏗 arch</button>
+          <button class="ex-tab" data-example="auth">🔐 auth</button>
+          <button class="ex-tab" data-example="micro">⚙ micro</button>
+          <button class="ex-tab" data-example="nested">📦 nested</button>
+          <button class="ex-tab" data-example="pyramid">🔺 pyramid</button>
+          <button class="ex-tab" data-example="network">🌐 osi</button>
+          <button class="ex-tab" data-example="deploy">🚀 deploy</button>
+          <button class="ex-tab" data-example="charts">📊 charts</button>
+          <button class="ex-tab" data-example="tables">📋 tables</button>
+          <button class="ex-tab" data-example="notes">📝 notes</button>
+          <button class="ex-tab" data-example="shapes">⬡ shapes</button>
+          <button class="ex-tab" data-example="sketch">✏ sketch</button>
+        </div>
+
+        <!-- toolbar -->
+        <div id="toolbar">
+          <button class="run-btn" id="btn-run">▶ Run</button>
+          <span class="kbd">Ctrl+Enter</span>
+          <button class="tool-btn" id="btn-format">⇥ fmt</button>
+          <button class="tool-btn" id="btn-clear">✕ clear</button>
+        </div>
+
+        <textarea id="dsl" spellcheck="false"></textarea>
+        <div id="error"></div>
+      </div>
+
+      <!-- resize handle -->
+      <div id="resize-handle"></div>
+
+      <!-- collapse toggle -->
+      <button id="collapse-btn" title="Collapse sidebar">
+        <span class="collapse-icon"></span>
+      </button>
+    </div>
+
+    <!-- ── Canvas pane ─────────────────── -->
+    <div id="canvas-pane">
+
+    <!-- expand strip shown when sidebar collapsed -->
+    <div id="expand-strip" title="Drag to expand editor">
+      <div class="strip-dot"></div>
+      <div class="strip-dot"></div>
+      <div class="strip-dot"></div>
+      <div class="strip-dot"></div>
+      <div class="strip-dot"></div>
+    </div>
+      <!-- animation bar -->
+      <div id="anim-bar">
+        <button class="anim-btn" id="btn-reset" title="Reset">↺</button>
+        <button class="anim-btn" id="btn-prev" disabled>←</button>
+        <span id="step-display">No steps</span>
+        <button class="anim-btn" id="btn-next" disabled>→</button>
+        <button class="anim-btn" id="btn-play">▶ Play</button>
+        <span id="step-label"></span>
+        <div class="anim-sep"></div>
+        <span id="stats"></span>
+      </div>
+
+      <!-- infinite canvas viewport -->
+      <div id="viewport">
+        <svg id="dot-grid" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="pg" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="12" cy="12" r="0.9" fill="rgba(170,145,100,0.38)"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#pg)"/>
+        </svg>
+
+        <div id="diagram-world">
+          <div id="diagram-wrap"></div>
+        </div>
+
+        <!-- zoom controls -->
+        <div id="canvas-controls">
+          <button class="ctrl-btn" id="btn-fit"    title="Fit to screen">⊡</button>
+          <button class="ctrl-btn" id="btn-reset-view" title="Reset view">⌂</button>
+          <button class="ctrl-btn" id="btn-zoomin" title="Zoom in">+</button>
+          <span   id="zoom-label">100%</span>
+          <button class="ctrl-btn" id="btn-zoomout" title="Zoom out">−</button>
+        </div>
+
+        <!-- mini-map -->
+        <div id="minimap-wrap">
+          <canvas id="minimap" width="120" height="80"></canvas>
+          <div id="minimap-viewport-indicator"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+  <script type="module">
+    import { render } from '../dist/index.js';
+
+    // ── Examples ────────────────────────────────────────────────────────────
+    const EXAMPLES = {
+      arch: `diagram
+title label="System Architecture"
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=60 padding=0
+{
+  box client  label="Client App"   theme=primary width=140 height=55
+  box gateway label="API Gateway"  theme=warning width=140 height=55
+
+  group services label="Microservices" layout=column gap=16 padding=30 theme=muted
+  {
+    box auth    label="Auth Service"    theme=primary width=140 height=55
+    box billing label="Billing Service" theme=primary width=140 height=55
+  }
+
+  box database label="PostgreSQL" theme=success width=140 height=55
+}
+
+client  --> gateway  label="HTTPS"
+gateway --> auth
+gateway --> billing
+auth    --> database label="SQL"
+billing --> database label="SQL"
+
+step highlight client
+step draw client-->gateway
+step highlight gateway
+step draw gateway-->auth
+step draw gateway-->billing
+step highlight auth
+step draw auth-->database
+step highlight database
+end`,
+
+      auth: `diagram
+title label="Authentication Flow"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=50 padding=0
+{
+  group col1 layout=column gap=20 padding=0
+  {
+    box user   label="User Browser"  theme=primary width=150 height=58
+    box mobile label="Mobile App"    theme=primary width=150 height=58
+  }
+
+  group gateway label="API Gateway" layout=column gap=16 padding=30 theme=muted
+  {
+    box waf       label="WAF"           theme=danger  width=160 height=55
+    box ratelimit label="Rate Limiter"  theme=warning width=160 height=55
+    box router    label="Router"        theme=primary width=160 height=55
+  }
+
+  group authsvc label="Auth Service" layout=column gap=16 padding=30 theme=muted
+  {
+    box validate label="Validate Creds"  theme=primary width=160 height=55
+    box mfa      label="MFA Check"       theme=warning width=160 height=55
+    box tokengen label="Token Generator" theme=success width=160 height=55
+  }
+
+  group col4 layout=column gap=30 padding=0
+  {
+    group datastores label="Data Stores" layout=column gap=16 padding=30 theme=muted
+    {
+      cylinder userdb   label="Users DB"    theme=primary width=150 height=65
+      cylinder sessions label="Sessions"    theme=warning width=150 height=65
+      cylinder cache    label="Redis Cache" theme=danger  width=150 height=65
+    }
+    box audit label="Audit Log" theme=muted width=150 height=55
+  }
+}
+
+user      --> waf        label="POST /login"
+mobile    --> waf        label="POST /login"
+waf       --> ratelimit
+ratelimit --> router
+router    --> validate   label="credentials"
+validate  --> userdb     label="lookup"
+validate  --> mfa        label="if enabled"
+mfa       --> cache      label="OTP store"
+validate  --> tokengen   label="on success"
+tokengen  --> sessions   label="store token"
+tokengen  --> cache      label="cache token"
+tokengen  --> user       label="JWT"
+tokengen  --> mobile     label="JWT"
+validate  --> audit      label="log attempt"
+tokengen  --> audit      label="log success"
+
+step highlight user
+step draw user-->waf
+step highlight waf
+step draw waf-->ratelimit
+step draw ratelimit-->router
+step draw router-->validate
+step highlight validate
+step draw validate-->userdb
+step draw validate-->mfa
+step highlight mfa
+step draw mfa-->cache
+step draw validate-->tokengen
+step highlight tokengen
+step draw tokengen-->user
+step pulse tokengen
+step draw validate-->audit
+step draw tokengen-->audit
+step highlight audit
+end`,
+
+      micro: `diagram
+title label="E-Commerce Microservices"
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group root layout=row gap=60 padding=0
+{
+  group left layout=column gap=20 padding=0
+  {
+    circle user    label="User"         theme=primary width=90  height=90
+    box    mobile  label="Mobile"       theme=primary width=120 height=55
+    box    partner label="Partner API"  theme=muted   width=120 height=55
+  }
+
+  group middle layout=column gap=30 padding=0
+  {
+    group gateway label="Gateway" layout=column gap=16 padding=30 theme=muted
+    {
+      box lb      label="Load Balancer" theme=warning width=140 height=55
+      box auth_gw label="Auth"          theme=danger  width=140 height=55
+    }
+
+    group services label="Core Services" layout=grid columns=2 gap=16 padding=30 theme=muted
+    {
+      box svc_order   label="Orders"   theme=primary width=120 height=55
+      box svc_product label="Products" theme=primary width=120 height=55
+      box svc_payment label="Payments" theme=danger  width=120 height=55
+      box svc_notify  label="Notify"   theme=success width=120 height=55
+    }
+  }
+
+  group right layout=column gap=30 padding=0
+  {
+    group messaging label="Messaging" layout=column gap=16 padding=30 theme=muted
+    {
+      cylinder kafka label="Kafka" theme=warning width=140 height=65
+      cylinder redis label="Redis" theme=danger  width=140 height=65
+    }
+
+    group dbs label="Databases" layout=grid columns=2 gap=16 padding=30 theme=muted
+    {
+      cylinder db_order   label="Orders DB"   theme=primary width=120 height=65
+      cylinder db_product label="Products DB" theme=primary width=120 height=65
+      cylinder db_payment label="Payments DB" theme=danger  width=120 height=65
+      cylinder db_user    label="Users DB"    theme=muted   width=120 height=65
+    }
+  }
+}
+
+user        --> lb           label="HTTP"
+mobile      --> lb
+partner     --> lb           label="API Key"
+lb          --> auth_gw
+auth_gw     --> svc_order    label="route"
+auth_gw     --> svc_product  label="route"
+auth_gw     --> svc_payment  label="route"
+auth_gw     --> svc_notify   label="route"
+svc_order   --> kafka        label="OrderPlaced"
+svc_payment --> kafka        label="PaymentDone"
+kafka       --> svc_notify   label="consume"
+svc_order   --> db_order
+svc_product --> db_product
+svc_payment --> db_payment
+svc_order   --> redis        label="cache"
+end`,
+
+      nested: `diagram
+title label="Nested Groups Demo"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+theme purple  fill="#f3e8ff" stroke="#7700cc" color="#4400aa"
+
+group page layout=row gap=50 padding=0
+{
+  group platform label="Platform" layout=column gap=30 padding=30 theme=muted
+  {
+    group frontend label="Frontend" layout=row gap=16 padding=24 theme=primary
+    {
+      box react  label="React"      width=100 height=50
+      box next   label="Next.js"    width=100 height=50
+      box vite   label="Vite"       width=100 height=50
+    }
+
+    group backend label="Backend" layout=row gap=16 padding=24 theme=success
+    {
+      box api    label="REST API"   width=100 height=50
+      box grpc   label="gRPC"       width=100 height=50
+      box ws     label="WebSocket"  width=100 height=50
+    }
+
+    group workers label="Workers" layout=row gap=16 padding=24 theme=warning
+    {
+      box queue  label="Queue"      width=100 height=50
+      box cron   label="Cron"       width=100 height=50
+      box events label="Events"     width=100 height=50
+    }
+  }
+
+  group data label="Data" layout=column gap=30 padding=30 theme=muted
+  {
+    group primary_db label="Primary" layout=column gap=16 padding=24 theme=primary
+    {
+      cylinder pg    label="Postgres" width=130 height=65
+      cylinder mongo label="MongoDB"  width=130 height=65
+    }
+
+    group cache_layer label="Cache" layout=column gap=16 padding=24 theme=danger
+    {
+      cylinder redis    label="Redis"    width=130 height=65
+      cylinder memcache label="Memcache" width=130 height=65
+    }
+
+    group search_layer label="Search" layout=column gap=16 padding=24 theme=purple
+    {
+      cylinder elastic label="Elastic" width=130 height=65
+    }
+  }
+}
+
+react  --> api
+next   --> api
+api    --> pg
+api    --> redis    label="cache"
+api    --> elastic  label="search"
+grpc   --> mongo
+queue  --> pg
+events --> redis
+end`,
+
+      pyramid: `diagram
+title label="Org Chart Pyramid"
+layout column
+config gap=40
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group page layout=column gap=40 padding=0 align=center
+{
+  box top label="CEO" theme=danger width=120 height=55
+
+  group row2 layout=row gap=30 padding=0 justify=center
+  {
+    box cto label="CTO" theme=warning width=120 height=55
+    box cfo label="CFO" theme=warning width=120 height=55
+    box coo label="COO" theme=warning width=120 height=55
+  }
+
+  group row3 layout=row gap=30 padding=0 justify=center
+  {
+    box eng    label="Engineering" theme=primary width=130 height=55
+    box design label="Design"      theme=primary width=130 height=55
+    box fin    label="Finance"     theme=primary width=130 height=55
+    box ops    label="Operations"  theme=primary width=130 height=55
+  }
+
+  group row4 layout=row gap=20 padding=0 justify=center
+  {
+    box fe   label="Frontend" theme=success width=110 height=50
+    box be   label="Backend"  theme=success width=110 height=50
+    box qa   label="QA"       theme=success width=110 height=50
+    box ui   label="UI/UX"    theme=success width=110 height=50
+    box data label="Data"     theme=success width=110 height=50
+    box sec  label="Security" theme=success width=110 height=50
+  }
+
+  box bottom label="All Teams" theme=muted width=200 height=55
+}
+
+top    --> cto
+top    --> cfo
+top    --> coo
+cto    --> eng
+cto    --> design
+cfo    --> fin
+coo    --> ops
+eng    --> fe
+eng    --> be
+eng    --> qa
+design --> ui
+fin    --> data
+ops    --> sec
+end`,
+
+      network: `diagram
+title label="OSI Network Stack"
+layout column
+config gap=30
+
+theme l7 fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme l6 fill="#e8f0ff" stroke="#2200cc" color="#1100aa"
+theme l5 fill="#ede8ff" stroke="#4400cc" color="#2200aa"
+theme l4 fill="#f3e8ff" stroke="#6600cc" color="#4400aa"
+theme l3 fill="#f8e8ff" stroke="#8800cc" color="#5500aa"
+theme l2 fill="#ffe8ff" stroke="#aa00cc" color="#770088"
+theme l1 fill="#ffe8f8" stroke="#cc0088" color="#880055"
+
+group stack layout=column gap=0 padding=20
+{
+  box app       label="7 · Application"  theme=l7 width=280 height=52
+  box pres      label="6 · Presentation" theme=l6 width=280 height=52
+  box session   label="5 · Session"      theme=l5 width=280 height=52
+  box transport label="4 · Transport"    theme=l4 width=280 height=52
+  box network   label="3 · Network"      theme=l3 width=280 height=52
+  box datalink  label="2 · Data Link"    theme=l2 width=280 height=52
+  box physical  label="1 · Physical"     theme=l1 width=280 height=52
+}
+
+app       --> pres      label="data"
+pres      --> session   label="encoded"
+session   --> transport label="established"
+transport --> network   label="segment"
+network   --> datalink  label="packet"
+datalink  --> physical  label="frame"
+
+step highlight app
+step draw app-->pres
+step highlight pres
+step draw pres-->session
+step highlight session
+step draw session-->transport
+step highlight transport
+step draw transport-->network
+step highlight network
+step draw network-->datalink
+step highlight datalink
+step draw datalink-->physical
+step highlight physical
+end`,
+
+      deploy: `diagram
+title label="Blue-Green Deployment"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+box lb label="Load Balancer" theme=warning width=150 height=55
+
+group blue label="Blue (live)" layout=column gap=16 padding=26 theme=primary
+{
+  box b1 label="API v1"    theme=primary width=120 height=50
+  box b2 label="Worker v1" theme=primary width=120 height=50
+}
+
+group green label="Green (new)" layout=column gap=16 padding=26 theme=success
+{
+  box g1 label="API v2"    theme=success width=120 height=50
+  box g2 label="Worker v2" theme=success width=120 height=50
+}
+
+cylinder db label="Shared DB" theme=muted width=140 height=65
+
+lb --> b1 label="100%"
+lb --> g1 label="0%"
+b1 --> db
+g1 --> db
+
+step highlight lb
+step draw lb-->b1
+step highlight b1
+step move g1 dx=0 dy=60
+step move g2 dx=0 dy=60
+step draw g1
+step move g1 dx=0 dy=-60 duration=500
+step draw g2
+step move g2 dx=0 dy=-60 duration=500
+step fade b1
+step fade b2
+step draw lb-->g1
+step highlight g1
+step draw g1-->db
+end`,
+
+      charts: `diagram
+title label="Dashboard Charts"
+layout row
+config gap=40
+
+bar-chart revenue title="Monthly Revenue" width=320 height=220
+data
+[
+  ["Month", "2023", "2024"],
+  ["Jan",   42000,  58000 ],
+  ["Feb",   38000,  61000 ],
+  ["Mar",   51000,  67000 ],
+  ["Apr",   46000,  72000 ],
+  ["May",   53000,  69000 ]
+]
+
+pie-chart share title="Market Share" width=260 height=220
+data
+[
+  ["Product A", 42],
+  ["Product B", 31],
+  ["Product C", 27]
+]
+
+line-chart growth title="User Growth" width=300 height=220
+data
+[
+  ["Week", "Signups", "Active"],
+  ["W1",   120,       80      ],
+  ["W2",   145,       98      ],
+  ["W3",   180,       130     ],
+  ["W4",   220,       175     ],
+  ["W5",   195,       160     ]
+]
+
+end`,
+
+      tables: `diagram
+title label="Pricing Comparison"
+layout column
+config gap=40
+
+table pricing label="Pricing Plans"
+{
+  header  Plan        Price   Requests    Support
+  row     Free        $0      "1k/day"      "Community"
+  row     Pro         $29     "100k/day"    "Email"
+  row     Business    $99     "1M/day"      "Priority"
+  row     Enterprise  $299    "Unlimited"   "Dedicated"
+}
+
+table stack label="Tech Stack"
+{
+  header  Layer       Technology  Version
+  row     Frontend    "React"       "18.x"
+  row     Backend     "Node.js"     "20 LTS"
+  row     Database    PostgreSQL  "16.x"
+  row     Cache       Redis       "7.x"
+  row     Queue       Kafka       "3.6"
+}
+end`,
+
+      notes: `diagram
+title label="System Notes"
+layout row
+config gap=40
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+box api label="API Server" theme=primary width=140 height=55
+box db  label="Database"   theme=muted   width=140 height=55
+
+api --> db label="SQL"
+
+note n1 label="Rate limited\nto 1000 req/s\nper tenant"
+note n2 label="Postgres 16\nwith pg_vector\nfor embeddings"
+note n3 label="All writes go\nthrough a queue\nbefore commit"
+
+end`,
+
+      shapes: `diagram
+title label="All Node Shapes"
+layout row
+config gap=40
+config theme=sketch
+
+group row1 layout=row gap=30 padding=30
+{
+  box           s1 label="box"           width=110 height=55
+  circle        s2 label="circle"        width=90  height=90
+  diamond       s3 label="diamond"       width=130 height=62
+  hexagon       s4 label="hexagon"       width=130 height=56
+  triangle      s5 label="triangle"      width=110 height=66
+}
+
+group row2 layout=row gap=30 padding=30
+{
+  cylinder      s6 label="cylinder"      width=120 height=70
+  parallelogram s7 label="parallelogram" width=140 height=52
+  text          s8 label="text node"
+}
+end`,
+
+      sketch: `diagram
+title label="Sketch Theme Demo"
+layout row
+config theme=sketch
+config gap=60
+
+group root layout=row gap=60 padding=0
+{
+  box client  label="Client App"   width=140 height=55
+  box gateway label="API Gateway"  width=140 height=55
+
+  group services label="Services" layout=column gap=16 padding=30
+  {
+    box auth    label="Auth Service"    width=140 height=55
+    box billing label="Billing Service" width=140 height=55
+  }
+
+  cylinder db label="PostgreSQL" width=140 height=65
+}
+
+client  --> gateway  label="HTTPS"
+gateway --> auth
+gateway --> billing
+auth    --> db label="SQL"
+billing --> db label="SQL"
+
+step highlight client
+step draw client-->gateway
+step highlight gateway
+step draw gateway-->auth
+step draw gateway-->billing
+step highlight auth
+step draw auth-->db
+step highlight db
+end`,
+    };
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let instance    = null;
+    let panX        = 60, panY = 60, zoom = 1;
+    let isPanning   = false;
+    let lastPX      = 0,  lastPY = 0;
+    let canvasTheme = 'light';
+
+    const world   = document.getElementById('diagram-world');
+    const vp      = document.getElementById('viewport');
+    const wrap    = document.getElementById('diagram-wrap');
+    const grid    = document.querySelector('#pg');
+    const errEl   = document.getElementById('error');
+    const dslEl   = document.getElementById('dsl');
+    const zoomLbl = document.getElementById('zoom-label');
+
+    // ── Transform helpers ──────────────────────────────────────────────────
+    function applyTransform() {
+      world.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+      zoomLbl.textContent   = Math.round(zoom * 100) + '%';
+      // update dot grid offset to feel infinite
+      const gw = 24 * zoom;
+      grid.setAttribute('x',      String(panX % gw));
+      grid.setAttribute('y',      String(panY % gw));
+      grid.setAttribute('width',  String(gw));
+      grid.setAttribute('height', String(gw));
+      const dot = grid.querySelector('circle');
+      dot.setAttribute('cx', String(gw / 2));
+      dot.setAttribute('cy', String(gw / 2));
+      dot.setAttribute('r',  String(Math.min(1.1, zoom * 0.85)));
+      updateMinimap();
+    }
+
+    function zoomTo(newZoom, pivotX, pivotY) {
+      newZoom = Math.min(4, Math.max(0.08, newZoom));
+      const r = newZoom / zoom;
+      panX    = pivotX - (pivotX - panX) * r;
+      panY    = pivotY - (pivotY - panY) * r;
+      zoom    = newZoom;
+      applyTransform();
+    }
+
+    function fitContent() {
+      if (!instance?.svg) return;
+      const svgW  = parseFloat(instance.svg.getAttribute('width')  || '400');
+      const svgH  = parseFloat(instance.svg.getAttribute('height') || '300');
+      const vpW   = vp.clientWidth;
+      const vpH   = vp.clientHeight;
+      const newZ  = Math.min((vpW - 80) / svgW, (vpH - 80) / svgH, 1);
+      zoom  = newZ;
+      panX  = (vpW - svgW * newZ) / 2;
+      panY  = (vpH - svgH * newZ) / 2;
+      applyTransform();
+    }
+
+    // ── Minimap ────────────────────────────────────────────────────────────
+    const mmWrap = document.getElementById('minimap-wrap');
+    const mmCanvas = document.getElementById('minimap');
+    const mmIndi   = document.getElementById('minimap-viewport-indicator');
+
+    function updateMinimap() {
+      if (!instance?.svg) return;
+      const svgW  = parseFloat(instance.svg.getAttribute('width')  || '400');
+      const svgH  = parseFloat(instance.svg.getAttribute('height') || '300');
+      const mW    = 120, mH = 80;
+      const scale = Math.min(mW / svgW, mH / svgH) * 0.9;
+      const offX  = (mW - svgW * scale) / 2;
+      const offY  = (mH - svgH * scale) / 2;
+      // Viewport indicator
+      const vpW   = vp.clientWidth, vpH = vp.clientHeight;
+      const ix    = offX + (-panX / zoom) * scale;
+      const iy    = offY + (-panY / zoom) * scale;
+      const iw    = (vpW / zoom) * scale;
+      const ih    = (vpH / zoom) * scale;
+      mmIndi.style.left   = Math.max(0, ix) + 'px';
+      mmIndi.style.top    = Math.max(0, iy) + 'px';
+      mmIndi.style.width  = Math.min(mW - Math.max(0, ix), iw) + 'px';
+      mmIndi.style.height = Math.min(mH - Math.max(0, iy), ih) + 'px';
+    }
+
+    // ── Pointer events: pan ────────────────────────────────────────────────
+    // Pan starts on any pointerdown inside the viewport (middle-btn anywhere,
+    // left-btn anywhere). A tiny distance threshold separates a click from a drag,
+    // so node click handlers still fire for taps.
+    let panMoved = false;
+
+ vp.addEventListener('pointerdown', e => {
+  if (e.button === 0 || e.button === 1) {
+    // don't capture if clicking a button/control overlaid on the viewport
+    if (e.target.closest('#canvas-controls, #minimap-wrap, .ctrl-btn')) return;
+    isPanning = true;
+    panMoved  = false;
+    lastPX = e.clientX; lastPY = e.clientY;
+    vp.setPointerCapture(e.pointerId);
+  }
+});
+
+    vp.addEventListener('pointermove', e => {
+      if (!isPanning) return;
+      const dx = e.clientX - lastPX;
+      const dy = e.clientY - lastPY;
+      if (!panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
+        panMoved = true;
+        vp.classList.add('panning');
+      }
+      if (panMoved) {
+        panX += dx; panY += dy;
+        applyTransform();
+      }
+      lastPX = e.clientX; lastPY = e.clientY;
+    });
+
+    vp.addEventListener('pointerup',    () => { isPanning = false; panMoved = false; vp.classList.remove('panning'); });
+    vp.addEventListener('pointerleave', () => { isPanning = false; panMoved = false; vp.classList.remove('panning'); });
+
+    vp.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect   = vp.getBoundingClientRect();
+      const pivotX = e.clientX - rect.left;
+      const pivotY = e.clientY - rect.top;
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      zoomTo(zoom * factor, pivotX, pivotY);
+    }, { passive: false });
+
+    // ── Zoom buttons ───────────────────────────────────────────────────────
+    document.getElementById('btn-zoomin')     .onclick = () => zoomTo(zoom * 1.2, vp.clientWidth/2, vp.clientHeight/2);
+    document.getElementById('btn-zoomout')    .onclick = () => zoomTo(zoom * 0.8, vp.clientWidth/2, vp.clientHeight/2);
+    document.getElementById('btn-fit')        .onclick = fitContent;
+    document.getElementById('btn-reset-view') .onclick = () => { panX=60; panY=60; zoom=1; applyTransform(); };
+
+    // ── Run diagram ────────────────────────────────────────────────────────
+    function runDiagram(dsl) {
+      dsl = dsl ?? dslEl.value;
+      errEl.style.display = 'none';
+      wrap.innerHTML      = '';
+      try {
+        instance = render({
+          container:  wrap,
+          dsl,
+          renderer:   'svg',
+          svgOptions: { interactive: true, showTitle: true, theme: canvasTheme , transparent: true},
+          canvasOptions:{transparent:true}
+        });
+        syncAnim();
+        document.getElementById('stats').textContent =
+          `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e · ${instance.scene.groups.length}g`;
+        mmWrap.classList.add('visible');
+        requestAnimationFrame(fitContent);
+      } catch(e) {
+        errEl.style.display  = 'block';
+        errEl.textContent    = '⚠ ' + e.message;
+        console.error(e);
+      }
+    }
+
+    // ── Animation ──────────────────────────────────────────────────────────
+    function syncAnim() {
+      if (!instance) return;
+      const { anim } = instance;
+      const display  = document.getElementById('step-display');
+      const label    = document.getElementById('step-label');
+      if (!anim.total) {
+        display.textContent = 'No steps';
+        label.textContent   = '';
+      } else {
+        display.textContent = anim.currentStep < 0
+          ? `${anim.total} steps`
+          : `${anim.currentStep + 1} / ${anim.total}`;
+        label.textContent = anim.currentStep >= 0
+          ? `${anim.steps[anim.currentStep].action} ${anim.steps[anim.currentStep].target}`
+          : '';
+      }
+      document.getElementById('btn-prev').disabled = !anim.canPrev;
+      document.getElementById('btn-next').disabled = !anim.canNext;
+    }
+
+    document.getElementById('btn-run')  .onclick = () => runDiagram();
+    document.getElementById('btn-reset').onclick = () => { instance?.anim.reset();  syncAnim(); };
+    document.getElementById('btn-prev') .onclick = () => { instance?.anim.prev();   syncAnim(); };
+    document.getElementById('btn-next') .onclick = () => { instance?.anim.next();   syncAnim(); };
+    document.getElementById('btn-play') .onclick = async function() {
+      this.disabled = true;
+      await instance?.anim.play(800);
+      syncAnim();
+      this.disabled = false;
+    };
+
+    // ── Export ─────────────────────────────────────────────────────────────
+    document.getElementById('btn-export-svg') .onclick = () => instance?.exportSVG();
+    document.getElementById('btn-export-png') .onclick = () => instance?.exportPNG();
+    document.getElementById('btn-export-html').onclick = () => {
+      if (instance?.svg) {
+        import('../dist/index.js').then(m => m.exportHTML(instance.svg, dslEl.value));
+      }
+    };
+
+    // ── Theme toggle ───────────────────────────────────────────────────────
+    const themeBtn = document.getElementById('btn-theme-toggle');
+    themeBtn.onclick = () => {
+      canvasTheme = canvasTheme === 'light' ? 'dark' : 'light';
+      themeBtn.textContent = canvasTheme === 'dark' ? '🌙 dark' : '☀ light';
+      vp.classList.toggle('dark-canvas', canvasTheme === 'dark');
+      runDiagram();
+    };
+
+    // ── Expand strip: click to expand, drag to resize ──────────────────────
+    const expandStrip = document.getElementById('expand-strip');
+    let expandDragging = false, expandStartX = 0;
+
+    expandStrip.addEventListener('mousedown', e => {
+      expandDragging = true;
+      expandStartX   = e.clientX;
+      document.body.style.cursor = 'col-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!expandDragging) return;
+      const dragged = e.clientX - expandStartX;
+      if (Math.abs(dragged) > 6 && sidebar.classList.contains('collapsed')) {
+        // start expanding — uncollapse and set a sensible starting width
+        sidebar.classList.remove('collapsed');
+        sidebar.style.width = '200px';
+      }
+      if (!sidebar.classList.contains('collapsed')) {
+        const newW = Math.min(600, Math.max(180, e.clientX));
+        sidebar.style.width = newW + 'px';
+      }
+    });
+
+    document.addEventListener('mouseup', e => {
+      if (expandDragging) {
+        // if user just clicked without dragging, toggle collapse
+        if (Math.abs(e.clientX - expandStartX) < 6) {
+          sidebar.classList.remove('collapsed');
+        }
+        expandDragging = false;
+        document.body.style.cursor = '';
+      }
+    });
+
+    // ── Format DSL (naive indent normalise) ────────────────────────────────
+    document.getElementById('btn-format').onclick = () => {
+      const lines  = dslEl.value.split('\n');
+      let depth    = 0;
+      const result = lines.map(l => {
+        const t = l.trim();
+        if (t === '}') depth = Math.max(0, depth - 1);
+        const out = '  '.repeat(depth) + t;
+        if (t.endsWith('{')) depth++;
+        return out;
+      });
+      dslEl.value = result.join('\n');
+    };
+
+    document.getElementById('btn-clear').onclick = () => {
+      dslEl.value = 'diagram\n\nend';
+      runDiagram();
+    };
+
+    // ── Keyboard shortcut ──────────────────────────────────────────────────
+    dslEl.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runDiagram(); }
+    });
+
+    // ── Example tabs ───────────────────────────────────────────────────────
+    document.querySelectorAll('.ex-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ex-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const ex = EXAMPLES[btn.dataset.example];
+        if (ex) { dslEl.value = ex; runDiagram(ex); }
+      });
+    });
+
+    // ── Sidebar collapse ───────────────────────────────────────────────────
+    const sidebar   = document.getElementById('sidebar');
+    const collapseBtn = document.getElementById('collapse-btn');
+
+    collapseBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+
+    // ── Sidebar resize drag ────────────────────────────────────────────────
+    const handle = document.getElementById('resize-handle');
+    let resizing = false, resizeStartX = 0, resizeStartW = 0;
+
+    handle.addEventListener('mousedown', e => {
+      resizing     = true;
+      resizeStartX = e.clientX;
+      resizeStartW = sidebar.offsetWidth;
+      document.body.style.cursor = 'col-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!resizing) return;
+      const newW = Math.min(600, Math.max(180, resizeStartW + e.clientX - resizeStartX));
+      sidebar.style.width = newW + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (resizing) { resizing = false; document.body.style.cursor = ''; }
+    });
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+    dslEl.value = EXAMPLES.arch;
+    runDiagram(EXAMPLES.arch);
+  </script>
+</body>
+</html>
