@@ -596,67 +596,142 @@ function parse(src) {
         return group;
     }
     function parseStep() {
-        skip(); // 'step'
+        skip();
         const toks = lineTokens();
-        const action = (toks[0]?.value ?? "highlight");
-        let target = toks[1]?.value ?? "";
-        if (toks[2]?.type === "ARROW" && toks[3]) {
+        const action = (toks[0]?.value ?? 'highlight');
+        let target = toks[1]?.value ?? '';
+        if (toks[2]?.type === 'ARROW' && toks[3]) {
             target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
         }
-        const step = { kind: "step", action, target };
-        for (let j = 2; j < toks.length - 1; j++) {
-            const k = toks[j].value;
+        const step = { kind: 'step', action, target };
+        for (let j = 2; j < toks.length; j++) {
+            const k = toks[j]?.value;
             const eq = toks[j + 1];
             const vt = toks[j + 2];
-            // key=value form (dx=50, dy=-80, duration=600)
-            if (eq?.type === "EQUALS" && vt) {
-                if (k === "dx") {
+            // key=value form
+            if (eq?.type === 'EQUALS' && vt) {
+                if (k === 'dx') {
                     step.dx = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === "dy") {
+                if (k === 'dy') {
                     step.dy = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === "duration") {
+                if (k === 'duration') {
                     step.duration = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === "delay") {
+                if (k === 'delay') {
                     step.delay = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
+                if (k === 'factor') {
+                    step.factor = parseFloat(vt.value);
+                    j += 2;
+                    continue;
+                }
+                if (k === 'deg') {
+                    step.deg = parseFloat(vt.value);
+                    j += 2;
+                    continue;
+                }
+                if (k === 'fill') {
+                    step.value = vt.value;
+                    j += 2;
+                    continue;
+                }
+                if (k === 'color') {
+                    step.value = vt.value;
+                    j += 2;
+                    continue;
+                }
             }
-            // bare key value form (legacy: delay 500, duration 400)
-            if (k === "delay" && eq?.type === "NUMBER") {
+            // bare key value (legacy)
+            if (k === 'delay' && eq?.type === 'NUMBER') {
                 step.delay = parseFloat(eq.value);
                 j++;
-            }
-            if (k === "duration" && eq?.type === "NUMBER") {
-                step.duration = parseFloat(eq.value);
-                j++;
-            }
-            if (k === "trigger") {
-                step.trigger = eq?.value;
-                j++;
-            }
-            if (k === "factor") {
-                step.factor = parseFloat(vt.value);
-                j += 2;
                 continue;
             }
-            if (k === "deg") {
-                step.deg = parseFloat(vt.value);
-                j += 2;
+            if (k === 'duration' && eq?.type === 'NUMBER') {
+                step.duration = parseFloat(eq.value);
+                j++;
+                continue;
+            }
+            if (k === 'trigger') {
+                step.trigger = eq?.value;
+                j++;
                 continue;
             }
         }
         return step;
     }
+    // function parseStep(): ASTStep {
+    //   skip(); // 'step'
+    //   const toks = lineTokens();
+    //   const action = (toks[0]?.value ?? "highlight") as AnimationAction;
+    //   let target = toks[1]?.value ?? "";
+    //   if (toks[2]?.type === "ARROW" && toks[3]) {
+    //     target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
+    //   }
+    //   const step: ASTStep = { kind: "step", action, target };
+    //   for (let j = 2; j < toks.length - 1; j++) {
+    //     const k = toks[j].value;
+    //     const eq = toks[j + 1];
+    //     const vt = toks[j + 2];
+    //     // key=value form (dx=50, dy=-80, duration=600)
+    //     if (eq?.type === "EQUALS" && vt) {
+    //       if (k === "dx") {
+    //         step.dx = parseFloat(vt.value);
+    //         j += 2;
+    //         continue;
+    //       }
+    //       if (k === "dy") {
+    //         step.dy = parseFloat(vt.value);
+    //         j += 2;
+    //         continue;
+    //       }
+    //       if (k === "duration") {
+    //         step.duration = parseFloat(vt.value);
+    //         j += 2;
+    //         continue;
+    //       }
+    //       if (k === "delay") {
+    //         step.delay = parseFloat(vt.value);
+    //         j += 2;
+    //         continue;
+    //       }
+    //     }
+    //     // bare key value form (legacy: delay 500, duration 400)
+    //     if (k === "delay" && eq?.type === "NUMBER") {
+    //       step.delay = parseFloat(eq.value);
+    //       j++;
+    //     }
+    //     if (k === "duration" && eq?.type === "NUMBER") {
+    //       step.duration = parseFloat(eq.value);
+    //       j++;
+    //     }
+    //     if (k === "trigger") {
+    //       step.trigger = eq?.value as AnimationTrigger;
+    //       j++;
+    //     }
+    //     if (k === "factor") {
+    //       step.factor = parseFloat(vt.value);
+    //       j += 2;
+    //       continue;
+    //     }
+    //     if (k === "deg") {
+    //       step.deg = parseFloat(vt.value);
+    //       j += 2;
+    //       continue;
+    //     }
+    //   }
+    //   return step;
+    // }
     function parseChart(chartType) {
         skip();
         const toks = lineTokens();
@@ -3602,6 +3677,22 @@ const getEl = (svg, id) => svg.querySelector(`#${id}`);
 const getNodeEl = (svg, id) => getEl(svg, `node-${id}`);
 const getGroupEl = (svg, id) => getEl(svg, `group-${id}`);
 const getEdgeEl = (svg, f, t) => getEl(svg, `edge-${f}-${t}`);
+const getTableEl = (svg, id) => getEl(svg, `table-${id}`);
+const getNoteEl = (svg, id) => getEl(svg, `note-${id}`);
+const getChartEl = (svg, id) => getEl(svg, `chart-${id}`);
+function resolveEl(svg, target) {
+    // check edge first — target contains connector like "a-->b"
+    const edge = parseEdgeTarget(target);
+    if (edge)
+        return getEdgeEl(svg, edge.from, edge.to);
+    // everything else resolved by prefixed id
+    return (getNodeEl(svg, target) ??
+        getGroupEl(svg, target) ??
+        getTableEl(svg, target) ??
+        getNoteEl(svg, target) ??
+        getChartEl(svg, target) ??
+        null);
+}
 function pathLength(p) {
     try {
         return p.getTotalLength() || 200;
@@ -3763,12 +3854,27 @@ class AnimationController {
         // We detect this at construction time (after render) so we correctly distinguish
         // a group ID from a node ID without needing extra metadata.
         this.drawTargetGroups = new Set();
+        this.drawTargetTables = new Set();
+        this.drawTargetNotes = new Set();
+        this.drawTargetCharts = new Set();
         for (const s of steps) {
             if (s.action !== "draw" || parseEdgeTarget(s.target))
                 continue;
             if (svg.querySelector(`#group-${s.target}`)) {
                 this.drawTargetGroups.add(`group-${s.target}`);
                 // Remove from node targets if it was accidentally added
+                this.drawTargetNodes.delete(`node-${s.target}`);
+            }
+            if (svg.querySelector(`#table-${s.target}`)) {
+                this.drawTargetTables.add(`table-${s.target}`);
+                this.drawTargetNodes.delete(`node-${s.target}`);
+            }
+            if (svg.querySelector(`#note-${s.target}`)) {
+                this.drawTargetNotes.add(`note-${s.target}`);
+                this.drawTargetNodes.delete(`node-${s.target}`);
+            }
+            if (svg.querySelector(`#chart-${s.target}`)) {
+                this.drawTargetCharts.add(`chart-${s.target}`);
                 this.drawTargetNodes.delete(`node-${s.target}`);
             }
         }
@@ -3899,6 +4005,55 @@ class AnimationController {
                 });
             }
         });
+        // Tables
+        this.svg.querySelectorAll(".tg").forEach((el) => {
+            clearDrawStyles(el);
+            el.style.transition = "none";
+            if (this.drawTargetTables.has(el.id)) {
+                el.classList.add("gg-hidden");
+            }
+            else {
+                el.classList.remove("gg-hidden");
+                requestAnimationFrame(() => {
+                    el.style.transition = "";
+                });
+            }
+        });
+        // Notes
+        this.svg.querySelectorAll(".ntg").forEach((el) => {
+            clearDrawStyles(el);
+            el.style.transition = "none";
+            if (this.drawTargetNotes.has(el.id)) {
+                el.classList.add("gg-hidden");
+            }
+            else {
+                el.classList.remove("gg-hidden");
+                requestAnimationFrame(() => {
+                    el.style.transition = "";
+                });
+            }
+        });
+        // Charts
+        this.svg.querySelectorAll(".cg").forEach((el) => {
+            clearDrawStyles(el);
+            el.style.transition = "none";
+            el.style.opacity = "";
+            if (this.drawTargetCharts.has(el.id)) {
+                el.classList.add("gg-hidden");
+            }
+            else {
+                el.classList.remove("gg-hidden");
+                requestAnimationFrame(() => {
+                    el.style.transition = "";
+                });
+            }
+        });
+        this.svg.querySelectorAll(".tg, .ntg, .cg").forEach((el) => {
+            el.style.transform = "";
+            el.style.transition = "";
+            el.style.opacity = "";
+            el.classList.remove("hl", "faded");
+        });
     }
     _applyStep(i, silent) {
         const s = this.steps[i];
@@ -3944,14 +4099,16 @@ class AnimationController {
                 break;
         }
     }
+    // ── highlight ────────────────────────────────────────────
     _doHighlight(target) {
         this.svg
-            .querySelectorAll(".ng.hl")
+            .querySelectorAll(".ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl")
             .forEach((e) => e.classList.remove("hl"));
-        getNodeEl(this.svg, target)?.classList.add("hl");
+        resolveEl(this.svg, target)?.classList.add("hl");
     }
+    // ── fade / unfade ─────────────────────────────────────────
     _doFade(target, doFade) {
-        getNodeEl(this.svg, target)?.classList.toggle("faded", doFade);
+        resolveEl(this.svg, target)?.classList.toggle("faded", doFade);
     }
     _writeTransform(el, target, silent, duration = 420) {
         const t = this._transforms.get(target) ?? {
@@ -3977,8 +4134,9 @@ class AnimationController {
             }));
         }
     }
+    // ── move ──────────────────────────────────────────────────
     _doMove(target, step, silent) {
-        const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+        const el = resolveEl(this.svg, target);
         if (!el)
             return;
         const cur = this._transforms.get(target) ?? {
@@ -3994,8 +4152,9 @@ class AnimationController {
         });
         this._writeTransform(el, target, silent, step.duration ?? 420);
     }
+    // ── scale ─────────────────────────────────────────────────
     _doScale(target, step, silent) {
-        const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+        const el = resolveEl(this.svg, target);
         if (!el)
             return;
         const cur = this._transforms.get(target) ?? {
@@ -4004,12 +4163,12 @@ class AnimationController {
             scale: 1,
             rotate: 0,
         };
-        // factor is absolute: scale=1.5 always means 1.5x regardless of current scale
         this._transforms.set(target, { ...cur, scale: step.factor ?? 1 });
         this._writeTransform(el, target, silent, step.duration ?? 350);
     }
+    // ── rotate ────────────────────────────────────────────────
     _doRotate(target, step, silent) {
-        const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+        const el = resolveEl(this.svg, target);
         if (!el)
             return;
         const cur = this._transforms.get(target) ?? {
@@ -4018,7 +4177,6 @@ class AnimationController {
             scale: 1,
             rotate: 0,
         };
-        // deg is cumulative: rotate deg=45 twice = 90 degrees total
         this._transforms.set(target, {
             ...cur,
             rotate: cur.rotate + (step.deg ?? 0),
@@ -4071,6 +4229,70 @@ class AnimationController {
             }
             return;
         }
+        // ── Table ──────────────────────────────────────────────
+        const tableEl = getEl(this.svg, `table-${target}`);
+        if (tableEl) {
+            if (silent) {
+                clearDrawStyles(tableEl);
+                tableEl.style.transition = "none";
+                tableEl.classList.remove("gg-hidden");
+                tableEl.style.opacity = "1";
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    tableEl.style.transition = "";
+                    clearDrawStyles(tableEl);
+                }));
+            }
+            else {
+                tableEl.classList.remove("gg-hidden");
+                prepareForDraw(tableEl);
+                animateShapeDraw(tableEl, 500, 40);
+            }
+            return;
+        }
+        // ── Note ───────────────────────────────────────────────
+        const noteEl = getEl(this.svg, `note-${target}`);
+        if (noteEl) {
+            if (silent) {
+                clearDrawStyles(noteEl);
+                noteEl.style.transition = "none";
+                noteEl.classList.remove("gg-hidden");
+                noteEl.style.opacity = "1";
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    noteEl.style.transition = "";
+                    clearDrawStyles(noteEl);
+                }));
+            }
+            else {
+                noteEl.classList.remove("gg-hidden");
+                prepareForDraw(noteEl);
+                animateShapeDraw(noteEl, 420, 55);
+            }
+            return;
+        }
+        // ── Chart ──────────────────────────────────────────────
+        const chartEl = getEl(this.svg, `chart-${target}`);
+        if (chartEl) {
+            if (silent) {
+                clearDrawStyles(chartEl);
+                chartEl.style.transition = "none";
+                chartEl.style.opacity = "";
+                chartEl.classList.remove("gg-hidden");
+                chartEl.style.opacity = "1";
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    chartEl.style.transition = "";
+                    clearDrawStyles(chartEl);
+                }));
+            }
+            else {
+                chartEl.style.opacity = "0"; // start from 0 explicitly
+                chartEl.classList.remove("gg-hidden");
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    chartEl.style.transition = "opacity 500ms ease";
+                    chartEl.style.opacity = "1";
+                }));
+            }
+            return;
+        }
         // ── Node draw ──────────────────────────────────────
         const nodeEl = getNodeEl(this.svg, target);
         if (!nodeEl)
@@ -4086,51 +4308,96 @@ class AnimationController {
             animateShapeDraw(nodeEl, 420, 55);
         }
     }
+    // ── erase ─────────────────────────────────────────────────
     _doErase(target) {
-        const edge = parseEdgeTarget(target);
-        const el = edge
-            ? getEdgeEl(this.svg, edge.from, edge.to)
-            : (getGroupEl(this.svg, target) ?? getNodeEl(this.svg, target));
+        const el = resolveEl(this.svg, target); // handles edges too now
         if (el) {
-            el.style.transition = "opacity 0.4s";
-            el.style.opacity = "0";
+            el.style.transition = 'opacity 0.4s';
+            el.style.opacity = '0';
         }
     }
+    // ── show / hide ───────────────────────────────────────────
     _doShowHide(target, show, silent) {
-        const el = getNodeEl(this.svg, target);
+        const el = resolveEl(this.svg, target);
         if (!el)
             return;
         el.style.transition = silent ? "none" : "opacity 0.4s";
         el.style.opacity = show ? "1" : "0";
     }
+    // ── pulse ─────────────────────────────────────────────────
     _doPulse(target) {
-        getNodeEl(this.svg, target)?.animate([
+        resolveEl(this.svg, target)?.animate([
             { filter: "brightness(1)" },
             { filter: "brightness(1.6)" },
             { filter: "brightness(1)" },
         ], { duration: 500, iterations: 3 });
     }
+    // ── color ─────────────────────────────────────────────────
     _doColor(target, color) {
         if (!color)
             return;
-        const shape = getNodeEl(this.svg, target)?.querySelector("rect, ellipse, polygon, path");
-        if (shape)
-            shape.style.fill = color;
+        const el = resolveEl(this.svg, target);
+        if (!el)
+            return;
+        // edge — color stroke
+        if (parseEdgeTarget(target)) {
+            el.querySelectorAll('path, line, polyline').forEach(p => {
+                p.style.stroke = color;
+            });
+            el.querySelectorAll('polygon').forEach(p => {
+                p.style.fill = color;
+                p.style.stroke = color;
+            });
+            return;
+        }
+        // everything else — color fill
+        let hit = false;
+        el.querySelectorAll('path, rect, ellipse, polygon').forEach(c => {
+            const attrFill = c.getAttribute('fill');
+            if (attrFill === 'none')
+                return;
+            if (attrFill === null && c.tagName === 'path')
+                return;
+            c.style.fill = color;
+            hit = true;
+        });
+        if (!hit) {
+            el.querySelectorAll('text').forEach(t => { t.style.fill = color; });
+        }
     }
 }
 const ANIMATION_CSS = `
-.ng, .gg { transform-box: fill-box; transform-origin: center; transition: filter 0.3s, opacity 0.35s; }
-.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon { stroke-width: 2.8 !important; }
-.ng.hl { animation: ng-pulse 1.4s ease-in-out infinite; }
+.ng, .gg, .tg, .ntg, .cg, .eg {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: filter 0.3s, opacity 0.35s;
+}
+
+/* highlight */
+.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon,
+.tg.hl path, .tg.hl rect,
+.ntg.hl path, .ntg.hl polygon,
+.cg.hl path, .cg.hl rect,
+.eg.hl path, .eg.hl line, .eg.hl polygon { stroke-width: 2.8 !important; }
+
+.ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl {
+  animation: ng-pulse 1.4s ease-in-out infinite;
+}
 @keyframes ng-pulse {
   0%, 100% { filter: drop-shadow(0 0 7px rgba(200,84,40,.6)); }
   50%       { filter: drop-shadow(0 0 14px rgba(200,84,40,.9)); }
 }
-.ng.faded  { opacity: 0.22; }
+
+/* fade */
+.ng.faded, .gg.faded, .tg.faded, .ntg.faded, .cg.faded, .eg.faded { opacity: 0.22; }
+
 .ng.hidden { opacity: 0; pointer-events: none; }
-.eg.draw-hidden  { opacity: 0; }
-.eg.draw-reveal  { opacity: 1; }
-.gg.gg-hidden    { opacity: 0; }
+.eg.draw-hidden { opacity: 0; }
+.eg.draw-reveal { opacity: 1; }
+.gg.gg-hidden  { opacity: 0; }
+.tg.gg-hidden  { opacity: 0; }
+.ntg.gg-hidden { opacity: 0; }
+.cg.gg-hidden  { opacity: 0; }
 `;
 
 // ============================================================

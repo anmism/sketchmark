@@ -456,67 +456,103 @@ export function parse(src: string): DiagramAST {
   }
 
   function parseStep(): ASTStep {
-    skip(); // 'step'
-    const toks = lineTokens();
-    const action = (toks[0]?.value ?? "highlight") as AnimationAction;
-    let target = toks[1]?.value ?? "";
-    if (toks[2]?.type === "ARROW" && toks[3]) {
-      target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
-    }
-    const step: ASTStep = { kind: "step", action, target };
-    for (let j = 2; j < toks.length - 1; j++) {
-      const k = toks[j].value;
-      const eq = toks[j + 1];
-      const vt = toks[j + 2];
-      // key=value form (dx=50, dy=-80, duration=600)
-      if (eq?.type === "EQUALS" && vt) {
-        if (k === "dx") {
-          step.dx = parseFloat(vt.value);
-          j += 2;
-          continue;
-        }
-        if (k === "dy") {
-          step.dy = parseFloat(vt.value);
-          j += 2;
-          continue;
-        }
-        if (k === "duration") {
-          step.duration = parseFloat(vt.value);
-          j += 2;
-          continue;
-        }
-        if (k === "delay") {
-          step.delay = parseFloat(vt.value);
-          j += 2;
-          continue;
-        }
-      }
-      // bare key value form (legacy: delay 500, duration 400)
-      if (k === "delay" && eq?.type === "NUMBER") {
-        step.delay = parseFloat(eq.value);
-        j++;
-      }
-      if (k === "duration" && eq?.type === "NUMBER") {
-        step.duration = parseFloat(eq.value);
-        j++;
-      }
-      if (k === "trigger") {
-        step.trigger = eq?.value as AnimationTrigger;
-        j++;
-      }
-      if (k === "factor") {
-        step.factor = parseFloat(vt.value);
-        j += 2;
-        continue;
-      }
-      if (k === "deg") {
-        step.deg = parseFloat(vt.value);
-        j += 2;
-        continue;
-      }
-    }
-    return step;
+  skip();
+  const toks   = lineTokens();
+  const action = (toks[0]?.value ?? 'highlight') as AnimationAction;
+  let target   = toks[1]?.value ?? '';
+  if (toks[2]?.type === 'ARROW' && toks[3]) {
+    target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
   }
+  const step: ASTStep = { kind: 'step', action, target };
+
+  for (let j = 2; j < toks.length; j++) {
+    const k  = toks[j]?.value;
+    const eq = toks[j + 1];
+    const vt = toks[j + 2];
+
+    // key=value form
+    if (eq?.type === 'EQUALS' && vt) {
+      if (k === 'dx')       { step.dx       = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'dy')       { step.dy       = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'duration') { step.duration = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'delay')    { step.delay    = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'factor')   { step.factor   = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'deg')      { step.deg      = parseFloat(vt.value); j += 2; continue; }
+      if (k === 'fill')     { step.value    = vt.value;             j += 2; continue; }
+      if (k === 'color')    { step.value    = vt.value;             j += 2; continue; }
+    }
+
+    // bare key value (legacy)
+    if (k === 'delay'    && eq?.type === 'NUMBER') { step.delay    = parseFloat(eq.value); j++; continue; }
+    if (k === 'duration' && eq?.type === 'NUMBER') { step.duration = parseFloat(eq.value); j++; continue; }
+    if (k === 'trigger')                           { step.trigger  = eq?.value as AnimationTrigger; j++; continue; }
+  }
+
+  return step;
+}
+
+  // function parseStep(): ASTStep {
+  //   skip(); // 'step'
+  //   const toks = lineTokens();
+  //   const action = (toks[0]?.value ?? "highlight") as AnimationAction;
+  //   let target = toks[1]?.value ?? "";
+  //   if (toks[2]?.type === "ARROW" && toks[3]) {
+  //     target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
+  //   }
+  //   const step: ASTStep = { kind: "step", action, target };
+  //   for (let j = 2; j < toks.length - 1; j++) {
+  //     const k = toks[j].value;
+  //     const eq = toks[j + 1];
+  //     const vt = toks[j + 2];
+  //     // key=value form (dx=50, dy=-80, duration=600)
+  //     if (eq?.type === "EQUALS" && vt) {
+  //       if (k === "dx") {
+  //         step.dx = parseFloat(vt.value);
+  //         j += 2;
+  //         continue;
+  //       }
+  //       if (k === "dy") {
+  //         step.dy = parseFloat(vt.value);
+  //         j += 2;
+  //         continue;
+  //       }
+  //       if (k === "duration") {
+  //         step.duration = parseFloat(vt.value);
+  //         j += 2;
+  //         continue;
+  //       }
+  //       if (k === "delay") {
+  //         step.delay = parseFloat(vt.value);
+  //         j += 2;
+  //         continue;
+  //       }
+  //     }
+  //     // bare key value form (legacy: delay 500, duration 400)
+  //     if (k === "delay" && eq?.type === "NUMBER") {
+  //       step.delay = parseFloat(eq.value);
+  //       j++;
+  //     }
+  //     if (k === "duration" && eq?.type === "NUMBER") {
+  //       step.duration = parseFloat(eq.value);
+  //       j++;
+  //     }
+  //     if (k === "trigger") {
+  //       step.trigger = eq?.value as AnimationTrigger;
+  //       j++;
+  //     }
+  //     if (k === "factor") {
+  //       step.factor = parseFloat(vt.value);
+  //       j += 2;
+  //       continue;
+  //     }
+  //     if (k === "deg") {
+  //       step.deg = parseFloat(vt.value);
+  //       j += 2;
+  //       continue;
+  //     }
+  //   }
+  //   return step;
+  // }
 
   function parseChart(chartType: string): ASTChart {
     skip();

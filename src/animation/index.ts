@@ -26,6 +26,27 @@ const getGroupEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `group-${id}`);
 const getEdgeEl = (svg: SVGSVGElement, f: string, t: string) =>
   getEl(svg, `edge-${f}-${t}`);
+const getTableEl = (svg: SVGSVGElement, id: string) =>
+  getEl(svg, `table-${id}`);
+const getNoteEl = (svg: SVGSVGElement, id: string) => getEl(svg, `note-${id}`);
+const getChartEl = (svg: SVGSVGElement, id: string) =>
+  getEl(svg, `chart-${id}`);
+
+function resolveEl(svg: SVGSVGElement, target: string): SVGGElement | null {
+  // check edge first — target contains connector like "a-->b"
+  const edge = parseEdgeTarget(target);
+  if (edge) return getEdgeEl(svg, edge.from, edge.to);
+
+  // everything else resolved by prefixed id
+  return (
+    getNodeEl(svg, target)  ??
+    getGroupEl(svg, target) ??
+    getTableEl(svg, target) ??
+    getNoteEl(svg, target)  ??
+    getChartEl(svg, target) ??
+    null
+  );
+}
 
 function pathLength(p: SVGGeometryElement): number {
   try {
@@ -68,6 +89,34 @@ export function getDrawTargetNodeIds(steps: ASTStep[]): Set<string> {
   for (const s of steps) {
     if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
     ids.add(`node-${s.target}`);
+  }
+  return ids;
+}
+
+// after getDrawTargetNodeIds
+export function getDrawTargetTableIds(steps: ASTStep[]): Set<string> {
+  const ids = new Set<string>();
+  for (const s of steps) {
+    if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
+    ids.add(`table-${s.target}`);
+  }
+  return ids;
+}
+
+export function getDrawTargetNoteIds(steps: ASTStep[]): Set<string> {
+  const ids = new Set<string>();
+  for (const s of steps) {
+    if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
+    ids.add(`note-${s.target}`);
+  }
+  return ids;
+}
+
+export function getDrawTargetChartIds(steps: ASTStep[]): Set<string> {
+  const ids = new Set<string>();
+  for (const s of steps) {
+    if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
+    ids.add(`chart-${s.target}`);
   }
   return ids;
 }
@@ -202,7 +251,10 @@ export class AnimationController {
   private _listeners: AnimationListener[] = [];
   readonly drawTargetEdges: Set<string>;
   readonly drawTargetNodes: Set<string>;
-  readonly drawTargetGroups: Set<string>; // e.g. "group-services"
+  readonly drawTargetGroups: Set<string>;
+  readonly drawTargetTables: Set<string>;
+  readonly drawTargetNotes: Set<string>;
+  readonly drawTargetCharts: Set<string>;
 
   get drawTargets(): Set<string> {
     return this.drawTargetEdges;
@@ -219,11 +271,27 @@ export class AnimationController {
     // We detect this at construction time (after render) so we correctly distinguish
     // a group ID from a node ID without needing extra metadata.
     this.drawTargetGroups = new Set<string>();
+    this.drawTargetTables = new Set<string>();
+    this.drawTargetNotes = new Set<string>();
+    this.drawTargetCharts = new Set<string>();
+
     for (const s of steps) {
       if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
       if (svg.querySelector(`#group-${s.target}`)) {
         this.drawTargetGroups.add(`group-${s.target}`);
         // Remove from node targets if it was accidentally added
+        this.drawTargetNodes.delete(`node-${s.target}`);
+      }
+      if (svg.querySelector(`#table-${s.target}`)) {
+        this.drawTargetTables.add(`table-${s.target}`);
+        this.drawTargetNodes.delete(`node-${s.target}`);
+      }
+      if (svg.querySelector(`#note-${s.target}`)) {
+        this.drawTargetNotes.add(`note-${s.target}`);
+        this.drawTargetNodes.delete(`node-${s.target}`);
+      }
+      if (svg.querySelector(`#chart-${s.target}`)) {
+        this.drawTargetCharts.add(`chart-${s.target}`);
         this.drawTargetNodes.delete(`node-${s.target}`);
       }
     }
@@ -356,6 +424,56 @@ export class AnimationController {
         });
       }
     });
+
+    // Tables
+    this.svg.querySelectorAll<SVGGElement>(".tg").forEach((el) => {
+      clearDrawStyles(el);
+      el.style.transition = "none";
+      if (this.drawTargetTables.has(el.id)) {
+        el.classList.add("gg-hidden");
+      } else {
+        el.classList.remove("gg-hidden");
+        requestAnimationFrame(() => {
+          el.style.transition = "";
+        });
+      }
+    });
+
+    // Notes
+    this.svg.querySelectorAll<SVGGElement>(".ntg").forEach((el) => {
+      clearDrawStyles(el);
+      el.style.transition = "none";
+      if (this.drawTargetNotes.has(el.id)) {
+        el.classList.add("gg-hidden");
+      } else {
+        el.classList.remove("gg-hidden");
+        requestAnimationFrame(() => {
+          el.style.transition = "";
+        });
+      }
+    });
+
+    // Charts
+    this.svg.querySelectorAll<SVGGElement>(".cg").forEach((el) => {
+      clearDrawStyles(el);
+      el.style.transition = "none";
+      el.style.opacity = "";
+      if (this.drawTargetCharts.has(el.id)) {
+        el.classList.add("gg-hidden");
+      } else {
+        el.classList.remove("gg-hidden");
+        requestAnimationFrame(() => {
+          el.style.transition = "";
+        });
+      }
+    });
+
+    this.svg.querySelectorAll<SVGGElement>(".tg, .ntg, .cg").forEach((el) => {
+      el.style.transform = "";
+      el.style.transition = "";
+      el.style.opacity = "";
+      el.classList.remove("hl", "faded");
+    });
   }
 
   private _applyStep(i: number, silent: boolean): void {
@@ -401,14 +519,17 @@ export class AnimationController {
     }
   }
 
+  // ── highlight ────────────────────────────────────────────
   private _doHighlight(target: string): void {
     this.svg
-      .querySelectorAll(".ng.hl")
+      .querySelectorAll(".ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl")
       .forEach((e) => e.classList.remove("hl"));
-    getNodeEl(this.svg, target)?.classList.add("hl");
+    resolveEl(this.svg, target)?.classList.add("hl");
   }
+
+  // ── fade / unfade ─────────────────────────────────────────
   private _doFade(target: string, doFade: boolean): void {
-    getNodeEl(this.svg, target)?.classList.toggle("faded", doFade);
+    resolveEl(this.svg, target)?.classList.toggle("faded", doFade);
   }
 
   private _writeTransform(
@@ -443,8 +564,9 @@ export class AnimationController {
     }
   }
 
+  // ── move ──────────────────────────────────────────────────
   private _doMove(target: string, step: ASTStep, silent: boolean): void {
-    const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+    const el = resolveEl(this.svg, target);
     if (!el) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
@@ -460,8 +582,9 @@ export class AnimationController {
     this._writeTransform(el, target, silent, step.duration ?? 420);
   }
 
+  // ── scale ─────────────────────────────────────────────────
   private _doScale(target: string, step: ASTStep, silent: boolean): void {
-    const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+    const el = resolveEl(this.svg, target);
     if (!el) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
@@ -469,13 +592,13 @@ export class AnimationController {
       scale: 1,
       rotate: 0,
     };
-    // factor is absolute: scale=1.5 always means 1.5x regardless of current scale
     this._transforms.set(target, { ...cur, scale: step.factor ?? 1 });
     this._writeTransform(el, target, silent, step.duration ?? 350);
   }
 
+  // ── rotate ────────────────────────────────────────────────
   private _doRotate(target: string, step: ASTStep, silent: boolean): void {
-    const el = getNodeEl(this.svg, target) ?? getGroupEl(this.svg, target);
+    const el = resolveEl(this.svg, target);
     if (!el) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
@@ -483,14 +606,12 @@ export class AnimationController {
       scale: 1,
       rotate: 0,
     };
-    // deg is cumulative: rotate deg=45 twice = 90 degrees total
     this._transforms.set(target, {
       ...cur,
       rotate: cur.rotate + (step.deg ?? 0),
     });
     this._writeTransform(el, target, silent, step.duration ?? 400);
   }
-
   private _doDraw(target: string, silent: boolean): void {
     const edge = parseEdgeTarget(target);
 
@@ -540,6 +661,78 @@ export class AnimationController {
       return;
     }
 
+    // ── Table ──────────────────────────────────────────────
+    const tableEl = getEl(this.svg, `table-${target}`);
+    if (tableEl) {
+      if (silent) {
+        clearDrawStyles(tableEl);
+        tableEl.style.transition = "none";
+        tableEl.classList.remove("gg-hidden");
+        tableEl.style.opacity = "1";
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            tableEl.style.transition = "";
+            clearDrawStyles(tableEl);
+          }),
+        );
+      } else {
+        tableEl.classList.remove("gg-hidden");
+        prepareForDraw(tableEl);
+        animateShapeDraw(tableEl, 500, 40);
+      }
+      return;
+    }
+
+    // ── Note ───────────────────────────────────────────────
+    const noteEl = getEl(this.svg, `note-${target}`);
+    if (noteEl) {
+      if (silent) {
+        clearDrawStyles(noteEl);
+        noteEl.style.transition = "none";
+        noteEl.classList.remove("gg-hidden");
+        noteEl.style.opacity = "1";
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            noteEl.style.transition = "";
+            clearDrawStyles(noteEl);
+          }),
+        );
+      } else {
+        noteEl.classList.remove("gg-hidden");
+        prepareForDraw(noteEl);
+        animateShapeDraw(noteEl, 420, 55);
+      }
+      return;
+    }
+
+    // ── Chart ──────────────────────────────────────────────
+    const chartEl = getEl(this.svg, `chart-${target}`);
+    if (chartEl) {
+      if (silent) {
+        clearDrawStyles(chartEl);
+        chartEl.style.transition = "none";
+        chartEl.style.opacity = "";
+        chartEl.classList.remove("gg-hidden");
+        chartEl.style.opacity = "1";
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            chartEl.style.transition = "";
+            clearDrawStyles(chartEl);
+          }),
+        );
+      } else {
+        chartEl.style.opacity = "0"; // start from 0 explicitly
+        chartEl.classList.remove("gg-hidden");
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            chartEl.style.transition = "opacity 500ms ease";
+            chartEl.style.opacity = "1";
+          }),
+        );
+      }
+      return;
+    }
+
     // ── Node draw ──────────────────────────────────────
     const nodeEl = getNodeEl(this.svg, target);
     if (!nodeEl) return;
@@ -555,26 +748,26 @@ export class AnimationController {
     }
   }
 
+  // ── erase ─────────────────────────────────────────────────
   private _doErase(target: string): void {
-    const edge = parseEdgeTarget(target);
-    const el = edge
-      ? getEdgeEl(this.svg, edge.from, edge.to)
-      : (getGroupEl(this.svg, target) ?? getNodeEl(this.svg, target));
+    const el = resolveEl(this.svg, target);   // handles edges too now
     if (el) {
-      el.style.transition = "opacity 0.4s";
-      el.style.opacity = "0";
+      el.style.transition = 'opacity 0.4s';
+      el.style.opacity    = '0';
     }
   }
 
+  // ── show / hide ───────────────────────────────────────────
   private _doShowHide(target: string, show: boolean, silent: boolean): void {
-    const el = getNodeEl(this.svg, target);
+    const el = resolveEl(this.svg, target);
     if (!el) return;
     el.style.transition = silent ? "none" : "opacity 0.4s";
     el.style.opacity = show ? "1" : "0";
   }
 
+  // ── pulse ─────────────────────────────────────────────────
   private _doPulse(target: string): void {
-    getNodeEl(this.svg, target)?.animate(
+    resolveEl(this.svg, target)?.animate(
       [
         { filter: "brightness(1)" },
         { filter: "brightness(1.6)" },
@@ -584,26 +777,68 @@ export class AnimationController {
     );
   }
 
-  private _doColor(target: string, color: string | undefined): void {
-    if (!color) return;
-    const shape = getNodeEl(this.svg, target)?.querySelector(
-      "rect, ellipse, polygon, path",
-    );
-    if (shape) (shape as SVGElement).style.fill = color;
+  // ── color ─────────────────────────────────────────────────
+private _doColor(target: string, color: string | undefined): void {
+  if (!color) return;
+  const el = resolveEl(this.svg, target);
+  if (!el) return;
+
+  // edge — color stroke
+  if (parseEdgeTarget(target)) {
+    el.querySelectorAll<SVGElement>('path, line, polyline').forEach(p => {
+      p.style.stroke = color;
+    });
+    el.querySelectorAll<SVGElement>('polygon').forEach(p => {
+      p.style.fill = color; p.style.stroke = color;
+    });
+    return;
   }
+
+  // everything else — color fill
+  let hit = false;
+  el.querySelectorAll<SVGElement>('path, rect, ellipse, polygon').forEach(c => {
+    const attrFill = c.getAttribute('fill');
+    if (attrFill === 'none') return;
+    if (attrFill === null && c.tagName === 'path') return;
+    c.style.fill = color;
+    hit = true;
+  });
+  if (!hit) {
+    el.querySelectorAll<SVGTextElement>('text').forEach(t => { t.style.fill = color; });
+  }
+}
 }
 
 export const ANIMATION_CSS = `
-.ng, .gg { transform-box: fill-box; transform-origin: center; transition: filter 0.3s, opacity 0.35s; }
-.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon { stroke-width: 2.8 !important; }
-.ng.hl { animation: ng-pulse 1.4s ease-in-out infinite; }
+.ng, .gg, .tg, .ntg, .cg, .eg {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: filter 0.3s, opacity 0.35s;
+}
+
+/* highlight */
+.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon,
+.tg.hl path, .tg.hl rect,
+.ntg.hl path, .ntg.hl polygon,
+.cg.hl path, .cg.hl rect,
+.eg.hl path, .eg.hl line, .eg.hl polygon { stroke-width: 2.8 !important; }
+
+.ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl {
+  animation: ng-pulse 1.4s ease-in-out infinite;
+}
 @keyframes ng-pulse {
   0%, 100% { filter: drop-shadow(0 0 7px rgba(200,84,40,.6)); }
   50%       { filter: drop-shadow(0 0 14px rgba(200,84,40,.9)); }
 }
-.ng.faded  { opacity: 0.22; }
+
+/* fade */
+.ng.faded, .gg.faded, .tg.faded, .ntg.faded, .cg.faded, .eg.faded { opacity: 0.22; }
+
 .ng.hidden { opacity: 0; pointer-events: none; }
-.eg.draw-hidden  { opacity: 0; }
-.eg.draw-reveal  { opacity: 1; }
-.gg.gg-hidden    { opacity: 0; }
+.eg.draw-hidden { opacity: 0; }
+.eg.draw-reveal { opacity: 1; }
+.gg.gg-hidden  { opacity: 0; }
+.tg.gg-hidden  { opacity: 0; }
+.ntg.gg-hidden { opacity: 0; }
+.cg.gg-hidden  { opacity: 0; }
 `;
