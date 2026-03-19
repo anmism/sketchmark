@@ -251,6 +251,16 @@ var AIDiagram = (function (exports) {
             s.fontSize = parseFloat(p["font-size"]);
         if (p["font-weight"])
             s.fontWeight = p["font-weight"];
+        if (p['text-align'])
+            s.textAlign = p['text-align'];
+        if (p['vertical-align'])
+            s.verticalAlign = p['vertical-align'];
+        if (p['line-height'])
+            s.lineHeight = parseFloat(p['line-height']);
+        if (p['letter-spacing'])
+            s.letterSpacing = parseFloat(p['letter-spacing']);
+        if (p.font)
+            s.font = p.font;
         if (p["dash"]) {
             const parts = p["dash"]
                 .split(",")
@@ -477,6 +487,8 @@ var AIDiagram = (function (exports) {
                 label: rawLabel.replace(/\\n/g, "\n"),
                 theme: props.theme,
                 style: propsToStyle(props),
+                ...(props.width ? { width: parseFloat(props.width) } : {}),
+                ...(props.height ? { height: parseFloat(props.height) } : {}),
             };
         }
         // ── parseGroup ───────────────────────────────────────────
@@ -1063,8 +1075,6 @@ var AIDiagram = (function (exports) {
                 node.style = { ...ast.styles[node.id], ...node.style };
             }
         }
-        console.log("[parse] charts:", ast.charts.map((c) => c.id));
-        console.log("[parse] rootOrder:", ast.rootOrder.map((r) => r.kind + ":" + r.id));
         return ast;
     }
 
@@ -1140,6 +1150,8 @@ var AIDiagram = (function (exports) {
                 y: 0,
                 w: 0,
                 h: 0,
+                width: n.width,
+                height: n.height,
             };
         });
         const charts = ast.charts.map((c) => {
@@ -1284,6 +1296,10 @@ var AIDiagram = (function (exports) {
         const maxChars = Math.max(...n.lines.map(l => l.length));
         n.w = Math.max(120, Math.ceil(maxChars * NOTE_FONT) + NOTE_PAD_X * 2);
         n.h = n.lines.length * NOTE_LINE_H + NOTE_PAD_Y * 2;
+        if (n.width && n.w < n.width)
+            n.w = n.width; // ← add
+        if (n.height && n.h < n.height)
+            n.h = n.height; // ← add
     }
     // ── Table auto-sizing ─────────────────────────────────────
     function sizeTable(t) {
@@ -2413,6 +2429,83 @@ var AIDiagram = (function (exports) {
     const THEME_NAMES = Object.keys(PALETTES);
 
     // ============================================================
+    // sketchmark — Font Registry
+    // ============================================================
+    // built-in named fonts — user can reference these by short name
+    const BUILTIN_FONTS = {
+        // hand-drawn
+        caveat: {
+            family: "'Caveat', cursive",
+            url: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&display=swap',
+        },
+        handlee: {
+            family: "'Handlee', cursive",
+            url: 'https://fonts.googleapis.com/css2?family=Handlee&display=swap',
+        },
+        'indie-flower': {
+            family: "'Indie Flower', cursive",
+            url: 'https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap',
+        },
+        'patrick-hand': {
+            family: "'Patrick Hand', cursive",
+            url: 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap',
+        },
+        // clean / readable
+        'dm-mono': {
+            family: "'DM Mono', monospace",
+            url: 'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap',
+        },
+        'jetbrains': {
+            family: "'JetBrains Mono', monospace",
+            url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap',
+        },
+        'instrument': {
+            family: "'Instrument Serif', serif",
+            url: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap',
+        },
+        'playfair': {
+            family: "'Playfair Display', serif",
+            url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap',
+        },
+        // system fallbacks (no URL needed)
+        system: { family: 'system-ui, sans-serif' },
+        mono: { family: "'Courier New', monospace" },
+        serif: { family: 'Georgia, serif' },
+    };
+    // default — what renders when no font is specified
+    const DEFAULT_FONT = 'system-ui, sans-serif';
+    // resolve a short name or pass-through a quoted CSS family
+    function resolveFont(nameOrFamily) {
+        const key = nameOrFamily.toLowerCase().trim();
+        if (BUILTIN_FONTS[key])
+            return BUILTIN_FONTS[key].family;
+        return nameOrFamily; // treat as raw CSS font-family
+    }
+    // inject a <link> into <head> for a built-in font (browser only)
+    function loadFont(name) {
+        if (typeof document === 'undefined')
+            return;
+        const key = name.toLowerCase().trim();
+        const def = BUILTIN_FONTS[key];
+        if (!def?.url || def.loaded)
+            return;
+        if (document.querySelector(`link[data-sketchmark-font="${key}"]`))
+            return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = def.url;
+        link.setAttribute('data-sketchmark-font', key);
+        document.head.appendChild(link);
+        def.loaded = true;
+    }
+    // user registers their own font (already loaded via CSS/link)
+    function registerFont(name, family, url) {
+        BUILTIN_FONTS[name.toLowerCase()] = { family, url };
+        if (url)
+            loadFont(name);
+    }
+
+    // ============================================================
     // sketchmark — SVG Renderer  (rough.js hand-drawn)
     // ============================================================
     const NS = "http://www.w3.org/2000/svg";
@@ -2424,17 +2517,73 @@ var AIDiagram = (function (exports) {
         return h;
     }
     const BASE_ROUGH = { roughness: 1.3, bowing: 0.7 };
-    // ── SVG helpers ───────────────────────────────────────────
-    function mkMultilineText(lines, x, cy, // vertical center of the whole block
-    sz = 14, wt = 500, col = "#1a1208", anchor = "middle", lineH = 18) {
+    // ── Small helper: load + resolve font from style or fall back ─────────────
+    function resolveStyleFont$1(style, fallback) {
+        const raw = String(style["font"] ?? "");
+        if (!raw)
+            return fallback;
+        loadFont(raw);
+        return resolveFont(raw);
+    }
+    // ── SVG text helpers ──────────────────────────────────────────────────────
+    /**
+     * Single-line SVG text element.
+     *
+     * | param         | maps to SVG attr         |
+     * |---------------|--------------------------|
+     * txt             | textContent              |
+     * x, y            | x, y                     |
+     * sz              | font-size                |
+     * wt              | font-weight              |
+     * col             | fill                     |
+     * anchor          | text-anchor              |
+     * font            | font-family              |
+     * letterSpacing   | letter-spacing           |
+     */
+    function mkText(txt, x, y, sz = 14, wt = 500, col = "#1a1208", anchor = "middle", font, letterSpacing) {
         const t = se("text");
+        t.setAttribute("x", String(x));
+        t.setAttribute("y", String(y));
         t.setAttribute("text-anchor", anchor);
-        t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
+        t.setAttribute("dominant-baseline", "middle");
+        t.setAttribute("font-family", font ?? "var(--font-sans, system-ui, sans-serif)");
         t.setAttribute("font-size", String(sz));
         t.setAttribute("font-weight", String(wt));
         t.setAttribute("fill", col);
         t.setAttribute("pointer-events", "none");
         t.setAttribute("user-select", "none");
+        if (letterSpacing != null)
+            t.setAttribute("letter-spacing", String(letterSpacing));
+        t.textContent = txt;
+        return t;
+    }
+    /**
+     * Multi-line SVG text element using <tspan> per line.
+     *
+     * | param         | maps to SVG attr         |
+     * |---------------|--------------------------|
+     * lines           | one <tspan> each         |
+     * x               | tspan x                  |
+     * cy              | vertical centre of block |
+     * sz              | font-size                |
+     * wt              | font-weight              |
+     * col             | fill                     |
+     * anchor          | text-anchor              |
+     * lineH           | dy between tspans (px)   |
+     * font            | font-family              |
+     * letterSpacing   | letter-spacing           |
+     */
+    function mkMultilineText(lines, x, cy, sz = 14, wt = 500, col = "#1a1208", anchor = "middle", lineH = 18, font, letterSpacing) {
+        const t = se("text");
+        t.setAttribute("text-anchor", anchor);
+        t.setAttribute("font-family", font ?? "var(--font-sans, system-ui, sans-serif)");
+        t.setAttribute("font-size", String(sz));
+        t.setAttribute("font-weight", String(wt));
+        t.setAttribute("fill", col);
+        t.setAttribute("pointer-events", "none");
+        t.setAttribute("user-select", "none");
+        if (letterSpacing != null)
+            t.setAttribute("letter-spacing", String(letterSpacing));
         // vertically centre the whole block
         const totalH = (lines.length - 1) * lineH;
         const startY = cy - totalH / 2;
@@ -2448,21 +2597,6 @@ var AIDiagram = (function (exports) {
         });
         return t;
     }
-    function mkText(txt, x, y, sz = 14, wt = 500, col = "#1a1208", anchor = "middle") {
-        const t = se("text");
-        t.setAttribute("x", String(x));
-        t.setAttribute("y", String(y));
-        t.setAttribute("text-anchor", anchor);
-        t.setAttribute("dominant-baseline", "middle");
-        t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
-        t.setAttribute("font-size", String(sz));
-        t.setAttribute("font-weight", String(wt));
-        t.setAttribute("fill", col);
-        t.setAttribute("pointer-events", "none");
-        t.setAttribute("user-select", "none");
-        t.textContent = txt;
-        return t;
-    }
     function mkGroup(id, cls) {
         const g = se("g");
         if (id)
@@ -2471,7 +2605,7 @@ var AIDiagram = (function (exports) {
             g.setAttribute("class", cls);
         return g;
     }
-    // ── Arrow direction from connector ────────────────────────
+    // ── Arrow direction from connector ────────────────────────────────────────
     function connMeta$1(connector) {
         if (connector === "--")
             return { arrowAt: "none", dashed: false };
@@ -2486,7 +2620,7 @@ var AIDiagram = (function (exports) {
             return { arrowAt: "start", dashed };
         return { arrowAt: "end", dashed };
     }
-    // ── Generic rect connection point ─────────────────────────
+    // ── Generic rect connection point ─────────────────────────────────────────
     function rectConnPoint$1(rx, ry, rw, rh, ox, oy) {
         const cx = rx + rw / 2, cy = ry + rh / 2;
         const dx = ox - cx, dy = oy - cy;
@@ -2511,7 +2645,7 @@ var AIDiagram = (function (exports) {
         }
         return rectConnPoint$1(src.x, src.y, src.w, src.h, dstCX, dstCY);
     }
-    // ── Group depth (for paint order) ─────────────────────────
+    // ── Group depth (for paint order) ─────────────────────────────────────────
     function groupDepth$1(g, gm) {
         let d = 0;
         let cur = g;
@@ -2521,7 +2655,7 @@ var AIDiagram = (function (exports) {
         }
         return d;
     }
-    // ── Node shapes ───────────────────────────────────────────
+    // ── Node shapes ───────────────────────────────────────────────────────────
     function renderShape$1(rc, n, palette) {
         const s = n.style ?? {};
         const fill = String(s.fill ?? palette.nodeFill);
@@ -2594,19 +2728,18 @@ var AIDiagram = (function (exports) {
                 return [];
             case "image": {
                 if (n.imageUrl) {
-                    const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
+                    const img = document.createElementNS(NS, "image");
                     img.setAttribute("href", n.imageUrl);
                     img.setAttribute("x", String(n.x + 1));
                     img.setAttribute("y", String(n.y + 1));
                     img.setAttribute("width", String(n.w - 2));
                     img.setAttribute("height", String(n.h - 2));
                     img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-                    // optional: clip to rounded rect
                     const clipId = `clip-${n.id}`;
-                    const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-                    const clip = document.createElementNS("http://www.w3.org/2000/svg", "clipPath");
+                    const defs = document.createElementNS(NS, "defs");
+                    const clip = document.createElementNS(NS, "clipPath");
                     clip.setAttribute("id", clipId);
-                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    const rect = document.createElementNS(NS, "rect");
                     rect.setAttribute("x", String(n.x + 1));
                     rect.setAttribute("y", String(n.y + 1));
                     rect.setAttribute("width", String(n.w - 2));
@@ -2615,15 +2748,12 @@ var AIDiagram = (function (exports) {
                     clip.appendChild(rect);
                     defs.appendChild(clip);
                     img.setAttribute("clip-path", `url(#${clipId})`);
-                    // border box drawn on top
                     const border = rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
                         ...opts,
                         fill: "none",
-                        fillStyle: "solid",
                     });
                     return [defs, img, border];
                 }
-                // fallback: no URL → grey placeholder box
                 return [
                     rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
                         ...opts,
@@ -2636,7 +2766,7 @@ var AIDiagram = (function (exports) {
                 return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
         }
     }
-    // ── Arrowhead ─────────────────────────────────────────────
+    // ── Arrowhead ─────────────────────────────────────────────────────────────
     function arrowHead(rc, x, y, angle, col, seed) {
         const as = 12;
         return rc.polygon([
@@ -2660,14 +2790,22 @@ var AIDiagram = (function (exports) {
     }
     function renderToSVG(sg, container, options = {}) {
         if (typeof rough === "undefined") {
-            throw new Error('rough.js is not loaded. Add <script src="https://unpkg.com/roughjs/bundled/rough.js"></script>');
+            throw new Error("rough.js is not loaded.");
         }
         const isDark = options.theme === "dark" ||
             (options.theme === "auto" &&
                 window.matchMedia?.("(prefers-color-scheme:dark)").matches);
-        // Resolve palette: DSL config takes priority, then options.theme, then light
         const themeName = String(sg.config[THEME_CONFIG_KEY] ?? (isDark ? "dark" : "light"));
         const palette = resolvePalette(themeName);
+        // ── Diagram-level font ──────────────────────────────────
+        const diagramFont = (() => {
+            const raw = String(sg.config["font"] ?? "");
+            if (raw) {
+                loadFont(raw);
+                return resolveFont(raw);
+            }
+            return DEFAULT_FONT;
+        })();
         BASE_ROUGH.roughness = options.roughness ?? 1.3;
         BASE_ROUGH.bowing = options.bowing ?? 0.7;
         let svg;
@@ -2684,14 +2822,7 @@ var AIDiagram = (function (exports) {
         svg.setAttribute("height", String(sg.height));
         svg.setAttribute("viewBox", `0 0 ${sg.width} ${sg.height}`);
         svg.style.fontFamily = "var(--font-sans, system-ui, sans-serif)";
-        // Background rect so exported SVGs have correct bg
-        // const bgRect = se("rect") as SVGRectElement;
-        // bgRect.setAttribute("x", "0");
-        // bgRect.setAttribute("y", "0");
-        // bgRect.setAttribute("width", String(sg.width));
-        // bgRect.setAttribute("height", String(sg.height));
-        // bgRect.setAttribute("fill", palette.background);
-        // svg.appendChild(bgRect);
+        // ── Background ─────────────────────────────────────────
         if (!options.transparent) {
             const bgRect = se("rect");
             bgRect.setAttribute("x", "0");
@@ -2707,9 +2838,9 @@ var AIDiagram = (function (exports) {
             const titleColor = String(sg.config["title-color"] ?? palette.titleText);
             const titleSize = Number(sg.config["title-size"] ?? 18);
             const titleWeight = Number(sg.config["title-weight"] ?? 600);
-            svg.appendChild(mkText(sg.title, sg.width / 2, 26, titleSize, titleWeight, titleColor));
+            svg.appendChild(mkText(sg.title, sg.width / 2, 26, titleSize, titleWeight, titleColor, "middle", diagramFont));
         }
-        // ── Groups (depth-sorted: outermost first) ────────────────
+        // ── Groups ───────────────────────────────────────────────
         const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
         const sortedGroups = [...sg.groups].sort((a, b) => groupDepth$1(a, gmMap) - groupDepth$1(b, gmMap));
         const GL = mkGroup("grp-layer");
@@ -2729,8 +2860,14 @@ var AIDiagram = (function (exports) {
                 strokeWidth: Number(gs.strokeWidth ?? 1.2),
                 strokeLineDash: gs.strokeDash ?? palette.groupDash,
             }));
-            const labelColor = gs.color ? String(gs.color) : palette.groupLabel;
-            gg.appendChild(mkText(g.label, g.x + 14, g.y + 14, 12, 500, labelColor, "start"));
+            // ── Group label typography ──────────────────────────
+            // supports: font, font-size, letter-spacing
+            // always left-anchored (single line)
+            const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
+            const gFontSize = Number(gs.fontSize ?? 12);
+            const gFont = resolveStyleFont$1(gs, diagramFont);
+            const gLetterSpacing = gs.letterSpacing;
+            gg.appendChild(mkText(g.label, g.x + 14, g.y + 14, gFontSize, 500, gLabelColor, "start", gFont, gLetterSpacing));
             GL.appendChild(gg);
         }
         svg.appendChild(GL);
@@ -2784,7 +2921,13 @@ var AIDiagram = (function (exports) {
                 bg.setAttribute("rx", "3");
                 bg.setAttribute("opacity", "0.9");
                 eg.appendChild(bg);
-                eg.appendChild(mkText(e.label, mx, my, 11, 400, palette.edgeLabelText));
+                // ── Edge label typography ───────────────────────
+                // supports: font, font-size, letter-spacing
+                // always center-anchored (single line floating on edge)
+                const eFontSize = Number(e.style?.fontSize ?? 11);
+                const eFont = resolveStyleFont$1(e.style ?? {}, diagramFont);
+                const eLetterSpacing = e.style?.letterSpacing;
+                eg.appendChild(mkText(e.label, mx, my, eFontSize, 400, palette.edgeLabelText, "middle", eFont, eLetterSpacing));
             }
             EL.appendChild(eg);
         }
@@ -2794,14 +2937,43 @@ var AIDiagram = (function (exports) {
         for (const n of sg.nodes) {
             const ng = mkGroup(`node-${n.id}`, "ng");
             renderShape$1(rc, n, palette).forEach((s) => ng.appendChild(s));
+            // ── Node / text typography ─────────────────────────
+            // supports: font, font-size, letter-spacing, text-align, line-height
             const fontSize = Number(n.style?.fontSize ?? (n.shape === "text" ? 13 : 14));
             const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
+            const textColor = String(n.style?.color ??
+                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText));
+            const nodeFont = resolveStyleFont$1(n.style ?? {}, diagramFont);
+            const textAlign = String(n.style?.textAlign ?? "center");
+            const anchorMap = {
+                left: "start",
+                center: "middle",
+                right: "end",
+            };
+            const textAnchor = anchorMap[textAlign] ?? "middle";
+            // line-height is a multiplier (e.g. 1.4 = 140% of font-size)
+            const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
+            const letterSpacing = n.style?.letterSpacing;
+            // x shifts for left / right alignment
+            const textX = textAlign === "left"
+                ? n.x + 8
+                : textAlign === "right"
+                    ? n.x + n.w - 8
+                    : n.x + n.w / 2;
             const lines = n.label.split("\n");
+            const verticalAlign = String(n.style?.verticalAlign ?? "middle");
+            const nodeBodyTop = n.y + 6;
+            const nodeBodyBottom = n.y + n.h - 6;
+            const nodeBodyMid = n.y + n.h / 2;
+            const blockH = (lines.length - 1) * lineHeight;
+            const textCY = verticalAlign === "top"
+                ? nodeBodyTop + blockH / 2
+                : verticalAlign === "bottom"
+                    ? nodeBodyBottom - blockH / 2
+                    : nodeBodyMid;
             ng.appendChild(lines.length > 1
-                ? mkMultilineText(lines, n.x + n.w / 2, n.y + n.h / 2, fontSize, fontWeight, String(n.style?.color ??
-                    (n.shape === "text" ? palette.edgeLabelText : palette.nodeText)))
-                : mkText(n.label, n.x + n.w / 2, n.y + n.h / 2, fontSize, fontWeight, String(n.style?.color ??
-                    (n.shape === "text" ? palette.edgeLabelText : palette.nodeText))));
+                ? mkMultilineText(lines, textX, textCY, fontSize, fontWeight, textColor, textAnchor, lineHeight, nodeFont, letterSpacing)
+                : mkText(n.label, textX, textCY, fontSize, fontWeight, textColor, textAnchor, nodeFont, letterSpacing));
             if (options.interactive) {
                 ng.style.cursor = "pointer";
                 ng.addEventListener("click", () => options.onNodeClick?.(n.id));
@@ -2827,7 +2999,12 @@ var AIDiagram = (function (exports) {
             const hdrText = String(gs.color ?? palette.tableHeaderText);
             const divCol = palette.tableDivider;
             const pad = t.labelH;
-            // Outer border
+            // ── Table-level font (applies to label + all cells) ─
+            // supports: font, font-size, letter-spacing
+            const tFontSize = Number(gs.fontSize ?? 12);
+            const tFont = resolveStyleFont$1(gs, diagramFont);
+            const tLetterSpacing = gs.letterSpacing;
+            // outer border
             tg.appendChild(rc.rectangle(t.x, t.y, t.w, t.h, {
                 ...BASE_ROUGH,
                 seed: hashStr$3(t.id),
@@ -2836,20 +3013,19 @@ var AIDiagram = (function (exports) {
                 stroke: strk,
                 strokeWidth: 1.5,
             }));
-            // Label strip separator
+            // label strip separator
             tg.appendChild(rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
                 roughness: 0.6,
                 seed: hashStr$3(t.id + "l"),
                 stroke: strk,
                 strokeWidth: 1,
             }));
-            // Label text
-            tg.appendChild(mkText(t.label, t.x + 10, t.y + pad / 2, 12, 500, textCol, "start"));
-            // Rows
+            // ── Table label: font, font-size, letter-spacing (always left) ──
+            tg.appendChild(mkText(t.label, t.x + 10, t.y + pad / 2, tFontSize, 500, textCol, "start", tFont, tLetterSpacing));
+            // rows
             let rowY = t.y + pad;
             for (const row of t.rows) {
                 const rh = row.kind === "header" ? t.headerH : t.rowH;
-                // Header background fill
                 if (row.kind === "header") {
                     const hdrBg = se("rect");
                     hdrBg.setAttribute("x", String(t.x + 1));
@@ -2859,19 +3035,34 @@ var AIDiagram = (function (exports) {
                     hdrBg.setAttribute("fill", hdrFill);
                     tg.appendChild(hdrBg);
                 }
-                // Row separator
                 tg.appendChild(rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
                     roughness: 0.4,
                     seed: hashStr$3(t.id + rowY),
                     stroke: row.kind === "header" ? strk : divCol,
                     strokeWidth: row.kind === "header" ? 1.2 : 0.6,
                 }));
-                // Cell text + col separators
+                // ── Cell text: font, font-size, letter-spacing, text-align ──
+                // text-align applies to data rows; header is always centered
+                const cellAlignProp = row.kind === "header" ? "center" : String(gs.textAlign ?? "center");
+                const cellAnchorMap = {
+                    left: "start",
+                    center: "middle",
+                    right: "end",
+                };
+                const cellAnchor = cellAnchorMap[cellAlignProp] ?? "middle";
+                const cellFw = row.kind === "header" ? 600 : 400;
+                const cellColor = row.kind === "header" ? hdrText : textCol;
                 let cx = t.x;
                 row.cells.forEach((cell, i) => {
                     const cw = t.colWidths[i] ?? 60;
-                    const fw = row.kind === "header" ? 600 : 400;
-                    tg.appendChild(mkText(cell, cx + cw / 2, rowY + rh / 2, 12, fw, row.kind === "header" ? hdrText : textCol));
+                    // x position shifts with alignment
+                    const cellX = cellAnchor === "start"
+                        ? cx + 6
+                        : cellAnchor === "end"
+                            ? cx + cw - 6
+                            : cx + cw / 2;
+                    // ← was missing tg.appendChild — cells were invisible before
+                    tg.appendChild(mkText(cell, cellX, rowY + rh / 2, tFontSize, cellFw, cellColor, cellAnchor, tFont, tLetterSpacing));
                     if (i < row.cells.length - 1) {
                         tg.appendChild(rc.line(cx + cw, t.y + pad, cx + cw, t.y + t.h, {
                             roughness: 0.3,
@@ -2900,6 +3091,25 @@ var AIDiagram = (function (exports) {
             const strk = String(gs.stroke ?? palette.noteStroke);
             const fold = 14;
             const { x, y, w, h } = n;
+            // ── Note typography ─────────────────────────────────
+            // supports: font, font-size, letter-spacing, text-align, line-height
+            const nFontSize = Number(gs.fontSize ?? 12);
+            const nFont = resolveStyleFont$1(gs, diagramFont);
+            const nLetterSpacing = gs.letterSpacing;
+            const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
+            const nTextAlign = String(gs.textAlign ?? "left");
+            const nAnchorMap = {
+                left: "start",
+                center: "middle",
+                right: "end",
+            };
+            const nAnchor = nAnchorMap[nTextAlign] ?? "start";
+            // x position for the text block (pad from left, with alignment)
+            const nTextX = nTextAlign === "right"
+                ? x + w - fold - 6
+                : nTextAlign === "center"
+                    ? x + (w - fold) / 2
+                    : x + 12;
             ng.appendChild(rc.polygon([
                 [x, y],
                 [x + w - fold, y],
@@ -2926,9 +3136,24 @@ var AIDiagram = (function (exports) {
                 stroke: strk,
                 strokeWidth: 0.8,
             }));
-            n.lines.forEach((line, i) => {
-                ng.appendChild(mkText(line, x + 12, y + 12 + i * 20 + 10, 12, 400, String(gs.color ?? palette.noteText), "start"));
-            });
+            const nVerticalAlign = String(gs.verticalAlign ?? "top");
+            const bodyTop = y + fold + 8; // below the fold triangle
+            const bodyBottom = y + h - 8; // above bottom edge
+            const bodyMid = (bodyTop + bodyBottom) / 2;
+            const blockH = (n.lines.length - 1) * nLineHeight;
+            const blockCY = nVerticalAlign === "bottom"
+                ? bodyBottom - blockH / 2
+                : nVerticalAlign === "middle"
+                    ? bodyMid
+                    : bodyTop + blockH / 2;
+            // multiline: use mkMultilineText so line-height is respected
+            if (n.lines.length > 1) {
+                // vertical centre of the text block inside the note
+                ng.appendChild(mkMultilineText(n.lines, nTextX, blockCY, nFontSize, 400, String(gs.color ?? palette.noteText), nAnchor, nLineHeight, nFont, nLetterSpacing));
+            }
+            else {
+                ng.appendChild(mkText(n.lines[0] ?? "", nTextX, blockCY, nFontSize, 400, String(gs.color ?? palette.noteText), nAnchor, nFont, nLetterSpacing));
+            }
             NoteL.appendChild(ng);
         }
         svg.appendChild(NoteL);
@@ -3205,22 +3430,69 @@ var AIDiagram = (function (exports) {
             h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
         return h;
     }
-    // ── Arrow direction from connector (mirrors svg/index.ts) ─
-    function connMeta(connector) {
-        if (connector === "--")
-            return { arrowAt: "none", dashed: false };
-        if (connector === "---")
-            return { arrowAt: "none", dashed: true };
-        const bidir = connector.includes("<") && connector.includes(">");
-        if (bidir)
-            return { arrowAt: "both", dashed: connector.includes("--") };
-        const back = connector.startsWith("<");
-        const dashed = connector.includes("--");
-        if (back)
-            return { arrowAt: "start", dashed };
-        return { arrowAt: "end", dashed };
+    // ── Small helper: load + resolve font from a style map ────────────────────
+    function resolveStyleFont(style, fallback) {
+        const raw = String(style['font'] ?? '');
+        if (!raw)
+            return fallback;
+        loadFont(raw);
+        return resolveFont(raw);
     }
-    // ── Generic rect connection point ─────────────────────────
+    // ── Canvas text helpers ────────────────────────────────────────────────────
+    /**
+     * Draw a single line of text.
+     * align: 'left' | 'center' | 'right'  (maps to ctx.textAlign)
+     */
+    function drawText(ctx, txt, x, y, sz = 14, wt = 500, col = '#1a1208', align = 'center', font = 'system-ui, sans-serif', letterSpacing) {
+        ctx.save();
+        ctx.font = `${wt} ${sz}px ${font}`;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.textBaseline = 'middle';
+        if (letterSpacing) {
+            // Canvas has no native letter-spacing — draw char by char
+            const chars = txt.split('');
+            const totalW = ctx.measureText(txt).width + letterSpacing * (chars.length - 1);
+            let startX = align === 'center' ? x - totalW / 2
+                : align === 'right' ? x - totalW
+                    : x;
+            ctx.textAlign = 'left';
+            for (const ch of chars) {
+                ctx.fillText(ch, startX, y);
+                startX += ctx.measureText(ch).width + letterSpacing;
+            }
+        }
+        else {
+            ctx.fillText(txt, x, y);
+        }
+        ctx.restore();
+    }
+    /**
+     * Draw multiple lines of text, vertically centred around cy.
+     */
+    function drawMultilineText(ctx, lines, x, cy, sz = 14, wt = 500, col = '#1a1208', align = 'center', lineH = 18, font = 'system-ui, sans-serif', letterSpacing) {
+        const totalH = (lines.length - 1) * lineH;
+        const startY = cy - totalH / 2;
+        lines.forEach((line, i) => {
+            drawText(ctx, line, x, startY + i * lineH, sz, wt, col, align, font, letterSpacing);
+        });
+    }
+    // ── Arrow direction ────────────────────────────────────────────────────────
+    function connMeta(connector) {
+        if (connector === '--')
+            return { arrowAt: 'none', dashed: false };
+        if (connector === '---')
+            return { arrowAt: 'none', dashed: true };
+        const bidir = connector.includes('<') && connector.includes('>');
+        if (bidir)
+            return { arrowAt: 'both', dashed: connector.includes('--') };
+        const back = connector.startsWith('<');
+        const dashed = connector.includes('--');
+        if (back)
+            return { arrowAt: 'start', dashed };
+        return { arrowAt: 'end', dashed };
+    }
+    // ── Rect connection point ──────────────────────────────────────────────────
     function rectConnPoint(rx, ry, rw, rh, ox, oy) {
         const cx = rx + rw / 2, cy = ry + rh / 2;
         const dx = ox - cx, dy = oy - cy;
@@ -3233,19 +3505,16 @@ var AIDiagram = (function (exports) {
         return [cx + t * dx, cy + t * dy];
     }
     function resolveEndpoint(id, nm, tm, gm, cm, ntm) {
-        return (nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null);
+        return nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null;
     }
     function getConnPoint(src, dstCX, dstCY) {
-        if ("shape" in src && src.shape) {
+        if ('shape' in src && src.shape) {
             return connPoint(src, {
-                x: dstCX - 1,
-                y: dstCY - 1,
-                w: 2,
-                h: 2});
+                x: dstCX - 1, y: dstCY - 1, w: 2, h: 2});
         }
         return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
     }
-    // ── Group depth (for paint order, outermost first) ────────
+    // ── Group depth ────────────────────────────────────────────────────────────
     function groupDepth(g, gm) {
         let d = 0;
         let cur = g;
@@ -3255,80 +3524,57 @@ var AIDiagram = (function (exports) {
         }
         return d;
     }
-    // ── Node shapes ───────────────────────────────────────────
+    // ── Node shapes ────────────────────────────────────────────────────────────
     function renderShape(rc, ctx, n, palette, R) {
         const s = n.style ?? {};
         const fill = String(s.fill ?? palette.nodeFill);
         const stroke = String(s.stroke ?? palette.nodeStroke);
         const opts = {
-            ...R,
-            seed: hashStr$1(n.id),
-            fill,
-            fillStyle: "solid",
-            stroke,
-            strokeWidth: Number(s.strokeWidth ?? 1.9),
+            ...R, seed: hashStr$1(n.id),
+            fill, fillStyle: 'solid',
+            stroke, strokeWidth: Number(s.strokeWidth ?? 1.9),
         };
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
         const hw = n.w / 2 - 2;
         switch (n.shape) {
-            case "circle":
+            case 'circle':
                 rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts);
                 break;
-            case "diamond":
-                rc.polygon([
-                    [cx, n.y + 2],
-                    [cx + hw, cy],
-                    [cx, n.y + n.h - 2],
-                    [cx - hw, cy],
-                ], opts);
+            case 'diamond':
+                rc.polygon([[cx, n.y + 2], [cx + hw, cy], [cx, n.y + n.h - 2], [cx - hw, cy]], opts);
                 break;
-            case "hexagon": {
+            case 'hexagon': {
                 const hw2 = hw * 0.56;
                 rc.polygon([
-                    [cx - hw2, n.y + 3],
-                    [cx + hw2, n.y + 3],
-                    [cx + hw, cy],
-                    [cx + hw2, n.y + n.h - 3],
-                    [cx - hw2, n.y + n.h - 3],
-                    [cx - hw, cy],
+                    [cx - hw2, n.y + 3], [cx + hw2, n.y + 3], [cx + hw, cy],
+                    [cx + hw2, n.y + n.h - 3], [cx - hw2, n.y + n.h - 3], [cx - hw, cy],
                 ], opts);
                 break;
             }
-            case "triangle":
-                rc.polygon([
-                    [cx, n.y + 3],
-                    [n.x + n.w - 3, n.y + n.h - 3],
-                    [n.x + 3, n.y + n.h - 3],
-                ], opts);
+            case 'triangle':
+                rc.polygon([[cx, n.y + 3], [n.x + n.w - 3, n.y + n.h - 3], [n.x + 3, n.y + n.h - 3]], opts);
                 break;
-            case "cylinder": {
+            case 'cylinder': {
                 const eH = 18;
                 rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts);
                 rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 });
-                rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, {
-                    ...opts,
-                    roughness: 0.6,
-                    fill: "none",
-                });
+                rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6, fill: 'none' });
                 break;
             }
-            case "parallelogram":
+            case 'parallelogram':
                 rc.polygon([
-                    [n.x + 18, n.y + 1],
-                    [n.x + n.w - 1, n.y + 1],
-                    [n.x + n.w - 18, n.y + n.h - 1],
-                    [n.x + 1, n.y + n.h - 1],
+                    [n.x + 18, n.y + 1], [n.x + n.w - 1, n.y + 1],
+                    [n.x + n.w - 18, n.y + n.h - 1], [n.x + 1, n.y + n.h - 1],
                 ], opts);
                 break;
-            case "text":
-                break; // text nodes: no background shape
-            case "image": {
+            case 'text':
+                break;
+            case 'image': {
                 if (n.imageUrl) {
                     const img = new Image();
-                    img.crossOrigin = "anonymous";
+                    img.crossOrigin = 'anonymous';
                     img.onload = () => {
                         ctx.save();
-                        // rounded clip
                         ctx.beginPath();
                         const r = 6;
                         ctx.moveTo(n.x + r, n.y);
@@ -3344,21 +3590,12 @@ var AIDiagram = (function (exports) {
                         ctx.clip();
                         ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, n.h - 2);
                         ctx.restore();
-                        // border on top
-                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                            ...opts,
-                            fill: "none",
-                        });
+                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
                     };
                     img.src = n.imageUrl;
                 }
                 else {
-                    // placeholder
-                    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                        ...opts,
-                        fill: "#e0e0e0",
-                        stroke: "#999999",
-                    });
+                    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: '#e0e0e0', stroke: '#999999' });
                 }
                 return;
             }
@@ -3367,57 +3604,52 @@ var AIDiagram = (function (exports) {
                 break;
         }
     }
-    // ── Arrowhead ─────────────────────────────────────────────
+    // ── Arrowhead ─────────────────────────────────────────────────────────────
     function drawArrowHead(rc, x, y, angle, col, seed, R) {
         const as = 12;
         rc.polygon([
             [x, y],
-            [
-                x - as * Math.cos(angle - Math.PI / 6.5),
-                y - as * Math.sin(angle - Math.PI / 6.5),
-            ],
-            [
-                x - as * Math.cos(angle + Math.PI / 6.5),
-                y - as * Math.sin(angle + Math.PI / 6.5),
-            ],
-        ], {
-            roughness: 0.3,
-            seed,
-            fill: col,
-            fillStyle: "solid",
-            stroke: col,
-            strokeWidth: 0.8,
-        });
+            [x - as * Math.cos(angle - Math.PI / 6.5), y - as * Math.sin(angle - Math.PI / 6.5)],
+            [x - as * Math.cos(angle + Math.PI / 6.5), y - as * Math.sin(angle + Math.PI / 6.5)],
+        ], { roughness: 0.3, seed, fill: col, fillStyle: 'solid', stroke: col, strokeWidth: 0.8 });
     }
+    // ── Public API ─────────────────────────────────────────────────────────────
     function renderToCanvas(sg, canvas, options = {}) {
-        if (typeof rough === "undefined")
-            throw new Error("rough.js not loaded");
+        if (typeof rough === 'undefined')
+            throw new Error('rough.js not loaded');
         const scale = options.scale ?? window.devicePixelRatio ?? 1;
         canvas.width = sg.width * scale;
         canvas.height = sg.height * scale;
-        canvas.style.width = sg.width + "px";
-        canvas.style.height = sg.height + "px";
-        const ctx = canvas.getContext("2d");
+        canvas.style.width = sg.width + 'px';
+        canvas.style.height = sg.height + 'px';
+        const ctx = canvas.getContext('2d');
         ctx.scale(scale, scale);
-        if (options.transparent) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-        // ── Resolve palette (mirrors SVG renderer) ───────────────
-        const isDark = options.theme === "dark" ||
-            (options.theme === "auto" &&
-                window.matchMedia?.("(prefers-color-scheme:dark)").matches);
-        const themeName = String(sg.config[THEME_CONFIG_KEY] ?? (isDark ? "dark" : "light"));
+        // ── Palette ──────────────────────────────────────────────
+        const isDark = options.theme === 'dark' ||
+            (options.theme === 'auto' &&
+                typeof window !== 'undefined' &&
+                window.matchMedia?.('(prefers-color-scheme:dark)').matches);
+        const themeName = String(sg.config[THEME_CONFIG_KEY] ?? (isDark ? 'dark' : 'light'));
         const palette = resolvePalette(themeName);
+        // ── Diagram-level font ───────────────────────────────────
+        const diagramFont = (() => {
+            const raw = String(sg.config['font'] ?? '');
+            if (raw) {
+                loadFont(raw);
+                return resolveFont(raw);
+            }
+            return DEFAULT_FONT;
+        })();
+        // ── Background ───────────────────────────────────────────
         if (!options.transparent) {
             ctx.fillStyle = options.background ?? palette.background;
             ctx.fillRect(0, 0, sg.width, sg.height);
         }
+        else {
+            ctx.clearRect(0, 0, sg.width, sg.height);
+        }
         const rc = rough.canvas(canvas);
-        const R = {
-            roughness: options.roughness ?? 1.3,
-            bowing: options.bowing ?? 0.7,
-        };
-        // ── Lookup maps ──────────────────────────────────────────
+        const R = { roughness: options.roughness ?? 1.3, bowing: options.bowing ?? 0.7 };
         const nm = nodeMap(sg);
         const tm = tableMap(sg);
         const gm = groupMap(sg);
@@ -3425,36 +3657,30 @@ var AIDiagram = (function (exports) {
         const ntm = noteMap(sg);
         // ── Title ────────────────────────────────────────────────
         if (sg.title) {
-            ctx.save();
-            ctx.font = "600 18px system-ui, sans-serif";
-            ctx.fillStyle = palette.titleText;
-            ctx.textAlign = "center";
-            ctx.fillText(sg.title, sg.width / 2, 28);
-            ctx.restore();
+            const titleSize = Number(sg.config['title-size'] ?? 18);
+            drawText(ctx, sg.title, sg.width / 2, 28, titleSize, 600, palette.titleText, 'center', diagramFont);
         }
-        // ── Groups (depth-sorted: outermost first) ────────────────
+        // ── Groups (outermost first) ─────────────────────────────
         const sortedGroups = [...sg.groups].sort((a, b) => groupDepth(a, gm) - groupDepth(b, gm));
         for (const g of sortedGroups) {
             if (!g.w)
                 continue;
             const gs = g.style ?? {};
             rc.rectangle(g.x, g.y, g.w, g.h, {
-                ...R,
-                roughness: 1.7,
-                bowing: 0.4,
-                seed: hashStr$1(g.id),
+                ...R, roughness: 1.7, bowing: 0.4, seed: hashStr$1(g.id),
                 fill: String(gs.fill ?? palette.groupFill),
-                fillStyle: "solid",
+                fillStyle: 'solid',
                 stroke: String(gs.stroke ?? palette.groupStroke),
                 strokeWidth: Number(gs.strokeWidth ?? 1.2),
                 strokeLineDash: gs.strokeDash ?? palette.groupDash,
             });
-            ctx.save();
-            ctx.font = "500 12px system-ui, sans-serif";
-            ctx.fillStyle = gs.color ? String(gs.color) : palette.groupLabel;
-            ctx.textAlign = "left";
-            ctx.fillText(g.label, g.x + 14, g.y + 16);
-            ctx.restore();
+            // ── Group label: font, font-size, letter-spacing ─────
+            // always left-anchored (single line)
+            const gFontSize = Number(gs.fontSize ?? 12);
+            const gFont = resolveStyleFont(gs, diagramFont);
+            const gLetterSpacing = gs.letterSpacing;
+            const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
+            drawText(ctx, g.label, g.x + 14, g.y + 16, gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
         }
         // ── Edges ─────────────────────────────────────────────────
         for (const e of sg.edges) {
@@ -3471,62 +3697,61 @@ var AIDiagram = (function (exports) {
             const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
             const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
             const HEAD = 13;
-            const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
-            const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
-            const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
-            const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
+            const sx1 = arrowAt === 'start' || arrowAt === 'both' ? x1 + nx * HEAD : x1;
+            const sy1 = arrowAt === 'start' || arrowAt === 'both' ? y1 + ny * HEAD : y1;
+            const sx2 = arrowAt === 'end' || arrowAt === 'both' ? x2 - nx * HEAD : x2;
+            const sy2 = arrowAt === 'end' || arrowAt === 'both' ? y2 - ny * HEAD : y2;
             rc.line(sx1, sy1, sx2, sy2, {
-                ...R,
-                roughness: 0.9,
-                seed: hashStr$1(e.from + e.to),
+                ...R, roughness: 0.9, seed: hashStr$1(e.from + e.to),
                 stroke: ecol,
                 strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
                 ...(dashed ? { strokeLineDash: [6, 5] } : {}),
             });
             const ang = Math.atan2(y2 - y1, x2 - x1);
-            if (arrowAt === "end" || arrowAt === "both")
+            if (arrowAt === 'end' || arrowAt === 'both')
                 drawArrowHead(rc, x2, y2, ang, ecol, hashStr$1(e.to));
-            if (arrowAt === "start" || arrowAt === "both")
-                drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$1(e.from + "back"));
+            if (arrowAt === 'start' || arrowAt === 'both')
+                drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$1(e.from + 'back'));
             if (e.label) {
                 const mx = (x1 + x2) / 2 - ny * 14;
                 const my = (y1 + y2) / 2 + nx * 14;
+                // ── Edge label: font, font-size, letter-spacing ──
+                // always center-anchored (single line)
+                const eFontSize = Number(e.style?.fontSize ?? 11);
+                const eFont = resolveStyleFont(e.style ?? {}, diagramFont);
+                const eLetterSpacing = e.style?.letterSpacing;
                 ctx.save();
-                ctx.font = "400 11px system-ui, sans-serif";
-                ctx.textAlign = "center";
+                ctx.font = `400 ${eFontSize}px ${eFont}`;
                 const tw = ctx.measureText(e.label).width + 12;
+                ctx.restore();
                 ctx.fillStyle = palette.edgeLabelBg;
                 ctx.fillRect(mx - tw / 2, my - 8, tw, 15);
-                ctx.fillStyle = palette.edgeLabelText;
-                ctx.fillText(e.label, mx, my + 3);
-                ctx.restore();
+                drawText(ctx, e.label, mx, my + 3, eFontSize, 400, palette.edgeLabelText, 'center', eFont, eLetterSpacing);
             }
         }
         // ── Nodes ─────────────────────────────────────────────────
         for (const n of sg.nodes) {
             renderShape(rc, ctx, n, palette, R);
-            const s = n.style ?? {};
-            const fontSize = Number(s.fontSize ?? (n.shape === "text" ? 13 : 14));
-            const fontWeight = s.fontWeight ?? (n.shape === "text" ? 400 : 500);
-            const textColor = String(s.color ??
-                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText));
-            ctx.save();
-            ctx.font = `${fontWeight} ${fontSize}px system-ui, sans-serif`;
-            ctx.fillStyle = textColor;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            const lines = n.label.split("\n");
-            if (lines.length === 1) {
-                ctx.fillText(n.label, n.x + n.w / 2, n.y + n.h / 2);
+            // ── Node / text typography ─────────────────────────
+            // supports: font, font-size, letter-spacing, text-align, line-height
+            const fontSize = Number(n.style?.fontSize ?? (n.shape === 'text' ? 13 : 14));
+            const fontWeight = n.style?.fontWeight ?? (n.shape === 'text' ? 400 : 500);
+            const textColor = String(n.style?.color ??
+                (n.shape === 'text' ? palette.edgeLabelText : palette.nodeText));
+            const nodeFont = resolveStyleFont(n.style ?? {}, diagramFont);
+            const textAlign = String(n.style?.textAlign ?? 'center');
+            const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
+            const letterSpacing = n.style?.letterSpacing;
+            const textX = textAlign === 'left' ? n.x + 8
+                : textAlign === 'right' ? n.x + n.w - 8
+                    : n.x + n.w / 2;
+            const lines = n.label.split('\n');
+            if (lines.length > 1) {
+                drawMultilineText(ctx, lines, textX, n.y + n.h / 2, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
             }
             else {
-                const lineH = fontSize * 1.35;
-                const startY = n.y + n.h / 2 - ((lines.length - 1) * lineH) / 2;
-                lines.forEach((line, i) => {
-                    ctx.fillText(line, n.x + n.w / 2, startY + i * lineH);
-                });
+                drawText(ctx, n.label, textX, n.y + n.h / 2, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
             }
-            ctx.restore();
         }
         // ── Tables ────────────────────────────────────────────────
         for (const t of sg.tables) {
@@ -3535,65 +3760,53 @@ var AIDiagram = (function (exports) {
             const strk = String(gs.stroke ?? palette.tableStroke);
             const textCol = String(gs.color ?? palette.tableText);
             const pad = t.labelH;
-            // Outer border
+            // ── Table-level font ────────────────────────────────
+            // supports: font, font-size, letter-spacing (cells also support text-align)
+            const tFontSize = Number(gs.fontSize ?? 12);
+            const tFont = resolveStyleFont(gs, diagramFont);
+            const tLetterSpacing = gs.letterSpacing;
             rc.rectangle(t.x, t.y, t.w, t.h, {
-                ...R,
-                seed: hashStr$1(t.id),
-                fill,
-                fillStyle: "solid",
-                stroke: strk,
-                strokeWidth: 1.5,
+                ...R, seed: hashStr$1(t.id),
+                fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.5,
             });
-            // Label strip separator
             rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
-                roughness: 0.6,
-                seed: hashStr$1(t.id + "l"),
-                stroke: strk,
-                strokeWidth: 1,
+                roughness: 0.6, seed: hashStr$1(t.id + 'l'), stroke: strk, strokeWidth: 1,
             });
-            // Label text
-            ctx.save();
-            ctx.font = "500 12px system-ui, sans-serif";
-            ctx.fillStyle = textCol;
-            ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
-            ctx.fillText(t.label, t.x + 10, t.y + pad / 2);
-            ctx.restore();
-            // Rows
+            // ── Table label: font, font-size, letter-spacing ────
+            // always left-anchored
+            drawText(ctx, t.label, t.x + 10, t.y + pad / 2, tFontSize, 500, textCol, 'left', tFont, tLetterSpacing);
             let rowY = t.y + pad;
             for (const row of t.rows) {
-                const rh = row.kind === "header" ? t.headerH : t.rowH;
-                // Header background
-                if (row.kind === "header") {
+                const rh = row.kind === 'header' ? t.headerH : t.rowH;
+                if (row.kind === 'header') {
                     ctx.fillStyle = palette.tableHeaderFill;
                     ctx.fillRect(t.x + 1, rowY + 1, t.w - 2, rh - 1);
                 }
-                // Row separator
                 rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
-                    roughness: 0.4,
-                    seed: hashStr$1(t.id + rowY),
-                    stroke: row.kind === "header" ? strk : palette.tableDivider,
-                    strokeWidth: row.kind === "header" ? 1.2 : 0.6,
+                    roughness: 0.4, seed: hashStr$1(t.id + rowY),
+                    stroke: row.kind === 'header' ? strk : palette.tableDivider,
+                    strokeWidth: row.kind === 'header' ? 1.2 : 0.6,
                 });
-                // Cell text + column separators
+                // ── Cell text: font, font-size, letter-spacing, text-align ──
+                // header always centered; data rows respect gs.textAlign
+                const cellAlignProp = (row.kind === 'header'
+                    ? 'center'
+                    : String(gs.textAlign ?? 'center'));
+                const cellFw = row.kind === 'header' ? 600 : 400;
+                const cellColor = row.kind === 'header'
+                    ? String(gs.color ?? palette.tableHeaderText)
+                    : textCol;
                 let cx = t.x;
                 row.cells.forEach((cell, i) => {
                     const cw = t.colWidths[i] ?? 60;
-                    const fw = row.kind === "header" ? 600 : 400;
-                    ctx.save();
-                    ctx.font = `${fw} 12px system-ui, sans-serif`;
-                    ctx.fillStyle =
-                        row.kind === "header" ? palette.tableHeaderText : textCol;
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillText(cell, cx + cw / 2, rowY + rh / 2);
-                    ctx.restore();
+                    const cellX = cellAlignProp === 'left' ? cx + 6
+                        : cellAlignProp === 'right' ? cx + cw - 6
+                            : cx + cw / 2;
+                    drawText(ctx, cell, cellX, rowY + rh / 2, tFontSize, cellFw, cellColor, cellAlignProp, tFont, tLetterSpacing);
                     if (i < row.cells.length - 1) {
                         rc.line(cx + cw, t.y + pad, cx + cw, t.y + t.h, {
-                            roughness: 0.3,
-                            seed: hashStr$1(t.id + "c" + i),
-                            stroke: palette.tableDivider,
-                            strokeWidth: 0.5,
+                            roughness: 0.3, seed: hashStr$1(t.id + 'c' + i),
+                            stroke: palette.tableDivider, strokeWidth: 0.5,
                         });
                     }
                     cx += cw;
@@ -3608,44 +3821,37 @@ var AIDiagram = (function (exports) {
             const strk = String(gs.stroke ?? palette.noteStroke);
             const fold = 14;
             const { x, y, w, h } = n;
-            // Note body (folded corner polygon)
             rc.polygon([
                 [x, y],
                 [x + w - fold, y],
                 [x + w, y + fold],
                 [x + w, y + h],
                 [x, y + h],
-            ], {
-                ...R,
-                seed: hashStr$1(n.id),
-                fill,
-                fillStyle: "solid",
-                stroke: strk,
-                strokeWidth: 1.2,
-            });
-            // Folded corner triangle
+            ], { ...R, seed: hashStr$1(n.id), fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.2 });
             rc.polygon([
                 [x + w - fold, y],
                 [x + w, y + fold],
                 [x + w - fold, y + fold],
-            ], {
-                roughness: 0.4,
-                seed: hashStr$1(n.id + "f"),
-                fill: palette.noteFold,
-                fillStyle: "solid",
-                stroke: strk,
-                strokeWidth: 0.8,
-            });
-            // Text lines
-            ctx.save();
-            ctx.font = "400 12px system-ui, sans-serif";
-            ctx.fillStyle = String(gs.color ?? palette.noteText);
-            ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
-            n.lines.forEach((line, i) => {
-                ctx.fillText(line, x + 12, y + 12 + i * 20 + 10);
-            });
-            ctx.restore();
+            ], { roughness: 0.4, seed: hashStr$1(n.id + 'f'),
+                fill: palette.noteFold, fillStyle: 'solid', stroke: strk, strokeWidth: 0.8 });
+            // ── Note typography ─────────────────────────────────
+            // supports: font, font-size, letter-spacing, text-align, line-height
+            const nFontSize = Number(gs.fontSize ?? 12);
+            const nFont = resolveStyleFont(gs, diagramFont);
+            const nLetterSpacing = gs.letterSpacing;
+            const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
+            const nTextAlign = String(gs.textAlign ?? 'left');
+            const nColor = String(gs.color ?? palette.noteText);
+            const nTextX = nTextAlign === 'right' ? x + w - fold - 6
+                : nTextAlign === 'center' ? x + (w - fold) / 2
+                    : x + 12;
+            if (n.lines.length > 1) {
+                const blockCY = y + fold / 2 + (h - fold) / 2;
+                drawMultilineText(ctx, n.lines, nTextX, blockCY, nFontSize, 400, nColor, nTextAlign, nLineHeight, nFont, nLetterSpacing);
+            }
+            else {
+                drawText(ctx, n.lines[0] ?? '', nTextX, y + h / 2, nFontSize, 400, nColor, nTextAlign, nFont, nLetterSpacing);
+            }
         }
         // ── Charts ────────────────────────────────────────────────
         for (const c of sg.charts) {
@@ -3657,19 +3863,19 @@ var AIDiagram = (function (exports) {
             }, R);
         }
     }
-    // ── Export canvas to PNG blob ─────────────────────────────
+    // ── Export helpers ─────────────────────────────────────────────────────────
     function canvasToPNGBlob(canvas) {
         return new Promise((resolve, reject) => {
-            canvas.toBlob((blob) => {
+            canvas.toBlob(blob => {
                 if (blob)
                     resolve(blob);
                 else
-                    reject(new Error("Canvas toBlob failed"));
-            }, "image/png");
+                    reject(new Error('Canvas toBlob failed'));
+            }, 'image/png');
         });
     }
     function canvasToPNGDataURL(canvas) {
-        return canvas.toDataURL("image/png");
+        return canvas.toDataURL('image/png');
     }
 
     // ============================================================
@@ -4670,6 +4876,7 @@ var AIDiagram = (function (exports) {
 
     exports.ANIMATION_CSS = ANIMATION_CSS;
     exports.AnimationController = AnimationController;
+    exports.BUILTIN_FONTS = BUILTIN_FONTS;
     exports.EventEmitter = EventEmitter;
     exports.PALETTES = PALETTES;
     exports.ParseError = ParseError;
@@ -4693,12 +4900,15 @@ var AIDiagram = (function (exports) {
     exports.layout = layout;
     exports.lerp = lerp;
     exports.listThemes = listThemes;
+    exports.loadFont = loadFont;
     exports.nodeMap = nodeMap;
     exports.parse = parse;
     exports.parseHex = parseHex;
+    exports.registerFont = registerFont;
     exports.render = render;
     exports.renderToCanvas = renderToCanvas;
     exports.renderToSVG = renderToSVG;
+    exports.resolveFont = resolveFont;
     exports.resolvePalette = resolvePalette;
     exports.sleep = sleep;
     exports.svgToPNGDataURL = svgToPNGDataURL;

@@ -20,8 +20,13 @@ export interface StyleProps {
   fill?: string; stroke?: string; strokeWidth?: number;
   color?: string; opacity?: number; radius?: number;
   shadow?: boolean; fontSize?: number; fontWeight?: number | string;
+  font?:        string;
   labelColor?: string; [key: string]: unknown;
   strokeDash?: number[]; 
+  textAlign?:     'left' | 'center' | 'right';  
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  lineHeight?:    number;                          
+  letterSpacing?: number;
 }
 
 // A child inside a group — either a node or a nested group
@@ -111,6 +116,8 @@ export interface ASTNote {
   label:  string;       
   theme?: string;
   style?: StyleProps;
+  width?: number;
+  height?: number;
 }
 
 

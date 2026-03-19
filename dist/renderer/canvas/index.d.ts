@@ -4,7 +4,7 @@ export interface CanvasRendererOptions {
     background?: string;
     roughness?: number;
     bowing?: number;
-    theme?: "light" | "dark" | "auto";
+    theme?: 'light' | 'dark' | 'auto';
     animate?: boolean;
     transparent?: boolean;
 }

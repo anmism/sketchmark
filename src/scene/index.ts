@@ -101,6 +101,8 @@ export interface SceneNote {
   y: number;
   w: number;
   h: number;
+  width?: number;
+  height?: number;
 }
 
 export interface SceneChart {
@@ -205,6 +207,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       y: 0,
       w: 0,
       h: 0,
+      width: n.width,
+      height: n.height,
     };
   });
 

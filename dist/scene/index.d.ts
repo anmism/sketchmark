@@ -77,6 +77,8 @@ export interface SceneNote {
     y: number;
     w: number;
     h: number;
+    width?: number;
+    height?: number;
 }
 export interface SceneChart {
     id: string;

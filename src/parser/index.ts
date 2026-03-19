@@ -76,6 +76,11 @@ function propsToStyle(p: Record<string, string>): StyleProps {
   if (p.shadow) s.shadow = p.shadow === "true";
   if (p["font-size"]) s.fontSize = parseFloat(p["font-size"]);
   if (p["font-weight"]) s.fontWeight = p["font-weight"];
+  if (p['text-align'])     s.textAlign     = p['text-align'] as StyleProps['textAlign'];
+  if (p['vertical-align']) s.verticalAlign = p['vertical-align'] as StyleProps['verticalAlign'];
+  if (p['line-height'])    s.lineHeight    = parseFloat(p['line-height']);
+  if (p['letter-spacing']) s.letterSpacing = parseFloat(p['letter-spacing']);
+  if (p.font) s.font = p.font;
   if (p["dash"]) {
     const parts = p["dash"]
       .split(",")
@@ -314,6 +319,8 @@ export function parse(src: string): DiagramAST {
       label: rawLabel.replace(/\\n/g, "\n"),
       theme: props.theme,
       style: propsToStyle(props),
+      ...(props.width  ? { width:  parseFloat(props.width)  } : {}),
+      ...(props.height ? { height: parseFloat(props.height) } : {}),
     };
   }
 
@@ -898,15 +905,6 @@ export function parse(src: string): DiagramAST {
       node.style = { ...ast.styles[node.id], ...node.style };
     }
   }
-
-  console.log(
-    "[parse] charts:",
-    ast.charts.map((c) => c.id),
-  );
-  console.log(
-    "[parse] rootOrder:",
-    ast.rootOrder.map((r) => r.kind + ":" + r.id),
-  );
 
   return ast;
 }

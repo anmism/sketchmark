@@ -15,6 +15,7 @@ import { nodeMap, groupMap, tableMap, noteMap, chartMap } from "../../scene";
 import { renderRoughChartSVG } from "./roughChartSVG";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
+import { resolveFont, loadFont, DEFAULT_FONT } from "../../fonts";
 
 declare const rough: { svg(el: SVGSVGElement): RoughSVG };
 
@@ -71,26 +72,105 @@ function hashStr(s: string): number {
 
 const BASE_ROUGH: RoughOpts = { roughness: 1.3, bowing: 0.7 };
 
-// ── SVG helpers ───────────────────────────────────────────
+// ── Small helper: load + resolve font from style or fall back ─────────────
+function resolveStyleFont(
+  style: Record<string, unknown>,
+  fallback: string,
+): string {
+  const raw = String(style["font"] ?? "");
+  if (!raw) return fallback;
+  loadFont(raw);
+  return resolveFont(raw);
+}
 
-function mkMultilineText(
-  lines: string[],
+// ── SVG text helpers ──────────────────────────────────────────────────────
+
+/**
+ * Single-line SVG text element.
+ *
+ * | param         | maps to SVG attr         |
+ * |---------------|--------------------------|
+ * txt             | textContent              |
+ * x, y            | x, y                     |
+ * sz              | font-size                |
+ * wt              | font-weight              |
+ * col             | fill                     |
+ * anchor          | text-anchor              |
+ * font            | font-family              |
+ * letterSpacing   | letter-spacing           |
+ */
+function mkText(
+  txt: string,
   x: number,
-  cy: number, // vertical center of the whole block
+  y: number,
   sz = 14,
   wt: number | string = 500,
   col = "#1a1208",
   anchor = "middle",
-  lineH = 18,
+  font?: string,
+  letterSpacing?: number,
 ): SVGTextElement {
   const t = se("text") as SVGTextElement;
+  t.setAttribute("x", String(x));
+  t.setAttribute("y", String(y));
   t.setAttribute("text-anchor", anchor);
-  t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
+  t.setAttribute("dominant-baseline", "middle");
+  t.setAttribute(
+    "font-family",
+    font ?? "var(--font-sans, system-ui, sans-serif)",
+  );
   t.setAttribute("font-size", String(sz));
   t.setAttribute("font-weight", String(wt));
   t.setAttribute("fill", col);
   t.setAttribute("pointer-events", "none");
   t.setAttribute("user-select", "none");
+  if (letterSpacing != null)
+    t.setAttribute("letter-spacing", String(letterSpacing));
+  t.textContent = txt;
+  return t;
+}
+
+/**
+ * Multi-line SVG text element using <tspan> per line.
+ *
+ * | param         | maps to SVG attr         |
+ * |---------------|--------------------------|
+ * lines           | one <tspan> each         |
+ * x               | tspan x                  |
+ * cy              | vertical centre of block |
+ * sz              | font-size                |
+ * wt              | font-weight              |
+ * col             | fill                     |
+ * anchor          | text-anchor              |
+ * lineH           | dy between tspans (px)   |
+ * font            | font-family              |
+ * letterSpacing   | letter-spacing           |
+ */
+function mkMultilineText(
+  lines: string[],
+  x: number,
+  cy: number,
+  sz = 14,
+  wt: number | string = 500,
+  col = "#1a1208",
+  anchor = "middle",
+  lineH = 18,
+  font?: string,
+  letterSpacing?: number,
+): SVGTextElement {
+  const t = se("text") as SVGTextElement;
+  t.setAttribute("text-anchor", anchor);
+  t.setAttribute(
+    "font-family",
+    font ?? "var(--font-sans, system-ui, sans-serif)",
+  );
+  t.setAttribute("font-size", String(sz));
+  t.setAttribute("font-weight", String(wt));
+  t.setAttribute("fill", col);
+  t.setAttribute("pointer-events", "none");
+  t.setAttribute("user-select", "none");
+  if (letterSpacing != null)
+    t.setAttribute("letter-spacing", String(letterSpacing));
 
   // vertically centre the whole block
   const totalH = (lines.length - 1) * lineH;
@@ -107,30 +187,6 @@ function mkMultilineText(
   return t;
 }
 
-function mkText(
-  txt: string,
-  x: number,
-  y: number,
-  sz = 14,
-  wt: number | string = 500,
-  col = "#1a1208",
-  anchor = "middle",
-): SVGTextElement {
-  const t = se("text") as SVGTextElement;
-  t.setAttribute("x", String(x));
-  t.setAttribute("y", String(y));
-  t.setAttribute("text-anchor", anchor);
-  t.setAttribute("dominant-baseline", "middle");
-  t.setAttribute("font-family", "var(--font-sans, system-ui, sans-serif)");
-  t.setAttribute("font-size", String(sz));
-  t.setAttribute("font-weight", String(wt));
-  t.setAttribute("fill", col);
-  t.setAttribute("pointer-events", "none");
-  t.setAttribute("user-select", "none");
-  t.textContent = txt;
-  return t;
-}
-
 function mkGroup(id?: string, cls?: string): SVGGElement {
   const g = se("g") as SVGGElement;
   if (id) g.setAttribute("id", id);
@@ -138,7 +194,7 @@ function mkGroup(id?: string, cls?: string): SVGGElement {
   return g;
 }
 
-// ── Arrow direction from connector ────────────────────────
+// ── Arrow direction from connector ────────────────────────────────────────
 function connMeta(connector: string): {
   arrowAt: "end" | "start" | "both" | "none";
   dashed: boolean;
@@ -153,7 +209,7 @@ function connMeta(connector: string): {
   return { arrowAt: "end", dashed };
 }
 
-// ── Generic rect connection point ─────────────────────────
+// ── Generic rect connection point ─────────────────────────────────────────
 function rectConnPoint(
   rx: number,
   ry: number,
@@ -208,7 +264,7 @@ function getConnPoint(
   return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
 }
 
-// ── Group depth (for paint order) ─────────────────────────
+// ── Group depth (for paint order) ─────────────────────────────────────────
 function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number {
   let d = 0;
   let cur: SceneGroup | undefined = g;
@@ -219,7 +275,7 @@ function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number {
   return d;
 }
 
-// ── Node shapes ───────────────────────────────────────────
+// ── Node shapes ───────────────────────────────────────────────────────────
 function renderShape(
   rc: RoughSVG,
   n: SceneNode,
@@ -243,6 +299,7 @@ function renderShape(
   switch (n.shape) {
     case "circle":
       return [rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts)];
+
     case "diamond":
       return [
         rc.polygon(
@@ -255,6 +312,7 @@ function renderShape(
           opts,
         ),
       ];
+
     case "hexagon": {
       const hw2 = hw * 0.56;
       return [
@@ -271,6 +329,7 @@ function renderShape(
         ),
       ];
     }
+
     case "triangle":
       return [
         rc.polygon(
@@ -282,6 +341,7 @@ function renderShape(
           opts,
         ),
       ];
+
     case "parallelogram":
       return [
         rc.polygon(
@@ -294,6 +354,7 @@ function renderShape(
           opts,
         ),
       ];
+
     case "cylinder": {
       const eH = 18;
       return [
@@ -306,35 +367,25 @@ function renderShape(
         }),
       ];
     }
+
     case "text":
       return [];
+
     case "image": {
       if (n.imageUrl) {
-        const img = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "image",
-        );
+        const img = document.createElementNS(NS, "image") as SVGImageElement;
         img.setAttribute("href", n.imageUrl);
         img.setAttribute("x", String(n.x + 1));
         img.setAttribute("y", String(n.y + 1));
         img.setAttribute("width", String(n.w - 2));
         img.setAttribute("height", String(n.h - 2));
         img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-        // optional: clip to rounded rect
+
         const clipId = `clip-${n.id}`;
-        const defs = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "defs",
-        );
-        const clip = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "clipPath",
-        );
+        const defs = document.createElementNS(NS, "defs");
+        const clip = document.createElementNS(NS, "clipPath");
         clip.setAttribute("id", clipId);
-        const rect = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "rect",
-        );
+        const rect = document.createElementNS(NS, "rect") as SVGRectElement;
         rect.setAttribute("x", String(n.x + 1));
         rect.setAttribute("y", String(n.y + 1));
         rect.setAttribute("width", String(n.w - 2));
@@ -343,15 +394,13 @@ function renderShape(
         clip.appendChild(rect);
         defs.appendChild(clip);
         img.setAttribute("clip-path", `url(#${clipId})`);
-        // border box drawn on top
+
         const border = rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
           ...opts,
           fill: "none",
-          fillStyle: "solid",
         });
         return [defs as unknown as SVGElement, img, border];
       }
-      // fallback: no URL → grey placeholder box
       return [
         rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
           ...opts,
@@ -360,12 +409,13 @@ function renderShape(
         }),
       ];
     }
+
     default:
       return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
   }
 }
 
-// ── Arrowhead ─────────────────────────────────────────────
+// ── Arrowhead ─────────────────────────────────────────────────────────────
 function arrowHead(
   rc: RoughSVG,
   x: number,
@@ -398,7 +448,7 @@ function arrowHead(
   );
 }
 
-// ── Public API ────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────
 export interface SVGRendererOptions {
   roughness?: number;
   bowing?: number;
@@ -415,9 +465,7 @@ export function renderToSVG(
   options: SVGRendererOptions = {},
 ): SVGSVGElement {
   if (typeof rough === "undefined") {
-    throw new Error(
-      'rough.js is not loaded. Add <script src="https://unpkg.com/roughjs/bundled/rough.js"></script>',
-    );
+    throw new Error("rough.js is not loaded.");
   }
 
   const isDark =
@@ -425,11 +473,20 @@ export function renderToSVG(
     (options.theme === "auto" &&
       window.matchMedia?.("(prefers-color-scheme:dark)").matches);
 
-  // Resolve palette: DSL config takes priority, then options.theme, then light
   const themeName = String(
     sg.config[THEME_CONFIG_KEY] ?? (isDark ? "dark" : "light"),
   );
   const palette = resolvePalette(themeName);
+
+  // ── Diagram-level font ──────────────────────────────────
+  const diagramFont = (() => {
+    const raw = String(sg.config["font"] ?? "");
+    if (raw) {
+      loadFont(raw);
+      return resolveFont(raw);
+    }
+    return DEFAULT_FONT;
+  })();
 
   BASE_ROUGH.roughness = options.roughness ?? 1.3;
   BASE_ROUGH.bowing = options.bowing ?? 0.7;
@@ -448,14 +505,7 @@ export function renderToSVG(
   svg.setAttribute("viewBox", `0 0 ${sg.width} ${sg.height}`);
   svg.style.fontFamily = "var(--font-sans, system-ui, sans-serif)";
 
-  // Background rect so exported SVGs have correct bg
-  // const bgRect = se("rect") as SVGRectElement;
-  // bgRect.setAttribute("x", "0");
-  // bgRect.setAttribute("y", "0");
-  // bgRect.setAttribute("width", String(sg.width));
-  // bgRect.setAttribute("height", String(sg.height));
-  // bgRect.setAttribute("fill", palette.background);
-  // svg.appendChild(bgRect);
+  // ── Background ─────────────────────────────────────────
   if (!options.transparent) {
     const bgRect = se("rect") as SVGRectElement;
     bgRect.setAttribute("x", "0");
@@ -465,7 +515,7 @@ export function renderToSVG(
     bgRect.setAttribute("fill", palette.background);
     svg.appendChild(bgRect);
   }
-  
+
   const rc = rough.svg(svg);
 
   // ── Title ────────────────────────────────────────────────
@@ -474,11 +524,20 @@ export function renderToSVG(
     const titleSize = Number(sg.config["title-size"] ?? 18);
     const titleWeight = Number(sg.config["title-weight"] ?? 600);
     svg.appendChild(
-      mkText(sg.title, sg.width / 2, 26, titleSize, titleWeight, titleColor),
+      mkText(
+        sg.title,
+        sg.width / 2,
+        26,
+        titleSize,
+        titleWeight,
+        titleColor,
+        "middle",
+        diagramFont,
+      ),
     );
   }
 
-  // ── Groups (depth-sorted: outermost first) ────────────────
+  // ── Groups ───────────────────────────────────────────────
   const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
   const sortedGroups = [...sg.groups].sort(
     (a, b) => groupDepth(a, gmMap) - groupDepth(b, gmMap),
@@ -504,9 +563,26 @@ export function renderToSVG(
       }),
     );
 
-    const labelColor = gs.color ? String(gs.color) : palette.groupLabel;
+    // ── Group label typography ──────────────────────────
+    // supports: font, font-size, letter-spacing
+    // always left-anchored (single line)
+    const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
+    const gFontSize = Number(gs.fontSize ?? 12);
+    const gFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
+    const gLetterSpacing = gs.letterSpacing as number | undefined;
+
     gg.appendChild(
-      mkText(g.label, g.x + 14, g.y + 14, 12, 500, labelColor, "start"),
+      mkText(
+        g.label,
+        g.x + 14,
+        g.y + 14,
+        gFontSize,
+        500,
+        gLabelColor,
+        "start",
+        gFont,
+        gLetterSpacing,
+      ),
     );
     GL.appendChild(gg);
   }
@@ -582,6 +658,7 @@ export function renderToSVG(
       const mx = (x1 + x2) / 2 - ny * 14;
       const my = (y1 + y2) / 2 + nx * 14;
       const tw = Math.max(e.label.length * 7 + 12, 36);
+
       const bg = se("rect") as SVGRectElement;
       bg.setAttribute("x", String(mx - tw / 2));
       bg.setAttribute("y", String(my - 8));
@@ -591,7 +668,30 @@ export function renderToSVG(
       bg.setAttribute("rx", "3");
       bg.setAttribute("opacity", "0.9");
       eg.appendChild(bg);
-      eg.appendChild(mkText(e.label, mx, my, 11, 400, palette.edgeLabelText));
+
+      // ── Edge label typography ───────────────────────
+      // supports: font, font-size, letter-spacing
+      // always center-anchored (single line floating on edge)
+      const eFontSize = Number(e.style?.fontSize ?? 11);
+      const eFont = resolveStyleFont(
+        (e.style as Record<string, unknown>) ?? {},
+        diagramFont,
+      );
+      const eLetterSpacing = e.style?.letterSpacing as number | undefined;
+
+      eg.appendChild(
+        mkText(
+          e.label,
+          mx,
+          my,
+          eFontSize,
+          400,
+          palette.edgeLabelText,
+          "middle",
+          eFont,
+          eLetterSpacing,
+        ),
+      );
     }
     EL.appendChild(eg);
   }
@@ -603,34 +703,81 @@ export function renderToSVG(
     const ng = mkGroup(`node-${n.id}`, "ng");
     renderShape(rc, n, palette).forEach((s) => ng.appendChild(s));
 
+    // ── Node / text typography ─────────────────────────
+    // supports: font, font-size, letter-spacing, text-align, line-height
     const fontSize = Number(
       n.style?.fontSize ?? (n.shape === "text" ? 13 : 14),
     );
     const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
+    const textColor = String(
+      n.style?.color ??
+        (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
+    );
+    const nodeFont = resolveStyleFont(
+      (n.style as Record<string, unknown>) ?? {},
+      diagramFont,
+    );
+
+    const textAlign = String(n.style?.textAlign ?? "center");
+    const anchorMap: Record<string, "start" | "middle" | "end"> = {
+      left: "start",
+      center: "middle",
+      right: "end",
+    };
+    const textAnchor = anchorMap[textAlign] ?? "middle";
+
+    // line-height is a multiplier (e.g. 1.4 = 140% of font-size)
+    const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
+    const letterSpacing = n.style?.letterSpacing as number | undefined;
+
+    // x shifts for left / right alignment
+    const textX =
+      textAlign === "left"
+        ? n.x + 8
+        : textAlign === "right"
+          ? n.x + n.w - 8
+          : n.x + n.w / 2;
+
     const lines = n.label.split("\n");
+
+    const verticalAlign = String(n.style?.verticalAlign ?? "middle");
+
+    const nodeBodyTop = n.y + 6;
+    const nodeBodyBottom = n.y + n.h - 6;
+    const nodeBodyMid = n.y + n.h / 2;
+    const blockH = (lines.length - 1) * lineHeight;
+
+    const textCY =
+      verticalAlign === "top"
+        ? nodeBodyTop + blockH / 2
+        : verticalAlign === "bottom"
+          ? nodeBodyBottom - blockH / 2
+          : nodeBodyMid;
+
     ng.appendChild(
       lines.length > 1
         ? mkMultilineText(
             lines,
-            n.x + n.w / 2,
-            n.y + n.h / 2,
+            textX,
+            textCY,
             fontSize,
             fontWeight,
-            String(
-              n.style?.color ??
-                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
-            ),
+            textColor,
+            textAnchor,
+            lineHeight,
+            nodeFont,
+            letterSpacing,
           )
         : mkText(
             n.label,
-            n.x + n.w / 2,
-            n.y + n.h / 2,
+            textX,
+            textCY,
             fontSize,
             fontWeight,
-            String(
-              n.style?.color ??
-                (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
-            ),
+            textColor,
+            textAnchor,
+            nodeFont,
+            letterSpacing,
           ),
     );
 
@@ -661,7 +808,13 @@ export function renderToSVG(
     const divCol = palette.tableDivider;
     const pad = t.labelH;
 
-    // Outer border
+    // ── Table-level font (applies to label + all cells) ─
+    // supports: font, font-size, letter-spacing
+    const tFontSize = Number(gs.fontSize ?? 12);
+    const tFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
+    const tLetterSpacing = gs.letterSpacing as number | undefined;
+
+    // outer border
     tg.appendChild(
       rc.rectangle(t.x, t.y, t.w, t.h, {
         ...BASE_ROUGH,
@@ -673,7 +826,7 @@ export function renderToSVG(
       }),
     );
 
-    // Label strip separator
+    // label strip separator
     tg.appendChild(
       rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
         roughness: 0.6,
@@ -683,17 +836,26 @@ export function renderToSVG(
       }),
     );
 
-    // Label text
+    // ── Table label: font, font-size, letter-spacing (always left) ──
     tg.appendChild(
-      mkText(t.label, t.x + 10, t.y + pad / 2, 12, 500, textCol, "start"),
+      mkText(
+        t.label,
+        t.x + 10,
+        t.y + pad / 2,
+        tFontSize,
+        500,
+        textCol,
+        "start",
+        tFont,
+        tLetterSpacing,
+      ),
     );
 
-    // Rows
+    // rows
     let rowY = t.y + pad;
     for (const row of t.rows) {
       const rh = row.kind === "header" ? t.headerH : t.rowH;
 
-      // Header background fill
       if (row.kind === "header") {
         const hdrBg = se("rect") as SVGRectElement;
         hdrBg.setAttribute("x", String(t.x + 1));
@@ -704,7 +866,6 @@ export function renderToSVG(
         tg.appendChild(hdrBg);
       }
 
-      // Row separator
       tg.appendChild(
         rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
           roughness: 0.4,
@@ -714,19 +875,42 @@ export function renderToSVG(
         }),
       );
 
-      // Cell text + col separators
+      // ── Cell text: font, font-size, letter-spacing, text-align ──
+      // text-align applies to data rows; header is always centered
+      const cellAlignProp =
+        row.kind === "header" ? "center" : String(gs.textAlign ?? "center");
+      const cellAnchorMap: Record<string, "start" | "middle" | "end"> = {
+        left: "start",
+        center: "middle",
+        right: "end",
+      };
+      const cellAnchor = cellAnchorMap[cellAlignProp] ?? "middle";
+      const cellFw = row.kind === "header" ? 600 : 400;
+      const cellColor = row.kind === "header" ? hdrText : textCol;
+
       let cx = t.x;
       row.cells.forEach((cell, i) => {
         const cw = t.colWidths[i] ?? 60;
-        const fw = row.kind === "header" ? 600 : 400;
+        // x position shifts with alignment
+        const cellX =
+          cellAnchor === "start"
+            ? cx + 6
+            : cellAnchor === "end"
+              ? cx + cw - 6
+              : cx + cw / 2;
+
+        // ← was missing tg.appendChild — cells were invisible before
         tg.appendChild(
           mkText(
             cell,
-            cx + cw / 2,
+            cellX,
             rowY + rh / 2,
-            12,
-            fw,
-            row.kind === "header" ? hdrText : textCol,
+            tFontSize,
+            cellFw,
+            cellColor,
+            cellAnchor,
+            tFont,
+            tLetterSpacing,
           ),
         );
 
@@ -763,6 +947,27 @@ export function renderToSVG(
     const strk = String(gs.stroke ?? palette.noteStroke);
     const fold = 14;
     const { x, y, w, h } = n;
+
+    // ── Note typography ─────────────────────────────────
+    // supports: font, font-size, letter-spacing, text-align, line-height
+    const nFontSize = Number(gs.fontSize ?? 12);
+    const nFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
+    const nLetterSpacing = gs.letterSpacing as number | undefined;
+    const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
+    const nTextAlign = String(gs.textAlign ?? "left");
+    const nAnchorMap: Record<string, "start" | "middle" | "end"> = {
+      left: "start",
+      center: "middle",
+      right: "end",
+    };
+    const nAnchor = nAnchorMap[nTextAlign] ?? "start";
+    // x position for the text block (pad from left, with alignment)
+    const nTextX =
+      nTextAlign === "right"
+        ? x + w - fold - 6
+        : nTextAlign === "center"
+          ? x + (w - fold) / 2
+          : x + 12;
 
     ng.appendChild(
       rc.polygon(
@@ -802,19 +1007,50 @@ export function renderToSVG(
       ),
     );
 
-    n.lines.forEach((line, i) => {
+     const nVerticalAlign = String(gs.verticalAlign ?? "top");
+      const bodyTop = y + fold + 8; // below the fold triangle
+      const bodyBottom = y + h - 8; // above bottom edge
+      const bodyMid = (bodyTop + bodyBottom) / 2;
+      const blockH = (n.lines.length - 1) * nLineHeight;
+      const blockCY =
+        nVerticalAlign === "bottom"
+          ? bodyBottom - blockH / 2
+          : nVerticalAlign === "middle"
+            ? bodyMid
+            : bodyTop + blockH / 2;
+
+    // multiline: use mkMultilineText so line-height is respected
+    if (n.lines.length > 1) {
+      // vertical centre of the text block inside the note
       ng.appendChild(
-        mkText(
-          line,
-          x + 12,
-          y + 12 + i * 20 + 10,
-          12,
+        mkMultilineText(
+          n.lines,
+          nTextX,
+          blockCY,
+          nFontSize,
           400,
           String(gs.color ?? palette.noteText),
-          "start",
+          nAnchor,
+          nLineHeight,
+          nFont,
+          nLetterSpacing,
         ),
       );
-    });
+    } else {
+      ng.appendChild(
+        mkText(
+          n.lines[0] ?? "",
+          nTextX,
+          blockCY,
+          nFontSize,
+          400,
+          String(gs.color ?? palette.noteText),
+          nAnchor,
+          nFont,
+          nLetterSpacing,
+        ),
+      );
+    }
 
     NoteL.appendChild(ng);
   }

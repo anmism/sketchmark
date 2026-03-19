@@ -80,6 +80,8 @@ function sizeNote(n: SceneNote): void {
   const maxChars = Math.max(...n.lines.map(l => l.length));
   n.w = Math.max(120, Math.ceil(maxChars * NOTE_FONT) + NOTE_PAD_X * 2);
   n.h = n.lines.length * NOTE_LINE_H + NOTE_PAD_Y * 2;
+  if (n.width  && n.w < n.width)  n.w = n.width;   // ← add
+  if (n.height && n.h < n.height) n.h = n.height;  // ← add
 }
 
 // ── Table auto-sizing ─────────────────────────────────────

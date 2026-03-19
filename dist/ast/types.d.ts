@@ -15,9 +15,14 @@ export interface StyleProps {
     shadow?: boolean;
     fontSize?: number;
     fontWeight?: number | string;
+    font?: string;
     labelColor?: string;
     [key: string]: unknown;
     strokeDash?: number[];
+    textAlign?: 'left' | 'center' | 'right';
+    verticalAlign?: 'top' | 'middle' | 'bottom';
+    lineHeight?: number;
+    letterSpacing?: number;
 }
 export type GroupChildRef = {
     kind: 'node';
@@ -138,6 +143,8 @@ export interface ASTNote {
     label: string;
     theme?: string;
     style?: StyleProps;
+    width?: number;
+    height?: number;
 }
 export interface DiagramAST {
     kind: 'diagram';
