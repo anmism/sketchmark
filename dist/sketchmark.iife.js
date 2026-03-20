@@ -5301,7 +5301,7 @@ var AIDiagram = (function (exports) {
             throw new Error(`Upload failed: ${res.status}`);
         const { id } = await res.json();
         // key goes into the fragment — browser never sends this to any server
-        return `${window.location.origin}/playground.html?s=${id}#key=${keyB64}`;
+        return `${window.location.origin}/sketchmark/playground.html?s=${id}#key=${keyB64}`;
     }
     /**
      * Read ?s= and #key= from the current URL, fetch + decrypt the diagram.

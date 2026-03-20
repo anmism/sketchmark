@@ -90,7 +90,7 @@ export async function shareDiagram(dsl: string): Promise<string> {
   const { id } = await res.json() as { id: string };
 
   // key goes into the fragment — browser never sends this to any server
-  return `${window.location.origin}/playground.html?s=${id}#key=${keyB64}`;
+  return `${window.location.origin}/sketchmark/playground.html?s=${id}#key=${keyB64}`;
 }
 
 /**
