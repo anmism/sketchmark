@@ -5,7 +5,7 @@
 // The decryption key lives only in the URL fragment (#key=...).
 // ============================================================
 
-const WORKER_URL = 'https://sketchmark.anmism7.workers.dev/';
+const WORKER_URL = 'https://sketchmark.anmism.workers.dev';
 
 // ── Crypto helpers ────────────────────────────────────────
 

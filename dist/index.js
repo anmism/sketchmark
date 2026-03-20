@@ -5247,7 +5247,7 @@ class EventEmitter {
 // The server stores an opaque blob it cannot read.
 // The decryption key lives only in the URL fragment (#key=...).
 // ============================================================
-const WORKER_URL = 'https://sketchmark.anmism7.workers.dev/';
+const WORKER_URL = 'https://sketchmark.anmism.workers.dev';
 // ── Crypto helpers ────────────────────────────────────────
 async function generateKey() {
     return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, // extractable so we can export to URL

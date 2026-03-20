@@ -1,6 +1,6 @@
 {
   "name": "sketchmark",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "description": "Convert AI-friendly DSL text into beautiful hand-drawn diagrams using rough.js. Supports SVG, Canvas, animations, and export.",
   "keywords": [
     "diagram",
@@ -60,10 +60,10 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/bapunhansdah/sketchmark"
+    "url": "https://github.com/anmism/sketchmark"
   },
   "bugs": {
-    "url": "https://github.com/bapunhansdah/sketchmark/issues"
+    "url": "https://github.com/anmism/sketchmark/issues"
   },
-  "homepage": "https://github.com/bapunhansdah/sketchmark#readme"
+  "homepage": "https://github.com/anmism/sketchmark#readme"
 }
