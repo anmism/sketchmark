@@ -13,6 +13,8 @@ import type {
   RootItemRef,
   ASTTableRow,
 } from "../ast/types";
+import type { MarkdownLine } from '../markdown/parser';
+import { parseMarkdownContent } from '../markdown/parser';
 
 export type { GroupChildRef, RootItemRef };
 
@@ -117,6 +119,16 @@ export interface SceneChart {
   h: number;
 }
 
+export interface SceneMarkdown {
+  id:      string;
+  content: string;
+  lines:   MarkdownLine[];    // pre-parsed at build time
+  style:   StyleProps;
+  width?:  number;
+  height?: number;
+  x: number; y: number; w: number; h: number;
+}
+
 export interface SceneGraph {
   title?: string;
   description?: string;
@@ -126,6 +138,7 @@ export interface SceneGraph {
   tables: SceneTable[];
   notes: SceneNote[];
   charts: SceneChart[];
+  markdowns: SceneMarkdown[];
   groups: SceneGroup[];
   animation: SceneAnimation;
   styles: Record<string, StyleProps>;
@@ -227,6 +240,20 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     };
   });
 
+    const markdowns: SceneMarkdown[] = (ast.markdowns ?? []).map(m => {
+    const themeStyle = m.theme ? (ast.themes[m.theme] ?? {}) : {};
+    return {
+      id:      m.id,
+      content: m.content,
+      lines:   parseMarkdownContent(m.content),
+      style:   { ...themeStyle, ...m.style },
+      width:   m.width,
+      height:  m.height,
+      x: 0, y: 0, w: 0, h: 0,
+    };
+  });
+ 
+
   // Set parentId for nested groups
   for (const g of groups) {
     for (const child of g.children) {
@@ -258,6 +285,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     tables,
     notes,
     charts,
+    markdowns,
     animation: { steps: ast.steps, currentStep: -1 },
     styles: ast.styles,
     config: ast.config,
@@ -286,4 +314,8 @@ export function noteMap(sg: SceneGraph): Map<string, SceneNote> {
 
 export function chartMap(sg: SceneGraph): Map<string, SceneChart> {
   return new Map(sg.charts.map((c) => [c.id, c]));
+}
+
+export function markdownMap(sg: SceneGraph): Map<string, SceneMarkdown> {
+  return new Map((sg.markdowns ?? []).map(m => [m.id, m]));
 }

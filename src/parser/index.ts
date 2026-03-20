@@ -22,6 +22,7 @@ import type {
   JustifyContent,
   GroupChildRef,
   RootItemRef,
+  ASTMarkdown,
 } from "../ast/types";
 
 export type { DiagramAST } from "../ast/types";
@@ -76,10 +77,12 @@ function propsToStyle(p: Record<string, string>): StyleProps {
   if (p.shadow) s.shadow = p.shadow === "true";
   if (p["font-size"]) s.fontSize = parseFloat(p["font-size"]);
   if (p["font-weight"]) s.fontWeight = p["font-weight"];
-  if (p['text-align'])     s.textAlign     = p['text-align'] as StyleProps['textAlign'];
-  if (p['vertical-align']) s.verticalAlign = p['vertical-align'] as StyleProps['verticalAlign'];
-  if (p['line-height'])    s.lineHeight    = parseFloat(p['line-height']);
-  if (p['letter-spacing']) s.letterSpacing = parseFloat(p['letter-spacing']);
+  if (p["text-align"]) s.textAlign = p["text-align"] as StyleProps["textAlign"];
+  if (p.padding) s.padding = parseFloat(p.padding);
+  if (p["vertical-align"])
+    s.verticalAlign = p["vertical-align"] as StyleProps["verticalAlign"];
+  if (p["line-height"]) s.lineHeight = parseFloat(p["line-height"]);
+  if (p["letter-spacing"]) s.letterSpacing = parseFloat(p["letter-spacing"]);
   if (p.font) s.font = p.font;
   if (p["dash"]) {
     const parts = p["dash"]
@@ -120,6 +123,7 @@ export function parse(src: string): DiagramAST {
     notes: [],
     charts: [],
     tables: [],
+    markdowns: [],
     styles: {},
     themes: {},
     config: {},
@@ -131,6 +135,7 @@ export function parse(src: string): DiagramAST {
   const noteIds = new Set<string>();
   const chartIds = new Set<string>();
   const groupIds = new Set<string>();
+  const markdownIds = new Set<string>();
 
   let i = 0;
   const cur = () => flat[i] ?? flat[flat.length - 1];
@@ -319,7 +324,7 @@ export function parse(src: string): DiagramAST {
       label: rawLabel.replace(/\\n/g, "\n"),
       theme: props.theme,
       style: propsToStyle(props),
-      ...(props.width  ? { width:  parseFloat(props.width)  } : {}),
+      ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
     };
   }
@@ -358,7 +363,7 @@ export function parse(src: string): DiagramAST {
     const group: ASTGroup = {
       kind: "group",
       id,
-      label: props.label ?? id,
+      label: props.label ?? "",
       children: [],
       layout: props.layout as LayoutType | undefined,
       columns:
@@ -390,8 +395,20 @@ export function parse(src: string): DiagramAST {
       const v = cur().value;
 
       // ── Nested group ──────────────────────────────────
-      if (v === "group") {
+      if (v === "group" || v === "bare") {
+        const isBare = v === "bare";
         const nested = parseGroup(id);
+
+        if (isBare) {
+          nested.label = "";
+          nested.style = {
+            ...nested.style,
+            fill: nested.style?.fill ?? "none",
+            stroke: nested.style?.stroke ?? "none",
+            strokeWidth: nested.style?.strokeWidth ?? 0,
+          };
+        }
+
         ast.groups.push(nested);
         groupIds.add(nested.id);
         group.children.push({ kind: "group", id: nested.id });
@@ -414,6 +431,22 @@ export function parse(src: string): DiagramAST {
         noteIds.add(note.id);
         group.children.push({ kind: "note", id: note.id });
         continue;
+      }
+      // ── Markdown ───────────────────────────────────────
+      if (v === "markdown") {
+        const md = parseMarkdown(id);
+        ast.markdowns.push(md);
+        markdownIds.add(md.id);
+        group.children.push({ kind: "markdown", id: md.id });
+        continue;
+      }
+
+      if (v === "bare") {
+        // treat exactly like 'group' but inject defaults
+        const grp = parseGroup(); // reuse parseGroup
+        grp.label = "";
+        grp.style = { ...grp.style, stroke: "none", fill: "none" };
+        // rest is identical to group handling
       }
 
       // ── Chart ──────────────────────────────────────────
@@ -463,40 +496,84 @@ export function parse(src: string): DiagramAST {
   }
 
   function parseStep(): ASTStep {
-  skip();
-  const toks   = lineTokens();
-  const action = (toks[0]?.value ?? 'highlight') as AnimationAction;
-  let target   = toks[1]?.value ?? '';
-  if (toks[2]?.type === 'ARROW' && toks[3]) {
-    target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
-  }
-  const step: ASTStep = { kind: 'step', action, target };
+    skip();
+    const toks = lineTokens();
+    const action = (toks[0]?.value ?? "highlight") as AnimationAction;
+    let target = toks[1]?.value ?? "";
+    if (toks[2]?.type === "ARROW" && toks[3]) {
+      target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
+    }
+    const step: ASTStep = { kind: "step", action, target };
 
-  for (let j = 2; j < toks.length; j++) {
-    const k  = toks[j]?.value;
-    const eq = toks[j + 1];
-    const vt = toks[j + 2];
+    for (let j = 2; j < toks.length; j++) {
+      const k = toks[j]?.value;
+      const eq = toks[j + 1];
+      const vt = toks[j + 2];
 
-    // key=value form
-    if (eq?.type === 'EQUALS' && vt) {
-      if (k === 'dx')       { step.dx       = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'dy')       { step.dy       = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'duration') { step.duration = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'delay')    { step.delay    = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'factor')   { step.factor   = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'deg')      { step.deg      = parseFloat(vt.value); j += 2; continue; }
-      if (k === 'fill')     { step.value    = vt.value;             j += 2; continue; }
-      if (k === 'color')    { step.value    = vt.value;             j += 2; continue; }
+      // key=value form
+      if (eq?.type === "EQUALS" && vt) {
+        if (k === "dx") {
+          step.dx = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "dy") {
+          step.dy = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "duration") {
+          step.duration = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "delay") {
+          step.delay = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "factor") {
+          step.factor = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "deg") {
+          step.deg = parseFloat(vt.value);
+          j += 2;
+          continue;
+        }
+        if (k === "fill") {
+          step.value = vt.value;
+          j += 2;
+          continue;
+        }
+        if (k === "color") {
+          step.value = vt.value;
+          j += 2;
+          continue;
+        }
+      }
+
+      // bare key value (legacy)
+      if (k === "delay" && eq?.type === "NUMBER") {
+        step.delay = parseFloat(eq.value);
+        j++;
+        continue;
+      }
+      if (k === "duration" && eq?.type === "NUMBER") {
+        step.duration = parseFloat(eq.value);
+        j++;
+        continue;
+      }
+      if (k === "trigger") {
+        step.trigger = eq?.value as AnimationTrigger;
+        j++;
+        continue;
+      }
     }
 
-    // bare key value (legacy)
-    if (k === 'delay'    && eq?.type === 'NUMBER') { step.delay    = parseFloat(eq.value); j++; continue; }
-    if (k === 'duration' && eq?.type === 'NUMBER') { step.duration = parseFloat(eq.value); j++; continue; }
-    if (k === 'trigger')                           { step.trigger  = eq?.value as AnimationTrigger; j++; continue; }
+    return step;
   }
-
-  return step;
-}
 
   // function parseStep(): ASTStep {
   //   skip(); // 'step'
@@ -695,6 +772,44 @@ export function parse(src: string): DiagramAST {
     return table;
   }
 
+  // ── parseMarkdown ─────────────────────────────────────────
+  function parseMarkdown(groupId?: string): ASTMarkdown {
+    skip(); // 'markdown'
+    const toks = lineTokens();
+
+    let id = groupId ? groupId + "_" + uid("md") : uid("md");
+    if (toks[0]) id = toks[0].value;
+
+    const props: Record<string, string> = {};
+    let j = 1;
+    while (j < toks.length - 1) {
+      const k = toks[j],
+        eq = toks[j + 1];
+      if (eq?.type === "EQUALS" && j + 2 < toks.length) {
+        props[k.value] = toks[j + 2].value;
+        j += 3;
+      } else j++;
+    }
+
+    skipNL();
+
+    let content = "";
+    if (cur().type === "STRING_BLOCK") {
+      content = cur().value;
+      skip();
+    }
+
+    return {
+      kind: "markdown",
+      id,
+      content: content.trim(),
+      width: props.width ? parseFloat(props.width) : undefined,
+      height: props.height ? parseFloat(props.height) : undefined,
+      theme: props.theme,
+      style: propsToStyle(props),
+    };
+  }
+
   // ── Main parse loop ─────────────────────────────────────
   skipNL();
   if (cur().value === "diagram") skip();
@@ -811,8 +926,20 @@ export function parse(src: string): DiagramAST {
     }
 
     // group
-    if (v === "group") {
+    if (v === "group" || v === "bare") {
+      const isBare = v === "bare";
       const grp = parseGroup();
+
+      if (isBare) {
+        grp.label = "";
+        grp.style = {
+          ...grp.style,
+          fill: grp.style?.fill ?? "none",
+          stroke: grp.style?.stroke ?? "none",
+          strokeWidth: grp.style?.strokeWidth ?? 0,
+        };
+      }
+
       ast.groups.push(grp);
       groupIds.add(grp.id);
       ast.rootOrder.push({ kind: "group", id: grp.id });
@@ -851,6 +978,15 @@ export function parse(src: string): DiagramAST {
       ast.rootOrder.push({ kind: "chart", id: chart.id }); // ← ADD
       continue;
     }
+
+    if (v === "markdown") {
+      const md = parseMarkdown();
+      ast.markdowns.push(md);
+      markdownIds.add(md.id);
+      ast.rootOrder.push({ kind: "markdown", id: md.id });
+      continue;
+    }
+
     // edge:  A -> B  (MUST come before shape check)
     if (t.type === "IDENT" || t.type === "STRING" || t.type === "KEYWORD") {
       const nextTok = flat[i + 1];

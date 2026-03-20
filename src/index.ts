@@ -5,9 +5,10 @@
 // ── Core Pipeline ─────────────────────────────────────────
 export { parse, ParseError }          from './parser';
 export type { DiagramAST }            from './parser';
-export { buildSceneGraph, nodeMap, groupMap } from './scene';  // ← added groupMap
-export type { SceneGraph, SceneNode, SceneEdge, SceneGroup } from './scene';
+export { buildSceneGraph, nodeMap, groupMap,markdownMap } from './scene';  // ← added groupMap
+export type { SceneGraph, SceneNode, SceneEdge, SceneGroup,SceneMarkdown } from './scene';
 export { layout, connPoint }          from './layout';
+
 
 // ── Renderers ─────────────────────────────────────────────
 export { renderToSVG, svgToString } from './renderer/svg';
@@ -32,7 +33,7 @@ export type {
   AlignItems, JustifyContent,                              // ← new
   AnimationAction, AnimationTrigger, StyleProps,
   ASTNode, ASTEdge, ASTGroup, ASTStep, ASTChart, ASTTable,
-  GroupChildRef, RootItemRef,                              // ← new
+  GroupChildRef, RootItemRef,   ASTMarkdown                           // ← new
 } from './ast/types';
 
 // ── Utilities ─────────────────────────────────────────────
@@ -158,3 +159,5 @@ export function render(options: RenderOptions): DiagramInstance {
 
 export { PALETTES, resolvePalette, THEME_CONFIG_KEY, listThemes, THEME_NAMES } from './theme';
 export { resolveFont, loadFont, registerFont, BUILTIN_FONTS } from './fonts';
+export { shareDiagram, loadSharedDiagram } from './share/encrypted';
+

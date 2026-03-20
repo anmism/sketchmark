@@ -6,6 +6,7 @@ export type TokenType =
   | "KEYWORD"
   | "IDENT"
   | "STRING"
+  | "STRING_BLOCK"
   | "NUMBER"
   | "ARROW"
   | "LBRACE"
@@ -52,6 +53,7 @@ export const KEYWORDS = new Set([
   "step",
   "config",
   "theme",
+  "bare",
   "bar-chart",
   "line-chart",
   "pie-chart",
@@ -91,6 +93,7 @@ export const KEYWORDS = new Set([
   "dag",
   "tree",
   "force",
+  "markdown",
 ]);
 
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];
@@ -137,6 +140,24 @@ export function tokenize(src: string): Token[] {
     // Whitespace (not newline)
     if (/[ \t]/.test(ch)) {
       i++;
+      continue;
+    }
+
+    if (ch === '"' && peek(1) === '"' && peek(2) === '"') {
+      i += 3; // skip opening """
+      let raw = "";
+      while (i < src.length) {
+        if (src[i] === '"' && src[i + 1] === '"' && src[i + 2] === '"') {
+          i += 3; // skip closing """
+          break;
+        }
+        if (src[i] === "\n") {
+          line++;
+          lineStart = i + 1;
+        }
+        raw += src[i++];
+      }
+      add("STRING_BLOCK", raw);
       continue;
     }
 

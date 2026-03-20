@@ -1,7 +1,7 @@
 export { parse, ParseError } from './parser';
 export type { DiagramAST } from './parser';
-export { buildSceneGraph, nodeMap, groupMap } from './scene';
-export type { SceneGraph, SceneNode, SceneEdge, SceneGroup } from './scene';
+export { buildSceneGraph, nodeMap, groupMap, markdownMap } from './scene';
+export type { SceneGraph, SceneNode, SceneEdge, SceneGroup, SceneMarkdown } from './scene';
 export { layout, connPoint } from './layout';
 export { renderToSVG, svgToString } from './renderer/svg';
 export type { SVGRendererOptions } from './renderer/svg';
@@ -12,7 +12,7 @@ export type { AnimationEvent, AnimationEventType } from './animation';
 export { exportSVG, exportPNG, exportCanvasPNG, exportHTML, exportGIF, exportMP4, getSVGBlob, svgToPNGDataURL, } from './export';
 export type { ExportFormat, ExportOptions } from './export';
 export type { NodeShape, EdgeConnector, LayoutType, AlignItems, JustifyContent, // ← new
-AnimationAction, AnimationTrigger, StyleProps, ASTNode, ASTEdge, ASTGroup, ASTStep, ASTChart, ASTTable, GroupChildRef, RootItemRef, } from './ast/types';
+AnimationAction, AnimationTrigger, StyleProps, ASTNode, ASTEdge, ASTGroup, ASTStep, ASTChart, ASTTable, GroupChildRef, RootItemRef, ASTMarkdown } from './ast/types';
 export { hashStr, clamp, lerp, parseHex, sleep, throttle, debounce, EventEmitter } from './utils';
 import { buildSceneGraph } from './scene';
 import { AnimationController } from './animation';
@@ -49,4 +49,5 @@ export interface DiagramInstance {
 export declare function render(options: RenderOptions): DiagramInstance;
 export { PALETTES, resolvePalette, THEME_CONFIG_KEY, listThemes, THEME_NAMES } from './theme';
 export { resolveFont, loadFont, registerFont, BUILTIN_FONTS } from './fonts';
+export { shareDiagram, loadSharedDiagram } from './share/encrypted';
 //# sourceMappingURL=index.d.ts.map

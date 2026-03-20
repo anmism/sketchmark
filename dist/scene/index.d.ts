@@ -1,4 +1,5 @@
 import type { DiagramAST, ASTNode, ASTStep, StyleProps, GroupChildRef, RootItemRef, ASTTableRow } from "../ast/types";
+import type { MarkdownLine } from '../markdown/parser';
 export type { GroupChildRef, RootItemRef };
 export interface SceneRect {
     x: number;
@@ -94,6 +95,18 @@ export interface SceneChart {
     w: number;
     h: number;
 }
+export interface SceneMarkdown {
+    id: string;
+    content: string;
+    lines: MarkdownLine[];
+    style: StyleProps;
+    width?: number;
+    height?: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
 export interface SceneGraph {
     title?: string;
     description?: string;
@@ -103,6 +116,7 @@ export interface SceneGraph {
     tables: SceneTable[];
     notes: SceneNote[];
     charts: SceneChart[];
+    markdowns: SceneMarkdown[];
     groups: SceneGroup[];
     animation: SceneAnimation;
     styles: Record<string, StyleProps>;
@@ -117,4 +131,5 @@ export declare function groupMap(sg: SceneGraph): Map<string, SceneGroup>;
 export declare function tableMap(sg: SceneGraph): Map<string, SceneTable>;
 export declare function noteMap(sg: SceneGraph): Map<string, SceneNote>;
 export declare function chartMap(sg: SceneGraph): Map<string, SceneChart>;
+export declare function markdownMap(sg: SceneGraph): Map<string, SceneMarkdown>;
 //# sourceMappingURL=index.d.ts.map

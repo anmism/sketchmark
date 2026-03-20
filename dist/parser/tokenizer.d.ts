@@ -1,4 +1,4 @@
-export type TokenType = "KEYWORD" | "IDENT" | "STRING" | "NUMBER" | "ARROW" | "LBRACE" | "RBRACE" | "LBRACKET" | "RBRACKET" | "LPAREN" | "RPAREN" | "EQUALS" | "COMMA" | "COLON" | "HASH" | "DOT" | "STAR" | "NEWLINE" | "EOF" | "UNKNOWN";
+export type TokenType = "KEYWORD" | "IDENT" | "STRING" | "STRING_BLOCK" | "NUMBER" | "ARROW" | "LBRACE" | "RBRACE" | "LBRACKET" | "RBRACKET" | "LPAREN" | "RPAREN" | "EQUALS" | "COMMA" | "COLON" | "HASH" | "DOT" | "STAR" | "NEWLINE" | "EOF" | "UNKNOWN";
 export interface Token {
     type: TokenType;
     value: string;

@@ -36,7 +36,9 @@
     "build:watch": "rollup -c rollup.config.js --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "prepublishOnly": "npm run typecheck && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run build",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "peerDependencies": {
     "roughjs": "^4.6.0"
@@ -52,7 +54,8 @@
     "rollup": "^4.9.0",
     "tslib": "^2.6.2",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
+    "vitest": "^1.2.0",
+    "wrangler": "^4.76.0"
   },
   "sideEffects": false,
   "repository": {

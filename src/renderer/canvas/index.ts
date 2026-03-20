@@ -12,12 +12,17 @@ import type {
   SceneNote,
   SceneChart,
 } from "../../scene";
-import { nodeMap, groupMap, tableMap, noteMap, chartMap } from "../../scene";
+import { nodeMap, groupMap, tableMap, noteMap, chartMap, markdownMap } from "../../scene";
 import { connPoint } from "../../layout";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
 import { resolveFont, loadFont, DEFAULT_FONT } from "../../fonts";
 import { drawRoughChartCanvas } from "./roughChartCanvas";
+import {
+  LINE_FONT_SIZE,
+  LINE_FONT_WEIGHT,
+  LINE_SPACING,
+} from "../../markdown/parser";
 
 declare const rough: { canvas(el: HTMLCanvasElement): RoughCanvas };
 interface RoughCanvas {
@@ -58,10 +63,6 @@ function resolveStyleFont(
 
 // ── Canvas text helpers ────────────────────────────────────────────────────
 
-/**
- * Draw a single line of text.
- * align: 'left' | 'center' | 'right'  (maps to ctx.textAlign)
- */
 function drawText(
   ctx:            CanvasRenderingContext2D,
   txt:            string,
@@ -98,9 +99,6 @@ function drawText(
   ctx.restore();
 }
 
-/**
- * Draw multiple lines of text, vertically centred around cy.
- */
 function drawMultilineText(
   ctx:            CanvasRenderingContext2D,
   lines:          string[],
@@ -119,6 +117,27 @@ function drawMultilineText(
   lines.forEach((line, i) => {
     drawText(ctx, line, x, startY + i * lineH, sz, wt, col, align, font, letterSpacing);
   });
+}
+
+// Soft word-wrap for `text` shape nodes
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const charWidth = fontSize * 0.55;
+  const maxChars  = Math.floor(maxWidth / charWidth);
+  const words     = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [text];
 }
 
 // ── Arrow direction ────────────────────────────────────────────────────────
@@ -229,7 +248,7 @@ function renderShape(
         [n.x+n.w-18,n.y+n.h-1],[n.x+1,n.y+n.h-1],
       ], opts); break;
     case 'text':
-      break;
+      break; // no shape drawn
     case 'image': {
       if (n.imageUrl) {
         const img = new Image();
@@ -330,9 +349,11 @@ export function renderToCanvas(
 
   // ── Title ────────────────────────────────────────────────
   if (sg.title) {
-    const titleSize = Number(sg.config['title-size'] ?? 18);
+    const titleSize   = Number(sg.config['title-size']   ?? 18);
+    const titleWeight = Number(sg.config['title-weight'] ?? 600);
+    const titleColor  = String(sg.config['title-color']  ?? palette.titleText);
     drawText(ctx, sg.title, sg.width / 2, 28,
-      titleSize, 600, palette.titleText, 'center', diagramFont);
+      titleSize, titleWeight, titleColor, 'center', diagramFont);
   }
 
   // ── Groups (outermost first) ─────────────────────────────
@@ -349,15 +370,17 @@ export function renderToCanvas(
       strokeLineDash: (gs as any).strokeDash ?? palette.groupDash,
     });
 
-    // ── Group label: font, font-size, letter-spacing ─────
-    // always left-anchored (single line)
-    const gFontSize      = Number(gs.fontSize      ?? 12);
-    const gFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
-    const gLetterSpacing = gs.letterSpacing as number | undefined;
-    const gLabelColor    = gs.color ? String(gs.color) : palette.groupLabel;
-
-    drawText(ctx, g.label, g.x + 14, g.y + 16,
-      gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+    // ── Group label ──────────────────────────────────────
+    // Only render when label has content — empty label = no reserved space
+    // supports: font, font-size, letter-spacing (always left-anchored)
+    if (g.label) {
+      const gFontSize      = Number(gs.fontSize      ?? 12);
+      const gFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
+      const gLetterSpacing = gs.letterSpacing as number | undefined;
+      const gLabelColor    = gs.color ? String(gs.color) : palette.groupLabel;
+      drawText(ctx, g.label, g.x + 14, g.y + 16,
+        gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+    }
   }
 
   // ── Edges ─────────────────────────────────────────────────
@@ -422,28 +445,45 @@ export function renderToCanvas(
     renderShape(rc, ctx, n, palette, R);
 
     // ── Node / text typography ─────────────────────────
-    // supports: font, font-size, letter-spacing, text-align, line-height
+    // supports: font, font-size, letter-spacing, text-align,
+    //           vertical-align, line-height, word-wrap (text shape)
     const fontSize      = Number(n.style?.fontSize ?? (n.shape === 'text' ? 13 : 14));
     const fontWeight    = n.style?.fontWeight ?? (n.shape === 'text' ? 400 : 500);
     const textColor     = String(n.style?.color ??
       (n.shape === 'text' ? palette.edgeLabelText : palette.nodeText));
     const nodeFont      = resolveStyleFont(n.style as Record<string,unknown> ?? {}, diagramFont);
 
-    const textAlign     = String(n.style?.textAlign ?? 'center') as 'left'|'center'|'right';
-    const lineHeight    = Number(n.style?.lineHeight ?? 1.3) * fontSize;
+    const textAlign     = String(n.style?.textAlign    ?? 'center') as 'left'|'center'|'right';
+    const lineHeight    = Number(n.style?.lineHeight   ?? 1.3) * fontSize;
     const letterSpacing = n.style?.letterSpacing as number | undefined;
+    const vertAlign     = String(n.style?.verticalAlign ?? 'middle');
 
+    // x shifts for left/right alignment
     const textX = textAlign === 'left'  ? n.x + 8
                 : textAlign === 'right' ? n.x + n.w - 8
                 : n.x + n.w / 2;
 
-    const lines = n.label.split('\n');
+    // word-wrap for text shape; explicit \n for all others
+    const rawLines = n.label.split('\n');
+    const lines    = n.shape === 'text' && rawLines.length === 1
+      ? wrapText(n.label, n.w - 16, fontSize)
+      : rawLines;
+
+    // vertical-align: compute textCY from top/middle/bottom
+    const nodeBodyTop    = n.y + 6;
+    const nodeBodyBottom = n.y + n.h - 6;
+    const blockH         = (lines.length - 1) * lineHeight;
+    const textCY =
+      vertAlign === 'top'    ? nodeBodyTop    + blockH / 2
+      : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
+      : n.y + n.h / 2;   // middle (default)
+
     if (lines.length > 1) {
-      drawMultilineText(ctx, lines, textX, n.y + n.h / 2,
+      drawMultilineText(ctx, lines, textX, textCY,
         fontSize, fontWeight, textColor,
         textAlign, lineHeight, nodeFont, letterSpacing);
     } else {
-      drawText(ctx, n.label, textX, n.y + n.h / 2,
+      drawText(ctx, lines[0] ?? '', textX, textCY,
         fontSize, fontWeight, textColor,
         textAlign, nodeFont, letterSpacing);
     }
@@ -458,7 +498,8 @@ export function renderToCanvas(
     const pad     = t.labelH;
 
     // ── Table-level font ────────────────────────────────
-    // supports: font, font-size, letter-spacing (cells also support text-align)
+    // supports: font, font-size, letter-spacing
+    // cells also support text-align
     const tFontSize      = Number(gs.fontSize      ?? 12);
     const tFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const tLetterSpacing = gs.letterSpacing as number | undefined;
@@ -472,8 +513,7 @@ export function renderToCanvas(
       roughness: 0.6, seed: hashStr(t.id+'l'), stroke: strk, strokeWidth: 1,
     });
 
-    // ── Table label: font, font-size, letter-spacing ────
-    // always left-anchored
+    // ── Table label: always left-anchored ───────────────
     drawText(ctx, t.label, t.x + 10, t.y + pad/2,
       tFontSize, 500, textCol, 'left', tFont, tLetterSpacing);
 
@@ -492,13 +532,13 @@ export function renderToCanvas(
         strokeWidth: row.kind === 'header' ? 1.2  : 0.6,
       });
 
-      // ── Cell text: font, font-size, letter-spacing, text-align ──
+      // ── Cell text ───────────────────────────────────
       // header always centered; data rows respect gs.textAlign
-      const cellAlignProp  = (row.kind === 'header'
+      const cellAlignProp = (row.kind === 'header'
         ? 'center'
         : String(gs.textAlign ?? 'center')) as 'left'|'center'|'right';
-      const cellFw         = row.kind === 'header' ? 600 : 400;
-      const cellColor      = row.kind === 'header'
+      const cellFw        = row.kind === 'header' ? 600 : 400;
+      const cellColor     = row.kind === 'header'
         ? String(gs.color ?? palette.tableHeaderText)
         : textCol;
 
@@ -550,27 +590,102 @@ export function renderToCanvas(
       fill: palette.noteFold, fillStyle: 'solid', stroke: strk, strokeWidth: 0.8 });
 
     // ── Note typography ─────────────────────────────────
-    // supports: font, font-size, letter-spacing, text-align, line-height
+    // supports: font, font-size, letter-spacing, text-align,
+    //           vertical-align, line-height
     const nFontSize      = Number(gs.fontSize      ?? 12);
     const nFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const nLetterSpacing = gs.letterSpacing as number | undefined;
     const nLineHeight    = Number(gs.lineHeight    ?? 1.4) * nFontSize;
     const nTextAlign     = String(gs.textAlign     ?? 'left') as 'left'|'center'|'right';
+    const nVertAlign     = String(gs.verticalAlign ?? 'top');
     const nColor         = String(gs.color         ?? palette.noteText);
 
     const nTextX = nTextAlign === 'right'  ? x + w - fold - 6
                  : nTextAlign === 'center' ? x + (w - fold) / 2
                  : x + 12;
 
+    // vertical-align inside note body (below fold)
+    const bodyTop    = y + fold + 8;
+    const bodyBottom = y + h - 8;
+    const blockH     = (n.lines.length - 1) * nLineHeight;
+    const blockCY    =
+      nVertAlign === 'bottom' ? bodyBottom - blockH / 2
+      : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
+      : bodyTop + blockH / 2;   // top (default)
+
     if (n.lines.length > 1) {
-      const blockCY = y + fold/2 + (h - fold) / 2;
       drawMultilineText(ctx, n.lines, nTextX, blockCY,
         nFontSize, 400, nColor,
         nTextAlign, nLineHeight, nFont, nLetterSpacing);
     } else {
-      drawText(ctx, n.lines[0] ?? '', nTextX, y + h/2,
+      drawText(ctx, n.lines[0] ?? '', nTextX, blockCY,
         nFontSize, 400, nColor,
         nTextAlign, nFont, nLetterSpacing);
+    }
+  }
+
+  // ── Markdown blocks ────────────────────────────────────────
+  // Renders prose with Markdown headings and bold/italic inline spans.
+  // Canvas has no native bold-within-a-run, so each run is drawn
+  // individually with its own ctx.font setting.
+  for (const m of (sg.markdowns ?? [])) {
+    const mFont     = resolveStyleFont(m.style as Record<string,unknown>, diagramFont);
+    const baseColor = String(m.style?.color ?? palette.nodeText);
+    const textAlign = String(m.style?.textAlign ?? 'left') as 'left'|'center'|'right';
+    const PAD       = Number(m.style?.padding ?? 16);
+
+    const anchorX = textAlign === 'right'  ? m.x + m.w - PAD
+                  : textAlign === 'center' ? m.x + m.w / 2
+                  : m.x + PAD;
+
+    let y = m.y + PAD;
+
+    for (const line of m.lines) {
+      if (line.kind === 'blank') { y += LINE_SPACING.blank; continue; }
+
+      const fontSize   = LINE_FONT_SIZE[line.kind];
+      const fontWeight = LINE_FONT_WEIGHT[line.kind];
+      const lineY      = y + fontSize / 2;
+
+      // Measure total run width for left-offset when runs mix bold/italic
+      // Simple: draw each run consecutively from a computed start x
+      ctx.save();
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle    = baseColor;
+
+      if (textAlign === 'center' || textAlign === 'right') {
+        // Measure full line width first
+        let totalW = 0;
+        for (const run of line.runs) {
+          const runStyle  = run.italic ? 'italic ' : '';
+          const runWeight = run.bold   ? 700 : fontWeight;
+          ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+          totalW  += ctx.measureText(run.text).width;
+        }
+        let runX = textAlign === 'center' ? anchorX - totalW / 2 : anchorX - totalW;
+        ctx.textAlign = 'left';
+        for (const run of line.runs) {
+          const runStyle  = run.italic ? 'italic ' : '';
+          const runWeight = run.bold   ? 700 : fontWeight;
+          ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+          ctx.fillText(run.text, runX, lineY);
+          runX += ctx.measureText(run.text).width;
+        }
+      } else {
+        // left-aligned — draw runs left to right from anchorX
+        let runX = anchorX;
+        ctx.textAlign = 'left';
+        for (const run of line.runs) {
+          const runStyle  = run.italic ? 'italic ' : '';
+          const runWeight = run.bold   ? 700 : fontWeight;
+          ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+          ctx.fillText(run.text, runX, lineY);
+          runX += ctx.measureText(run.text).width;
+        }
+      }
+
+      ctx.restore();
+      y += LINE_SPACING[line.kind];
     }
   }
 

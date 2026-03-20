@@ -1,3 +1,4 @@
+
 // ============================================================
 // sketchmark — SVG Renderer  (rough.js hand-drawn)
 // ============================================================
@@ -11,11 +12,15 @@ import type {
   SceneChart,
 } from "../../scene";
 import { connPoint } from "../../layout";
-import { nodeMap, groupMap, tableMap, noteMap, chartMap } from "../../scene";
+import { nodeMap, groupMap, tableMap, noteMap, chartMap ,markdownMap} from "../../scene";
 import { renderRoughChartSVG } from "./roughChartSVG";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
 import { resolveFont, loadFont, DEFAULT_FONT } from "../../fonts";
+
+import {
+  LINE_FONT_SIZE, LINE_FONT_WEIGHT, LINE_SPACING,
+} from '../../markdown/parser';
 
 declare const rough: { svg(el: SVGSVGElement): RoughSVG };
 
@@ -81,6 +86,26 @@ function resolveStyleFont(
   if (!raw) return fallback;
   loadFont(raw);
   return resolveFont(raw);
+}
+
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const words      = text.split(' ');
+  const charsPerPx = fontSize * 0.55;   // approximate
+  const maxChars   = Math.floor(maxWidth / charsPerPx);
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 // ── SVG text helpers ──────────────────────────────────────────────────────
@@ -570,20 +595,21 @@ export function renderToSVG(
     const gFontSize = Number(gs.fontSize ?? 12);
     const gFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
     const gLetterSpacing = gs.letterSpacing as number | undefined;
-
-    gg.appendChild(
-      mkText(
-        g.label,
-        g.x + 14,
-        g.y + 14,
-        gFontSize,
-        500,
-        gLabelColor,
-        "start",
-        gFont,
-        gLetterSpacing,
-      ),
-    );
+   if(g.label){
+     gg.appendChild(
+       mkText(
+         g.label,
+         g.x + 14,
+         g.y + 14,
+         gFontSize,
+         500,
+         gLabelColor,
+         "start",
+         gFont,
+         gLetterSpacing,
+       ),
+     );
+   }
     GL.appendChild(gg);
   }
   svg.appendChild(GL);
@@ -738,7 +764,9 @@ export function renderToSVG(
           ? n.x + n.w - 8
           : n.x + n.w / 2;
 
-    const lines = n.label.split("\n");
+    const lines = n.shape === 'text' && !n.label.includes('\n')
+  ? wrapText(n.label, n.w - 16, fontSize)
+  : n.label.split('\n');
 
     const verticalAlign = String(n.style?.verticalAlign ?? "middle");
 
@@ -1055,6 +1083,58 @@ export function renderToSVG(
     NoteL.appendChild(ng);
   }
   svg.appendChild(NoteL);
+
+  const mdm  = markdownMap(sg);
+  const MDL  = mkGroup('markdown-layer');
+ 
+  for (const m of sg.markdowns) {
+    const mg         = mkGroup(`markdown-${m.id}`, 'mdg');
+    const mFont      = resolveStyleFont(m.style as Record<string,unknown>, diagramFont);
+    const baseColor  = String(m.style?.color ?? palette.nodeText);
+    const textAlign  = String(m.style?.textAlign ?? 'left');
+    const anchor     = textAlign === 'right'  ? 'end'
+                     : textAlign === 'center' ? 'middle'
+                     : 'start';
+    const PAD   = Number(m.style?.padding ?? 16);
+    const textX      = textAlign === 'right'  ? m.x + m.w - PAD
+                     : textAlign === 'center' ? m.x + m.w / 2
+                     : m.x + PAD;
+ 
+    let y = m.y + PAD;
+ 
+    for (const line of m.lines) {
+      if (line.kind === 'blank') { y += LINE_SPACING.blank; continue; }
+ 
+      const fontSize   = LINE_FONT_SIZE[line.kind];
+      const fontWeight = LINE_FONT_WEIGHT[line.kind];
+ 
+      const t = se('text') as SVGTextElement;
+      t.setAttribute('x',                 String(textX));
+      t.setAttribute('y',                 String(y + fontSize / 2));
+      t.setAttribute('text-anchor',       anchor);
+      t.setAttribute('dominant-baseline', 'middle');
+      t.setAttribute('font-family',       mFont);
+      t.setAttribute('font-size',         String(fontSize));
+      t.setAttribute('font-weight',       String(fontWeight));
+      t.setAttribute('fill',              baseColor);
+      t.setAttribute('pointer-events',    'none');
+      t.setAttribute('user-select',       'none');
+ 
+      for (const run of line.runs) {
+        const span = se('tspan') as SVGTSpanElement;
+        span.textContent = run.text;
+        if (run.bold)   span.setAttribute('font-weight', '700');
+        if (run.italic) span.setAttribute('font-style',  'italic');
+        t.appendChild(span);
+      }
+ 
+      mg.appendChild(t);
+      y += LINE_SPACING[line.kind];
+    }
+ 
+    MDL.appendChild(mg);
+  }
+  svg.appendChild(MDL);
 
   // ── Charts ────────────────────────────────────────────────
   const CL = mkGroup("chart-layer");

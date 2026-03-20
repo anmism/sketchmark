@@ -31,14 +31,18 @@ end
   - [Node Shapes](#node-shapes)
   - [Edges](#edges)
   - [Groups](#groups)
+  - [Bare Groups](#bare-groups)
   - [Tables](#tables)
   - [Notes](#notes)
   - [Charts](#charts)
+  - [Markdown Blocks](#markdown-blocks)
   - [Themes](#themes)
+  - [Typography](#typography)
   - [Animation Steps](#animation-steps)
 - [Layout System](#layout-system)
 - [Animation System](#animation-system)
 - [Theme Palettes](#theme-palettes)
+- [Font System](#font-system)
 - [API Reference](#api-reference)
 - [Export](#export)
 - [Examples](#examples)
@@ -71,7 +75,7 @@ const instance = render({
     a --> b label="connects"
   `,
   renderer:   'svg',
-  svgOptions: { showTitle: true, interactive: true,transparent: true },
+  svgOptions: { showTitle: true, interactive: true, transparent: true },
 });
 
 // Step through animation
@@ -79,18 +83,20 @@ instance.anim.next();
 instance.anim.play(800);
 ```
 
-**CDN / no bundler:**
+**CDN / no bundler with import map:**
 
 ```html
-<script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-<script type="module">
-  import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
 
+
+{ "imports": { "sketchmark": "https://unpkg.com/sketchmark/dist/index.js" } }
+
+
+  import { render } from 'sketchmark';
   render({
     container: document.getElementById('diagram'),
     dsl: `diagram\nbox a label="Hello"\nbox b label="World"\na --> b`,
   });
-</script>
+
 ```
 
 **CommonJS:**
@@ -125,41 +131,54 @@ end
 | `config gap` | `config gap=60` | Gap between root-level items (default: 80) |
 | `config margin` | `config margin=40` | Outer canvas margin (default: 60) |
 | `config theme` | `config theme=ocean` | Global palette (see [Theme Palettes](#theme-palettes)) |
+| `config font` | `config font=caveat` | Diagram-wide font (see [Font System](#font-system)) |
 
 ---
 
 ### Node Shapes
 
 ```
-box       id  label="..." [theme=X] [width=N] [height=N]
-circle    id  label="..."
-diamond   id  label="..."
-hexagon   id  label="..."
-triangle  id  label="..."
-cylinder  id  label="..."
-parallelogram id label="..."
-text      id  label="..."
-image     id  label="..." url="https://..."
+box           id  label="..." [theme=X] [width=N] [height=N]
+circle        id  label="..."
+diamond       id  label="..."
+hexagon       id  label="..."
+triangle      id  label="..."
+cylinder      id  label="..."
+parallelogram id  label="..."
+text          id  label="..."
+image         id  label="..." url="https://..."
 ```
 
 **Common properties:**
 
 | Property | Example | Description |
 |---|---|---|
-| `label` | `label="API Gateway"` | Display text |
-| `theme` | `theme=primary` | Named theme (defined with `theme` keyword) |
+| `label` | `label="API Gateway"` | Display text. Use `\n` for line breaks |
+| `theme` | `theme=primary` | Named theme |
 | `width` | `width=140` | Override auto-width in px |
 | `height` | `height=55` | Override auto-height in px |
 | `fill` | `fill="#e8f4ff"` | Background fill color |
 | `stroke` | `stroke="#0044cc"` | Border color |
 | `color` | `color="#003399"` | Text color |
-| `font-size` | `font-size=12` | Label font size |
+| `font` | `font=caveat` | Font family or built-in name |
+| `font-size` | `font-size=12` | Label font size in px |
+| `font-weight` | `font-weight=600` | Font weight |
+| `letter-spacing` | `letter-spacing=2` | Letter spacing in px |
+| `text-align` | `text-align=left` | `left`, `center`, `right` |
+| `vertical-align` | `vertical-align=top` | `top`, `middle`, `bottom` |
+| `line-height` | `line-height=1.6` | Line height multiplier |
+
+> **`text` shape:** No border or background. Long labels auto word-wrap. Use `width=` to control the wrap width.
+
+> **`image` shape:** Renders an image clipped to a rounded rect. Requires `url=` property.
 
 **Example:**
 ```
 box gateway label="API Gateway" theme=warning width=150 height=55
 circle user label="User" fill="#e8f4ff" stroke="#0044cc" color="#003399"
 cylinder db label="PostgreSQL" theme=success width=140 height=65
+image logo label="Logo" url="https://example.com/logo.png" width=80 height=80
+text caption label="This auto-wraps across multiple lines." width=300
 ```
 
 ---
@@ -167,7 +186,7 @@ cylinder db label="PostgreSQL" theme=success width=140 height=65
 ### Edges
 
 ```
-fromId  connector  toId  [label="..."]
+fromId  connector  toId  [label="..."] [stroke="#color"] [stroke-width=N]
 ```
 
 **Connectors:**
@@ -182,12 +201,25 @@ fromId  connector  toId  [label="..."]
 | `--` | none | solid |
 | `---` | none | dashed |
 
+**Edge style properties:**
+
+| Property | Description |
+|---|---|
+| `label` | Text label on the edge |
+| `stroke` | Line and arrowhead color |
+| `stroke-width` | Line thickness |
+| `color` | Label text color |
+| `font` | Label font |
+| `font-size` | Label font size |
+| `theme` | Apply a named theme to the edge |
+
 **Example:**
 ```
 client  --> gateway  label="HTTPS"
 gateway <-> auth     label="verify"
-db      --- replica  label="sync"
-a       ---          b
+a       --           b
+db      ---          replica
+api     --> db       stroke="#0044cc" stroke-width=2 theme=primary
 ```
 
 ---
@@ -200,13 +232,10 @@ Groups are containers that arrange children using a flexbox-style layout.
 group id [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
       [justify=start|center|end|space-between|space-around]
       [align=start|center|end]
-      [columns=N]
-      [width=N] [height=N]
-      [theme=X]
+      [columns=N] [width=N] [height=N] [theme=X]
+      [font=X] [font-size=N] [letter-spacing=N]
 {
-  box  child1 label="..."
-  box  child2 label="..."
-  group nested { ... }
+  ...children...
 }
 ```
 
@@ -214,17 +243,18 @@ group id [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
 
 | Property | Default | Description |
 |---|---|---|
+| `label` | — | Label at top-left. Omit or `""` for no label and no reserved space |
 | `layout` | `column` | `row`, `column`, or `grid` |
 | `gap` | `10` | Space between children in px |
 | `padding` | `26` | Inner padding in px |
-| `justify` | `start` | Main-axis distribution of children |
-| `align` | `start` | Cross-axis alignment of children |
-| `columns` | `1` | Number of columns when `layout=grid` |
-| `width` | auto | Minimum width — enables `justify` distribution |
+| `justify` | `start` | Main-axis distribution |
+| `align` | `start` | Cross-axis alignment |
+| `columns` | `1` | Columns when `layout=grid` |
+| `width` | auto | Minimum width — enables `justify` |
 | `height` | auto | Minimum height |
 | `theme` | — | Named theme for border/background |
 
-> **Note on `justify`:** Requires an explicit `width` larger than the children's total width to have visible effect. Without extra space, all five values look identical.
+> **`justify`** requires an explicit `width` larger than total child width to have a visible effect.
 
 **Example:**
 ```
@@ -235,24 +265,62 @@ group services label="Microservices" layout=column gap=16 padding=30 theme=muted
 }
 ```
 
-**Grid layout:**
+**Grid:**
 ```
-group icons layout=grid columns=3 gap=20 padding=24 width=400
+group icons layout=grid columns=3 gap=20 padding=24
 {
-  box a label="A"  width=100 height=60
-  box b label="B"  width=100 height=60
-  box c label="C"  width=100 height=60
-  box d label="D"  width=100 height=60
+  box a label="A" width=100 height=60
+  box b label="B" width=100 height=60
+  box c label="C" width=100 height=60
 }
 ```
 
-**Justify example:**
+**Space-between with explicit width:**
 ```
 group nav layout=row justify=space-between width=500 padding=20 gap=10
 {
-  box home  label="Home"    width=80 height=40
-  box about label="About"   width=80 height=40
+  box home    label="Home"    width=80 height=40
+  box about   label="About"   width=80 height=40
   box contact label="Contact" width=80 height=40
+}
+```
+
+---
+
+### Bare Groups
+
+`bare` is a layout-only container — no label, no border, no background, no padding by default. All group layout properties apply.
+
+```
+bare id [layout=...] [gap=N] [padding=N] [justify=...] [align=...] [columns=N]
+{
+  ...children...
+}
+```
+
+Any explicitly set style overrides the bare defaults:
+
+```
+# fully invisible layout container
+bare page layout=row gap=60
+{
+  markdown intro width=340
+  """
+  # Title
+  Some prose here.
+  """
+
+  group diagram layout=column gap=20 padding=30 theme=muted
+  {
+    box a label="A" theme=primary width=130 height=52
+  }
+}
+
+# bare with a visible border
+bare wrapper layout=row gap=20 stroke="#cccccc" padding=16
+{
+  box x label="X" width=100 height=50
+  box y label="Y" width=100 height=50
 }
 ```
 
@@ -261,22 +329,21 @@ group nav layout=row justify=space-between width=500 padding=20 gap=10
 ### Tables
 
 ```
-table id [label="..."] [theme=X]
+table id [label="..."] [theme=X] [font=X] [font-size=N] [text-align=left|center|right]
 {
   header  Col1  Col2  Col3
   row     val1  val2  val3
-  row     val4  val5  val6
 }
 ```
 
 **Example:**
 ```
-table pricing label="Pricing Plans"
+table pricing label="Pricing Plans" font=dm-mono text-align=right
 {
-  header  Plan      Price   Requests
-  row     Free      $0      1k/day
-  row     Pro       $29     100k/day
-  row     Enterprise  $299  Unlimited
+  header  Plan        Price   Requests
+  row     Free        $0      1k/day
+  row     Pro         $29     100k/day
+  row     Enterprise  $299    Unlimited
 }
 ```
 
@@ -284,11 +351,23 @@ table pricing label="Pricing Plans"
 
 ### Notes
 
-Single or multiline sticky notes.
+Sticky notes with a folded corner.
 
 ```
-note id label="Single line note" [theme=X]
+note id label="Single line" [theme=X]
 note id label="Line one\nLine two\nLine three"
+note id label="..." [width=N] [height=N]
+         [font=X] [font-size=N] [letter-spacing=N]
+         [text-align=left|center|right]
+         [vertical-align=top|middle|bottom]
+         [line-height=1.4]
+```
+
+**Example:**
+```
+note n1 label="Rate limited\nto 1000 req/s\nper tenant"
+note n2 label="Postgres 16\nwith pg_vector" width=200 height=100 font-size=13
+note n3 label="Centered" text-align=center vertical-align=middle width=180 height=80
 ```
 
 ---
@@ -307,38 +386,90 @@ data
 [
   ["Label", "Series1", "Series2"],
   ["Jan",   120,       80       ],
-  ["Feb",   150,       95       ],
-  ["Mar",   130,       110      ]
+  ["Feb",   150,       95       ]
 ]
 ```
 
-**Pie / donut data format:**
+**Pie / donut:**
 ```
-pie-chart revenue title="Revenue Split"
+pie-chart revenue title="Revenue Split" width=280 height=240
 data
 [
-  ["Product",  45],
-  ["Services", 30],
-  ["Support",  25]
+  ["Product A", 42],
+  ["Services",  30],
+  ["Support",   25]
 ]
 ```
 
-**Scatter data format:**
+---
+
+### Markdown Blocks
+
+Prose content with Markdown-style formatting, rendered inside the diagram layout.
+
 ```
-scatter-chart perf title="Performance"
-data
-[
-  ["headers", "x", "y"],
-  ["Server A", 10, 95],
-  ["Server B", 20, 87]
-]
+markdown id [width=N] [padding=N] [font=X]
+            [text-align=left|center|right] [color=X]
+"""
+# Heading 1
+## Heading 2
+### Heading 3
+
+Paragraph with **bold** and *italic* text.
+
+Another paragraph.
+"""
+```
+
+**Supported syntax:**
+
+| Syntax | Result |
+|---|---|
+| `# text` | H1 heading |
+| `## text` | H2 heading |
+| `### text` | H3 heading |
+| `**text**` | Bold |
+| `*text*` | Italic |
+| blank line | Vertical spacing |
+
+**Example:**
+```
+bare page layout=row gap=60
+{
+  markdown intro width=320 font=caveat padding=0
+  """
+  # Sketchmark
+
+  A text-based diagram DSL that renders
+  **hand-drawn** SVG diagrams.
+
+  ## Animation
+
+  Every element supports *step-by-step*
+  animation — **draw**, highlight, fade, move.
+  """
+
+  group diagram layout=column gap=20 padding=30 theme=muted
+  {
+    box parser label="Parser"   theme=primary width=130 height=52
+    box scene  label="Scene"    theme=success width=130 height=52
+  }
+}
+
+parser --> scene label="AST"
+
+step draw intro
+step highlight parser
+step draw parser-->scene
+step highlight scene
+end
 ```
 
 ---
 
 ### Themes
 
-Define reusable style presets with `theme`, then apply them to any node or group.
+Define reusable style presets and apply them to any element.
 
 ```
 theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
@@ -348,7 +479,33 @@ theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
 theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 ```
 
-Apply: `box myNode label="..." theme=primary`
+Apply to any element: `box a theme=primary`, `group g theme=muted`, `note n theme=warning`, `a --> b theme=danger`
+
+---
+
+### Typography
+
+Typography properties work on all text-bearing elements.
+
+| Property | Applies to | Description |
+|---|---|---|
+| `font` | all | Font family or built-in name |
+| `font-size` | all | Font size in px |
+| `font-weight` | all | `400`, `500`, `600`, `700` |
+| `letter-spacing` | all | Letter spacing in px |
+| `text-align` | nodes, notes, table cells, markdown | `left`, `center`, `right` |
+| `vertical-align` | nodes, notes | `top`, `middle`, `bottom` |
+| `line-height` | nodes, notes, markdown | Multiplier e.g. `1.4` |
+
+```
+# diagram-wide font
+config font=caveat
+
+# per-element overrides
+box title label="Heading"   font=playfair font-size=20 text-align=left
+box body  label="Body text" font=system   vertical-align=top
+note n    label="Annotation" font=caveat  font-size=13 line-height=1.6
+```
 
 ---
 
@@ -358,38 +515,65 @@ Apply: `box myNode label="..." theme=primary`
 step  action  target  [options]
 ```
 
+All actions work on **all element types** — nodes, groups, tables, notes, charts, and edges.
+
 **Actions:**
 
 | Action | Syntax | Description |
 |---|---|---|
-| `highlight` | `step highlight nodeId` | Pulsing glow on a node |
-| `fade` | `step fade nodeId` | Fade node to 22% opacity |
-| `unfade` | `step unfade nodeId` | Restore full opacity |
-| `draw` | `step draw nodeId` | Animate node appearing (stroke-draw) |
-| `draw` | `step draw a-->b` | Animate edge appearing |
-| `erase` | `step erase nodeId` | Fade element to invisible |
-| `show` | `step show nodeId` | Make hidden element visible |
-| `hide` | `step hide nodeId` | Hide element |
-| `pulse` | `step pulse nodeId` | Single brightness flash |
-| `color` | `step color nodeId #ff0000` | Change fill color |
-| `move` | `step move nodeId dx=50 dy=0` | Translate by dx/dy px |
-| `scale` | `step scale nodeId factor=1.5` | Scale (absolute, 1.0 = normal) |
-| `rotate` | `step rotate nodeId deg=45` | Rotate (cumulative degrees) |
+| `highlight` | `step highlight id` | Pulsing glow |
+| `fade` | `step fade id` | Fade to 22% opacity |
+| `unfade` | `step unfade id` | Restore full opacity |
+| `draw` | `step draw id` | Stroke-draw reveal |
+| `draw` | `step draw a-->b` | Animate edge in |
+| `erase` | `step erase id` | Fade to invisible |
+| `show` | `step show id` | Make hidden element visible |
+| `hide` | `step hide id` | Hide element |
+| `pulse` | `step pulse id` | Single brightness flash |
+| `color` | `step color id fill="#ff0000"` | Change fill color |
+| `move` | `step move id dx=50 dy=0` | Translate by dx/dy px |
+| `scale` | `step scale id factor=1.5` | Scale (absolute) |
+| `rotate` | `step rotate id deg=45` | Rotate (cumulative) |
 
 **Options:**
 
-| Option | Example | Description |
-|---|---|---|
-| `duration` | `duration=600` | Animation duration in ms |
-| `dx` | `dx=100` | X offset for `move` |
-| `dy` | `dy=-80` | Y offset for `move` |
-| `factor` | `factor=1.5` | Scale multiplier for `scale` |
-| `deg` | `deg=45` | Degrees for `rotate` (cumulative) |
+| Option | Description |
+|---|---|
+| `duration=600` | Animation duration in ms |
+| `dx=100` | X offset for `move` |
+| `dy=-80` | Y offset for `move` |
+| `factor=1.5` | Scale multiplier |
+| `deg=45` | Rotation degrees |
 
-**Notes on `move` / `scale` / `rotate`:**
-- `move` is cumulative — `dx=50` twice = 100px total
-- `scale` is absolute — `factor=1.5` always means 1.5×, `factor=1.0` resets to normal
-- `rotate` is cumulative — `deg=45` twice = 90° total, `deg=-45` rotates back
+**Behaviour:**
+- `move` — cumulative. `dx=50` twice = 100px total
+- `scale` — absolute. `factor=1.0` always resets to normal
+- `rotate` — cumulative. `deg=-45` rotates back
+- `color` — use `fill=` syntax: `step color id fill="#ff0000"`
+
+**Slide-in entrance:**
+```
+step move id dx=0 dy=80        # snap below final position
+step draw id                    # reveal at offset
+step move id dx=0 dy=-80       # animate up into place
+```
+
+**Wobble-and-fail:**
+```
+step rotate id deg=8
+step rotate id deg=-8
+step rotate id deg=8
+step rotate id deg=25           # cumulative = 33°
+step fade   id
+```
+
+**Edge animations:**
+```
+step highlight a-->b
+step color     a-->b fill="#ff0000"
+step fade      a-->b
+step move      a-->b dx=0 dy=-20 duration=400
+```
 
 ---
 
@@ -397,12 +581,10 @@ step  action  target  [options]
 
 ### Root layout
 
-Controls how top-level items (groups, standalone nodes) are arranged:
-
 ```
-layout row     # left to right (default)
-layout column  # top to bottom
-layout grid    # grid, use config columns=N
+layout row       # items flow left to right (default)
+layout column    # items flow top to bottom
+layout grid      # grid — set columns with: config columns=N
 ```
 
 ### Group layout
@@ -417,72 +599,47 @@ group g layout=row justify=space-between width=500 gap=16 padding=20
 
 | Value | Effect |
 |---|---|
-| `start` | Pack children to the start (default) |
-| `center` | Center children in the container |
-| `end` | Pack children to the end |
+| `start` | Pack to start (default) |
+| `center` | Center in container |
+| `end` | Pack to end |
 | `space-between` | First at start, last at end, equal gaps between |
 | `space-around` | Equal space around each child |
-
-> Requires `width` wider than total child width to be visible.
 
 ### `align` values
 
 | Value | Effect |
 |---|---|
-| `start` | Align to the start of the cross-axis (default) |
-| `center` | Center on the cross-axis |
-| `end` | Align to the end of the cross-axis |
+| `start` | Cross-axis start (default) |
+| `center` | Cross-axis center |
+| `end` | Cross-axis end |
 
 ---
 
 ## Animation System
 
-The `AnimationController` is returned as `instance.anim` from `render()`.
-
 ```typescript
-const instance = render({ container, dsl });
-const { anim } = instance;
+const { anim } = render({ container, dsl });
 
 anim.next();              // advance one step
 anim.prev();              // go back one step
 anim.reset();             // return to initial state
-anim.goTo(3);             // jump to specific step index
+anim.goTo(3);             // jump to step index
 await anim.play(800);     // auto-play, 800ms per step
 
-anim.currentStep          // current step index (-1 = not started)
-anim.total                // total number of steps
+anim.currentStep          // current index (-1 = not started)
+anim.total                // total step count
 anim.canNext              // boolean
 anim.canPrev              // boolean
 
-// listen to events
 anim.on((event) => {
   // event.type: 'step-change' | 'animation-reset' |
   //             'animation-start' | 'animation-end' | 'step-complete'
-  console.log(event.stepIndex, event.step);
 });
-```
-
-**Slide-in entrance pattern:**
-```
-step move nodeId dx=0 dy=80      # push below final position
-step draw nodeId                  # reveal at offset
-step move nodeId dx=0 dy=-80     # animate into final position
-```
-
-**Wobble then fail pattern:**
-```
-step rotate nodeId deg=8
-step rotate nodeId deg=-8
-step rotate nodeId deg=8
-step rotate nodeId deg=25        # cumulative = 33°, looks like toppling
-step fade   nodeId
 ```
 
 ---
 
 ## Theme Palettes
-
-Set a global palette with `config theme=NAME`. Available palettes:
 
 | Name | Description |
 |---|---|
@@ -494,9 +651,65 @@ Set a global palette with `config theme=NAME`. Available palettes:
 | `slate` | Cool grays |
 | `rose` | Pinks and magentas |
 | `midnight` | GitHub-dark style blues |
+| `sketch` | Graphite pencil-on-paper |
 
 ```
-config theme=ocean
+config theme=sketch
+```
+
+List all palette names at runtime:
+
+```typescript
+import { THEME_NAMES } from 'sketchmark';
+// ['light', 'dark', 'ocean', 'forest', 'sunset', 'slate', 'rose', 'midnight', 'sketch']
+```
+
+---
+
+## Font System
+
+### Built-in fonts
+
+| Name | Style |
+|---|---|
+| `caveat` | Hand-drawn, casual |
+| `handlee` | Hand-drawn, friendly |
+| `indie-flower` | Hand-drawn, playful |
+| `patrick-hand` | Hand-drawn, clean |
+| `dm-mono` | Monospace, refined |
+| `jetbrains` | Monospace, code-like |
+| `instrument` | Serif, editorial |
+| `playfair` | Serif, elegant |
+| `system` | System UI sans-serif |
+| `mono` | Courier New |
+| `serif` | Georgia |
+
+Built-in fonts load automatically from Google Fonts on first use.
+
+```
+config font=caveat              # diagram-wide
+
+box a label="Hand-drawn" font=caveat
+box b label="Code style"  font=dm-mono font-size=11
+```
+
+### Custom fonts
+
+```typescript
+import { registerFont } from 'sketchmark';
+
+// font already loaded in the page via  or @import
+registerFont('brand', '"Brand Sans", sans-serif');
+
+// then use in DSL
+// config font=brand
+// box a font=brand
+```
+
+Or pass a full CSS family directly in DSL (must be quoted):
+
+```
+box a label="Hello" font="'Pacifico', cursive"
 ```
 
 ---
@@ -505,66 +718,63 @@ config theme=ocean
 
 ### `render(options): DiagramInstance`
 
-One-call API. Parses DSL, builds scene, lays out, renders, and returns a controller.
-
 ```typescript
 import { render } from 'sketchmark';
 
 const instance = render({
-  container:    '#my-div',        // CSS selector, HTMLElement, or SVGSVGElement
-  dsl:          '...',            // DSL source text
-  renderer:     'svg',            // 'svg' (default) | 'canvas'
-  injectCSS:    true,             // inject animation CSS into <head>
+  container:    '#my-div',
+  dsl:          '...',
+  renderer:     'svg',          // 'svg' (default) | 'canvas'
+  injectCSS:    true,
   svgOptions: {
-    showTitle:   true,
-    interactive: true,            // hover effects + click handlers
-    roughness:   1.3,
-    bowing:      0.7,
-    theme:       'light',         // 'light' | 'dark'
-    onNodeClick: (nodeId) => {},
+    showTitle:    true,
+    interactive:  true,
+    roughness:    1.3,
+    bowing:       0.7,
+    theme:        'light',      // 'light' | 'dark' | 'auto'
+    transparent:  false,        // remove background rect
+    onNodeClick:  (nodeId) => {},
   },
   canvasOptions: {
-    scale:       2,               // pixel density
-    roughness:   1.3,
+    scale:        2,
+    roughness:    1.3,
+    transparent:  false,
   },
   onNodeClick:  (nodeId) => {},
   onReady:      (anim, svg) => {},
 });
 ```
 
+`theme: 'auto'` follows OS `prefers-color-scheme`. `transparent: true` removes the background so the diagram floats over the page.
+
 **`DiagramInstance`:**
 
 ```typescript
-instance.scene       // SceneGraph — all positioned nodes, edges, groups
+instance.scene       // SceneGraph
 instance.anim        // AnimationController
-instance.svg         // SVGSVGElement (if renderer='svg')
-instance.canvas      // HTMLCanvasElement (if renderer='canvas')
+instance.svg         // SVGSVGElement
+instance.canvas      // HTMLCanvasElement
 instance.update(dsl) // re-render with new DSL
-instance.exportSVG() // download as SVG file
-instance.exportPNG() // download as PNG file
+instance.exportSVG() // download SVG
+instance.exportPNG() // download PNG
 ```
 
 ---
 
-### Pipeline API (low-level)
-
-Use these if you need to control each step manually:
+### Pipeline API
 
 ```typescript
 import { parse, buildSceneGraph, layout, renderToSVG } from 'sketchmark';
 
-const ast   = parse(dslString);        // DSL → AST
-const scene = buildSceneGraph(ast);    // AST → SceneGraph
-layout(scene);                         // compute x/y positions
+const ast   = parse(dslString);
+const scene = buildSceneGraph(ast);
+layout(scene);
 const svg   = renderToSVG(scene, containerEl, options);
 ```
 
 ---
 
 ### `parse(dsl: string): DiagramAST`
-
-Tokenizes and parses DSL source into an AST.
-Throws `ParseError` with line/col information on invalid syntax.
 
 ```typescript
 import { parse, ParseError } from 'sketchmark';
@@ -580,54 +790,30 @@ try {
 
 ---
 
-### `buildSceneGraph(ast): SceneGraph`
-
-Converts AST to a SceneGraph with unpositioned nodes and groups.
-
----
-
-### `layout(scene): SceneGraph`
-
-Computes x/y positions for all elements. Mutates and returns the SceneGraph.
-
----
-
-### `renderToSVG(scene, container, options?): SVGSVGElement`
-
-Renders scene to SVG using rough.js.
-
----
-
-### `renderToCanvas(scene, canvas, options?): void`
-
-Renders scene to an HTML Canvas element using rough.js.
-
----
-
 ## Export
 
 ```typescript
 import { exportSVG, exportPNG, exportHTML, getSVGBlob } from 'sketchmark';
 
-exportSVG(svgElement, { filename: 'diagram.svg' });
-await exportPNG(svgElement, { filename: 'diagram.png', scale: 2 });
-exportHTML(svgElement, dslSource, { filename: 'diagram.html' });
+exportSVG(svgEl, { filename: 'diagram.svg' });
+await exportPNG(svgEl, { filename: 'diagram.png', scale: 2 });
+exportHTML(svgEl, dslSource, { filename: 'diagram.html' });
 
-// Get blob without downloading
-const blob = getSVGBlob(svgElement);
+const blob = getSVGBlob(svgEl);
 ```
 
-Or via the instance:
+Via instance:
+
 ```typescript
-instance.exportSVG('my-diagram.svg');
-await instance.exportPNG('my-diagram.png');
+instance.exportSVG('diagram.svg');
+await instance.exportPNG('diagram.png');
 ```
 
 ---
 
 ## Examples
 
-### Basic architecture diagram
+### Basic architecture
 
 ```
 diagram
@@ -644,8 +830,8 @@ box gateway label="API Gateway" theme=muted   width=140 height=55
 
 group services label="Services" layout=column gap=16 padding=30 theme=muted
 {
-  box auth  label="Auth Service" theme=primary width=130 height=50
-  box data  label="Data Service" theme=primary width=130 height=50
+  box auth label="Auth Service" theme=primary width=130 height=50
+  box data label="Data Service" theme=primary width=130 height=50
 }
 
 cylinder db label="PostgreSQL" theme=success width=140 height=65
@@ -655,7 +841,6 @@ gateway --> auth
 gateway --> data
 auth    --> db label="SQL"
 data    --> db label="SQL"
-
 end
 ```
 
@@ -693,21 +878,64 @@ lb --> g1 label="0%"
 step highlight lb
 step draw lb-->b1
 step highlight b1
-
-# green slides in from below
 step move g1 dx=0 dy=60
 step move g2 dx=0 dy=60
 step draw g1
 step move g1 dx=0 dy=-60 duration=500
 step draw g2
 step move g2 dx=0 dy=-60 duration=500
-
-# traffic shifts
 step fade b1
 step fade b2
 step draw lb-->g1
 step highlight g1
+end
+```
 
+---
+
+### Markdown with diagram
+
+```
+diagram
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+bare page layout=row gap=60
+{
+  markdown intro width=320 font=caveat padding=0
+  """
+  # Sketchmark
+
+  A text-based diagram DSL that renders
+  **hand-drawn** SVG diagrams using rough.js.
+
+  ## Animation
+
+  Every element supports **step-by-step**
+  animation — draw, highlight, fade, move.
+  """
+
+  group diagram layout=column gap=20 padding=30 theme=muted
+  {
+    box parser label="Parser"   theme=primary width=130 height=52
+    box scene  label="Scene"    theme=success width=130 height=52
+    box render label="Renderer" theme=muted   width=130 height=52
+  }
+}
+
+parser --> scene  label="AST"
+scene  --> render label="SceneGraph"
+
+step draw intro
+step highlight parser
+step draw parser-->scene
+step highlight scene
+step draw scene-->render
+step highlight render
 end
 ```
 
@@ -737,7 +965,40 @@ data
   ["Product B", 31],
   ["Product C", 27]
 ]
+end
+```
 
+---
+
+### Sketch theme
+
+```
+diagram
+title label="System Architecture"
+config theme=sketch
+config font=caveat
+layout row
+config gap=60
+
+group root layout=row gap=60 padding=0
+{
+  box client  label="Client App"   width=140 height=55
+  box gateway label="API Gateway"  width=140 height=55
+
+  group services layout=column gap=16 padding=30
+  {
+    box auth    label="Auth Service"    width=140 height=55
+    box billing label="Billing Service" width=140 height=55
+  }
+
+  cylinder db label="PostgreSQL" width=140 height=65
+}
+
+client  --> gateway label="HTTPS"
+gateway --> auth
+gateway --> billing
+auth    --> db label="SQL"
+billing --> db label="SQL"
 end
 ```
 

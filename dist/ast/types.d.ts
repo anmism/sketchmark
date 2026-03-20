@@ -19,6 +19,7 @@ export interface StyleProps {
     labelColor?: string;
     [key: string]: unknown;
     strokeDash?: number[];
+    padding?: number;
     textAlign?: 'left' | 'center' | 'right';
     verticalAlign?: 'top' | 'middle' | 'bottom';
     lineHeight?: number;
@@ -39,6 +40,9 @@ export type GroupChildRef = {
 } | {
     kind: 'chart';
     id: string;
+} | {
+    kind: 'markdown';
+    id: string;
 };
 export type RootItemRef = {
     kind: 'node';
@@ -54,6 +58,9 @@ export type RootItemRef = {
     id: string;
 } | {
     kind: 'chart';
+    id: string;
+} | {
+    kind: 'markdown';
     id: string;
 };
 export interface ASTNode {
@@ -146,6 +153,15 @@ export interface ASTNote {
     width?: number;
     height?: number;
 }
+export interface ASTMarkdown {
+    kind: 'markdown';
+    id: string;
+    content: string;
+    width?: number;
+    height?: number;
+    theme?: string;
+    style?: StyleProps;
+}
 export interface DiagramAST {
     kind: 'diagram';
     title?: string;
@@ -158,6 +174,7 @@ export interface DiagramAST {
     notes: ASTNote[];
     steps: ASTStep[];
     charts: ASTChart[];
+    markdowns: ASTMarkdown[];
     styles: Record<string, StyleProps>;
     themes: Record<string, StyleProps>;
     config: Record<string, string | number | boolean>;

@@ -24,6 +24,7 @@ const KEYWORDS = new Set([
     "step",
     "config",
     "theme",
+    "bare",
     "bar-chart",
     "line-chart",
     "pie-chart",
@@ -63,6 +64,7 @@ const KEYWORDS = new Set([
     "dag",
     "tree",
     "force",
+    "markdown",
 ]);
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];
 // Characters that can start an arrow pattern — used to decide whether a '-'
@@ -98,6 +100,23 @@ function tokenize(src) {
         // Whitespace (not newline)
         if (/[ \t]/.test(ch)) {
             i++;
+            continue;
+        }
+        if (ch === '"' && peek(1) === '"' && peek(2) === '"') {
+            i += 3; // skip opening """
+            let raw = "";
+            while (i < src.length) {
+                if (src[i] === '"' && src[i + 1] === '"' && src[i + 2] === '"') {
+                    i += 3; // skip closing """
+                    break;
+                }
+                if (src[i] === "\n") {
+                    line++;
+                    lineStart = i + 1;
+                }
+                raw += src[i++];
+            }
+            add("STRING_BLOCK", raw);
             continue;
         }
         // Strings
@@ -250,14 +269,16 @@ function propsToStyle(p) {
         s.fontSize = parseFloat(p["font-size"]);
     if (p["font-weight"])
         s.fontWeight = p["font-weight"];
-    if (p['text-align'])
-        s.textAlign = p['text-align'];
-    if (p['vertical-align'])
-        s.verticalAlign = p['vertical-align'];
-    if (p['line-height'])
-        s.lineHeight = parseFloat(p['line-height']);
-    if (p['letter-spacing'])
-        s.letterSpacing = parseFloat(p['letter-spacing']);
+    if (p["text-align"])
+        s.textAlign = p["text-align"];
+    if (p.padding)
+        s.padding = parseFloat(p.padding);
+    if (p["vertical-align"])
+        s.verticalAlign = p["vertical-align"];
+    if (p["line-height"])
+        s.lineHeight = parseFloat(p["line-height"]);
+    if (p["letter-spacing"])
+        s.letterSpacing = parseFloat(p["letter-spacing"]);
     if (p.font)
         s.font = p.font;
     if (p["dash"]) {
@@ -297,6 +318,7 @@ function parse(src) {
         notes: [],
         charts: [],
         tables: [],
+        markdowns: [],
         styles: {},
         themes: {},
         config: {},
@@ -307,6 +329,7 @@ function parse(src) {
     const noteIds = new Set();
     const chartIds = new Set();
     const groupIds = new Set();
+    const markdownIds = new Set();
     let i = 0;
     const cur = () => flat[i] ?? flat[flat.length - 1];
     const peek1 = () => flat[i + 1] ?? flat[flat.length - 1];
@@ -520,7 +543,7 @@ function parse(src) {
         const group = {
             kind: "group",
             id,
-            label: props.label ?? id,
+            label: props.label ?? "",
             children: [],
             layout: props.layout,
             columns: props.columns !== undefined ? parseInt(props.columns, 10) : undefined,
@@ -546,8 +569,18 @@ function parse(src) {
                 break;
             const v = cur().value;
             // ── Nested group ──────────────────────────────────
-            if (v === "group") {
+            if (v === "group" || v === "bare") {
+                const isBare = v === "bare";
                 const nested = parseGroup();
+                if (isBare) {
+                    nested.label = "";
+                    nested.style = {
+                        ...nested.style,
+                        fill: nested.style?.fill ?? "none",
+                        stroke: nested.style?.stroke ?? "none",
+                        strokeWidth: nested.style?.strokeWidth ?? 0,
+                    };
+                }
                 ast.groups.push(nested);
                 groupIds.add(nested.id);
                 group.children.push({ kind: "group", id: nested.id });
@@ -568,6 +601,21 @@ function parse(src) {
                 noteIds.add(note.id);
                 group.children.push({ kind: "note", id: note.id });
                 continue;
+            }
+            // ── Markdown ───────────────────────────────────────
+            if (v === "markdown") {
+                const md = parseMarkdown(id);
+                ast.markdowns.push(md);
+                markdownIds.add(md.id);
+                group.children.push({ kind: "markdown", id: md.id });
+                continue;
+            }
+            if (v === "bare") {
+                // treat exactly like 'group' but inject defaults
+                const grp = parseGroup(); // reuse parseGroup
+                grp.label = "";
+                grp.style = { ...grp.style, stroke: "none", fill: "none" };
+                // rest is identical to group handling
             }
             // ── Chart ──────────────────────────────────────────
             if (CHART_TYPES.includes(v)) {
@@ -612,71 +660,71 @@ function parse(src) {
     function parseStep() {
         skip();
         const toks = lineTokens();
-        const action = (toks[0]?.value ?? 'highlight');
-        let target = toks[1]?.value ?? '';
-        if (toks[2]?.type === 'ARROW' && toks[3]) {
+        const action = (toks[0]?.value ?? "highlight");
+        let target = toks[1]?.value ?? "";
+        if (toks[2]?.type === "ARROW" && toks[3]) {
             target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
         }
-        const step = { kind: 'step', action, target };
+        const step = { kind: "step", action, target };
         for (let j = 2; j < toks.length; j++) {
             const k = toks[j]?.value;
             const eq = toks[j + 1];
             const vt = toks[j + 2];
             // key=value form
-            if (eq?.type === 'EQUALS' && vt) {
-                if (k === 'dx') {
+            if (eq?.type === "EQUALS" && vt) {
+                if (k === "dx") {
                     step.dx = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'dy') {
+                if (k === "dy") {
                     step.dy = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'duration') {
+                if (k === "duration") {
                     step.duration = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'delay') {
+                if (k === "delay") {
                     step.delay = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'factor') {
+                if (k === "factor") {
                     step.factor = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'deg') {
+                if (k === "deg") {
                     step.deg = parseFloat(vt.value);
                     j += 2;
                     continue;
                 }
-                if (k === 'fill') {
+                if (k === "fill") {
                     step.value = vt.value;
                     j += 2;
                     continue;
                 }
-                if (k === 'color') {
+                if (k === "color") {
                     step.value = vt.value;
                     j += 2;
                     continue;
                 }
             }
             // bare key value (legacy)
-            if (k === 'delay' && eq?.type === 'NUMBER') {
+            if (k === "delay" && eq?.type === "NUMBER") {
                 step.delay = parseFloat(eq.value);
                 j++;
                 continue;
             }
-            if (k === 'duration' && eq?.type === 'NUMBER') {
+            if (k === "duration" && eq?.type === "NUMBER") {
                 step.duration = parseFloat(eq.value);
                 j++;
                 continue;
             }
-            if (k === 'trigger') {
+            if (k === "trigger") {
                 step.trigger = eq?.value;
                 j++;
                 continue;
@@ -876,6 +924,40 @@ function parse(src) {
             skip();
         return table;
     }
+    // ── parseMarkdown ─────────────────────────────────────────
+    function parseMarkdown(groupId) {
+        skip(); // 'markdown'
+        const toks = lineTokens();
+        let id = groupId ? groupId + "_" + uid("md") : uid("md");
+        if (toks[0])
+            id = toks[0].value;
+        const props = {};
+        let j = 1;
+        while (j < toks.length - 1) {
+            const k = toks[j], eq = toks[j + 1];
+            if (eq?.type === "EQUALS" && j + 2 < toks.length) {
+                props[k.value] = toks[j + 2].value;
+                j += 3;
+            }
+            else
+                j++;
+        }
+        skipNL();
+        let content = "";
+        if (cur().type === "STRING_BLOCK") {
+            content = cur().value;
+            skip();
+        }
+        return {
+            kind: "markdown",
+            id,
+            content: content.trim(),
+            width: props.width ? parseFloat(props.width) : undefined,
+            height: props.height ? parseFloat(props.height) : undefined,
+            theme: props.theme,
+            style: propsToStyle(props),
+        };
+    }
     // ── Main parse loop ─────────────────────────────────────
     skipNL();
     if (cur().value === "diagram")
@@ -989,8 +1071,18 @@ function parse(src) {
             continue;
         }
         // group
-        if (v === "group") {
+        if (v === "group" || v === "bare") {
+            const isBare = v === "bare";
             const grp = parseGroup();
+            if (isBare) {
+                grp.label = "";
+                grp.style = {
+                    ...grp.style,
+                    fill: grp.style?.fill ?? "none",
+                    stroke: grp.style?.stroke ?? "none",
+                    strokeWidth: grp.style?.strokeWidth ?? 0,
+                };
+            }
             ast.groups.push(grp);
             groupIds.add(grp.id);
             ast.rootOrder.push({ kind: "group", id: grp.id });
@@ -1023,6 +1115,13 @@ function parse(src) {
             ast.charts.push(chart);
             chartIds.add(chart.id);
             ast.rootOrder.push({ kind: "chart", id: chart.id }); // ← ADD
+            continue;
+        }
+        if (v === "markdown") {
+            const md = parseMarkdown();
+            ast.markdowns.push(md);
+            markdownIds.add(md.id);
+            ast.rootOrder.push({ kind: "markdown", id: md.id });
             continue;
         }
         // edge:  A -> B  (MUST come before shape check)
@@ -1075,6 +1174,91 @@ function parse(src) {
         }
     }
     return ast;
+}
+
+// ============================================================
+// sketchmark — Markdown inline parser
+// Supports: # h1  ## h2  ### h3  **bold**  *italic*  blank lines
+// ============================================================
+// ── Font sizes per line kind ──────────────────────────────
+const LINE_FONT_SIZE = {
+    h1: 40,
+    h2: 28,
+    h3: 20,
+    p: 15,
+    blank: 0,
+};
+const LINE_FONT_WEIGHT = {
+    h1: 700,
+    h2: 600,
+    h3: 600,
+    p: 400,
+    blank: 400,
+};
+// Spacing below each line kind (px)
+const LINE_SPACING = {
+    h1: 52,
+    h2: 38,
+    h3: 28,
+    p: 22,
+    blank: 10,
+};
+// ── Parse a full markdown string into lines ───────────────
+function parseMarkdownContent(content) {
+    const raw = content.split('\n');
+    const lines = [];
+    for (const line of raw) {
+        const t = line.trim();
+        if (!t) {
+            lines.push({ kind: 'blank', runs: [] });
+            continue;
+        }
+        if (t.startsWith('### ')) {
+            lines.push({ kind: 'h3', runs: parseInline(t.slice(4)) });
+        }
+        else if (t.startsWith('## ')) {
+            lines.push({ kind: 'h2', runs: parseInline(t.slice(3)) });
+        }
+        else if (t.startsWith('# ')) {
+            lines.push({ kind: 'h1', runs: parseInline(t.slice(2)) });
+        }
+        else {
+            lines.push({ kind: 'p', runs: parseInline(t) });
+        }
+    }
+    // strip leading/trailing blank lines
+    while (lines.length && lines[0].kind === 'blank')
+        lines.shift();
+    while (lines.length && lines[lines.length - 1].kind === 'blank')
+        lines.pop();
+    return lines;
+}
+// ── Parse inline bold/italic spans ───────────────────────
+function parseInline(text) {
+    const runs = [];
+    // Order matters: check ** before *
+    const re = /(\*\*(.+?)\*\*|\*(.+?)\*|[^*]+)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        if (m[0].startsWith('**')) {
+            runs.push({ text: m[2], bold: true });
+        }
+        else if (m[0].startsWith('*')) {
+            runs.push({ text: m[3], italic: true });
+        }
+        else {
+            if (m[0])
+                runs.push({ text: m[0] });
+        }
+    }
+    return runs;
+}
+// ── Calculate natural height of a parsed block ────────────
+function calcMarkdownHeight(lines, pad = 16) {
+    let h = pad * 2; // top + bottom
+    for (const line of lines)
+        h += LINE_SPACING[line.kind];
+    return h;
 }
 
 // ============================================================
@@ -1167,6 +1351,18 @@ function buildSceneGraph(ast) {
             h: c.height ?? 240,
         };
     });
+    const markdowns = (ast.markdowns ?? []).map(m => {
+        const themeStyle = m.theme ? (ast.themes[m.theme] ?? {}) : {};
+        return {
+            id: m.id,
+            content: m.content,
+            lines: parseMarkdownContent(m.content),
+            style: { ...themeStyle, ...m.style },
+            width: m.width,
+            height: m.height,
+            x: 0, y: 0, w: 0, h: 0,
+        };
+    });
     // Set parentId for nested groups
     for (const g of groups) {
         for (const child of g.children) {
@@ -1197,6 +1393,7 @@ function buildSceneGraph(ast) {
         tables,
         notes,
         charts,
+        markdowns,
         animation: { steps: ast.steps, currentStep: -1 },
         styles: ast.styles,
         config: ast.config,
@@ -1220,6 +1417,9 @@ function noteMap(sg) {
 }
 function chartMap(sg) {
     return new Map(sg.charts.map((c) => [c.id, c]));
+}
+function markdownMap(sg) {
+    return new Map((sg.markdowns ?? []).map(m => [m.id, m]));
 }
 
 // ============================================================
@@ -1261,30 +1461,40 @@ function sizeNode(n) {
         n.h = n.height;
     const labelW = Math.round(n.label.length * FONT_PX_PER_CHAR + BASE_PAD);
     switch (n.shape) {
-        case 'circle':
+        case "circle":
             n.w = n.w || Math.max(84, Math.min(MAX_W, labelW));
             n.h = n.h || n.w;
             break;
-        case 'diamond':
+        case "diamond":
             n.w = n.w || Math.max(130, Math.min(MAX_W, labelW + 30));
             n.h = n.h || Math.max(62, n.w * 0.46);
             break;
-        case 'hexagon':
+        case "hexagon":
             n.w = n.w || Math.max(126, Math.min(MAX_W, labelW + 20));
             n.h = n.h || Math.max(54, n.w * 0.44);
             break;
-        case 'triangle':
+        case "triangle":
             n.w = n.w || Math.max(108, Math.min(MAX_W, labelW + 10));
-            n.h = n.h || Math.max(64, n.w * 0.60);
+            n.h = n.h || Math.max(64, n.w * 0.6);
             break;
-        case 'cylinder':
+        case "cylinder":
             n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
             n.h = n.h || 66;
             break;
-        case 'parallelogram':
+        case "parallelogram":
             n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + 28));
             n.h = n.h || 50;
             break;
+        case "text": {
+            // read fontSize from style if set, otherwise use default
+            const fontSize = Number(n.style?.fontSize ?? 13);
+            const charWidth = fontSize * 0.55;
+            const maxW = n.width ?? 400;
+            const approxLines = Math.ceil((n.label.length * charWidth) / (maxW - 16));
+            n.w = maxW;
+            n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + 8);
+            break;
+        }
         default:
             n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
             n.h = n.h || 52;
@@ -1292,7 +1502,7 @@ function sizeNode(n) {
     }
 }
 function sizeNote(n) {
-    const maxChars = Math.max(...n.lines.map(l => l.length));
+    const maxChars = Math.max(...n.lines.map((l) => l.length));
     n.w = Math.max(120, Math.ceil(maxChars * NOTE_FONT) + NOTE_PAD_X * 2);
     n.h = n.lines.length * NOTE_LINE_H + NOTE_PAD_Y * 2;
     if (n.width && n.w < n.width)
@@ -1308,7 +1518,7 @@ function sizeTable(t) {
         t.h = labelH + rowH;
         return;
     }
-    const numCols = Math.max(...rows.map(r => r.cells.length));
+    const numCols = Math.max(...rows.map((r) => r.cells.length));
     const colW = Array(numCols).fill(MIN_COL_W);
     for (const row of rows) {
         row.cells.forEach((cell, i) => {
@@ -1317,60 +1527,75 @@ function sizeTable(t) {
     }
     t.colWidths = colW;
     t.w = colW.reduce((s, w) => s + w, 0);
-    const nHeader = rows.filter(r => r.kind === 'header').length;
-    const nData = rows.filter(r => r.kind === 'data').length;
+    const nHeader = rows.filter((r) => r.kind === "header").length;
+    const nData = rows.filter((r) => r.kind === "data").length;
     t.h = labelH + nHeader * headerH + nData * rowH;
 }
 function sizeChart(c) {
     c.w = c.w || 320;
     c.h = c.h || 240;
 }
+function sizeMarkdown(m) {
+    const pad = Number(m.style?.padding ?? 16);
+    m.w = m.width ?? 400;
+    m.h = m.height ?? calcMarkdownHeight(m.lines, pad);
+}
 // ── Item size helpers ─────────────────────────────────────
-function iW(r, nm, gm, tm, ntm, cm) {
-    if (r.kind === 'node')
+function iW(r, nm, gm, tm, ntm, cm, mdm) {
+    if (r.kind === "node")
         return nm.get(r.id).w;
-    if (r.kind === 'table')
+    if (r.kind === "table")
         return tm.get(r.id).w;
-    if (r.kind === 'note')
+    if (r.kind === "note")
         return ntm.get(r.id).w;
-    if (r.kind === 'chart')
+    if (r.kind === "chart")
         return cm.get(r.id).w;
+    if (r.kind === "markdown")
+        return mdm.get(r.id).w;
     return gm.get(r.id).w;
 }
-function iH(r, nm, gm, tm, ntm, cm) {
-    if (r.kind === 'node')
+function iH(r, nm, gm, tm, ntm, cm, mdm) {
+    if (r.kind === "node")
         return nm.get(r.id).h;
-    if (r.kind === 'table')
+    if (r.kind === "table")
         return tm.get(r.id).h;
-    if (r.kind === 'note')
+    if (r.kind === "note")
         return ntm.get(r.id).h;
-    if (r.kind === 'chart')
+    if (r.kind === "chart")
         return cm.get(r.id).h;
+    if (r.kind === "markdown")
+        return mdm.get(r.id).h;
     return gm.get(r.id).h;
 }
-function setPos(r, x, y, nm, gm, tm, ntm, cm) {
-    if (r.kind === 'node') {
+function setPos(r, x, y, nm, gm, tm, ntm, cm, mdm) {
+    if (r.kind === "node") {
         const n = nm.get(r.id);
         n.x = Math.round(x);
         n.y = Math.round(y);
         return;
     }
-    if (r.kind === 'table') {
+    if (r.kind === "table") {
         const t = tm.get(r.id);
         t.x = Math.round(x);
         t.y = Math.round(y);
         return;
     }
-    if (r.kind === 'note') {
+    if (r.kind === "note") {
         const nt = ntm.get(r.id);
         nt.x = Math.round(x);
         nt.y = Math.round(y);
         return;
     }
-    if (r.kind === 'chart') {
+    if (r.kind === "chart") {
         const c = cm.get(r.id);
         c.x = Math.round(x);
         c.y = Math.round(y);
+        return;
+    }
+    if (r.kind === "markdown") {
+        const md = mdm.get(r.id);
+        md.x = Math.round(x);
+        md.y = Math.round(y);
         return;
     }
     const g = gm.get(r.id);
@@ -1379,48 +1604,51 @@ function setPos(r, x, y, nm, gm, tm, ntm, cm) {
 }
 // ── Pass 1: Measure (bottom-up) ───────────────────────────
 // Recursively computes w, h for a group from its children's sizes.
-function measure(g, nm, gm, tm, ntm, cm) {
+function measure(g, nm, gm, tm, ntm, cm, mdm) {
     // Recurse into nested groups first; size tables before reading their dims
     for (const r of g.children) {
-        if (r.kind === 'group')
-            measure(gm.get(r.id), nm, gm, tm, ntm, cm);
-        if (r.kind === 'table')
+        if (r.kind === "group")
+            measure(gm.get(r.id), nm, gm, tm, ntm, cm, mdm);
+        if (r.kind === "table")
             sizeTable(tm.get(r.id));
-        if (r.kind === 'note')
+        if (r.kind === "note")
             sizeNote(ntm.get(r.id));
-        if (r.kind === 'chart')
+        if (r.kind === "chart")
             sizeChart(cm.get(r.id));
+        if (r.kind === "markdown")
+            sizeMarkdown(mdm.get(r.id));
     }
     const { padding: pad, gap, columns, layout } = g;
     const kids = g.children;
+    const labelH = g.label ? GROUP_LABEL_H : 0;
     if (!kids.length) {
         g.w = pad * 2;
-        g.h = pad * 2 + GROUP_LABEL_H;
+        g.h = pad * 2 + labelH;
         if (g.width && g.w < g.width)
             g.w = g.width;
         if (g.height && g.h < g.height)
             g.h = g.height;
         return;
     }
-    const ws = kids.map(r => iW(r, nm, gm, tm, ntm, cm));
-    const hs = kids.map(r => iH(r, nm, gm, tm, ntm, cm));
+    const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
+    const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
     const n = kids.length;
-    if (layout === 'row') {
+    if (layout === "row") {
         g.w = ws.reduce((s, w) => s + w, 0) + gap * (n - 1) + pad * 2;
-        g.h = Math.max(...hs) + pad * 2 + GROUP_LABEL_H;
+        g.h = Math.max(...hs) + pad * 2 + labelH;
     }
-    else if (layout === 'grid') {
+    else if (layout === "grid") {
         const cols = Math.max(1, columns);
         const rows = Math.ceil(n / cols);
         const cellW = Math.max(...ws);
         const cellH = Math.max(...hs);
         g.w = cols * cellW + (cols - 1) * gap + pad * 2;
-        g.h = rows * cellH + (rows - 1) * gap + pad * 2 + GROUP_LABEL_H;
+        g.h = rows * cellH + (rows - 1) * gap + pad * 2 + labelH;
     }
     else {
         // column (default)
         g.w = Math.max(...ws) + pad * 2;
-        g.h = hs.reduce((s, h) => s + h, 0) + gap * (n - 1) + pad * 2 + GROUP_LABEL_H;
+        g.h = hs.reduce((s, h) => s + h, 0) + gap * (n - 1) + pad * 2 + labelH;
     }
     // Clamp to minWidth / minHeight — this is what gives distribute() free
     // space to work with for justify=center/end/space-between/space-around
@@ -1435,21 +1663,32 @@ function distribute(sizes, contentSize, gap, justify) {
     const totalSize = sizes.reduce((s, v) => s + v, 0);
     const gapCount = n - 1;
     switch (justify) {
-        case 'center': {
+        case "center": {
             const total = totalSize + gap * gapCount;
-            return { start: Math.max(0, (contentSize - total) / 2), gaps: Array(gapCount).fill(gap) };
+            return {
+                start: Math.max(0, (contentSize - total) / 2),
+                gaps: Array(gapCount).fill(gap),
+            };
         }
-        case 'end': {
+        case "end": {
             const total = totalSize + gap * gapCount;
-            return { start: Math.max(0, contentSize - total), gaps: Array(gapCount).fill(gap) };
+            return {
+                start: Math.max(0, contentSize - total),
+                gaps: Array(gapCount).fill(gap),
+            };
         }
-        case 'space-between': {
-            const g2 = gapCount > 0 ? Math.max(gap, (contentSize - totalSize) / gapCount) : gap;
+        case "space-between": {
+            const g2 = gapCount > 0
+                ? Math.max(gap, (contentSize - totalSize) / gapCount)
+                : gap;
             return { start: 0, gaps: Array(gapCount).fill(g2) };
         }
-        case 'space-around': {
+        case "space-around": {
             const space = n > 0 ? (contentSize - totalSize) / n : gap;
-            return { start: Math.max(0, space / 2), gaps: Array(gapCount).fill(Math.max(gap, space)) };
+            return {
+                start: Math.max(0, space / 2),
+                gaps: Array(gapCount).fill(Math.max(gap, space)),
+            };
         }
         default: // start
             return { start: 0, gaps: Array(gapCount).fill(gap) };
@@ -1457,70 +1696,73 @@ function distribute(sizes, contentSize, gap, justify) {
 }
 // ── Pass 2: Place (top-down) ──────────────────────────────
 // Assigns x, y to each child. Assumes g.x / g.y already set by parent.
-function place(g, nm, gm, tm, ntm, cm) {
+function place(g, nm, gm, tm, ntm, cm, mdm) {
     const { padding: pad, gap, columns, layout, align, justify } = g;
+    const labelH = g.label ? GROUP_LABEL_H : 0;
     const contentX = g.x + pad;
-    const contentY = g.y + GROUP_LABEL_H + pad;
+    const contentY = g.y + labelH + pad;
     const contentW = g.w - pad * 2;
-    const contentH = g.h - pad * 2 - GROUP_LABEL_H;
+    const contentH = g.h - pad * 2 - labelH;
     const kids = g.children;
     if (!kids.length)
         return;
-    if (layout === 'row') {
-        const ws = kids.map(r => iW(r, nm, gm, tm, ntm, cm));
-        const hs = kids.map(r => iH(r, nm, gm, tm, ntm, cm));
+    if (layout === "row") {
+        const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
+        const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
         const maxH = Math.max(...hs);
         const { start, gaps } = distribute(ws, contentW, gap, justify);
         let x = contentX + start;
         for (let i = 0; i < kids.length; i++) {
             let y;
             switch (align) {
-                case 'center':
+                case "center":
                     y = contentY + (maxH - hs[i]) / 2;
                     break;
-                case 'end':
+                case "end":
                     y = contentY + maxH - hs[i];
                     break;
-                default: y = contentY;
+                default:
+                    y = contentY;
             }
-            setPos(kids[i], x, y, nm, gm, tm, ntm, cm);
+            setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
             x += ws[i] + (i < gaps.length ? gaps[i] : 0);
         }
     }
-    else if (layout === 'grid') {
+    else if (layout === "grid") {
         const cols = Math.max(1, columns);
-        const cellW = Math.max(...kids.map(r => iW(r, nm, gm, tm, ntm, cm)));
-        const cellH = Math.max(...kids.map(r => iH(r, nm, gm, tm, ntm, cm)));
+        const cellW = Math.max(...kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm)));
+        const cellH = Math.max(...kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm)));
         kids.forEach((ref, i) => {
-            setPos(ref, contentX + (i % cols) * (cellW + gap), contentY + Math.floor(i / cols) * (cellH + gap), nm, gm, tm, ntm, cm);
+            setPos(ref, contentX + (i % cols) * (cellW + gap), contentY + Math.floor(i / cols) * (cellH + gap), nm, gm, tm, ntm, cm, mdm);
         });
     }
     else {
         // column (default)
-        const ws = kids.map(r => iW(r, nm, gm, tm, ntm, cm));
-        const hs = kids.map(r => iH(r, nm, gm, tm, ntm, cm));
+        const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
+        const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
         const maxW = Math.max(...ws);
         const { start, gaps } = distribute(hs, contentH, gap, justify);
         let y = contentY + start;
         for (let i = 0; i < kids.length; i++) {
             let x;
             switch (align) {
-                case 'center':
+                case "center":
                     x = contentX + (maxW - ws[i]) / 2;
                     break;
-                case 'end':
+                case "end":
                     x = contentX + maxW - ws[i];
                     break;
-                default: x = contentX;
+                default:
+                    x = contentX;
             }
-            setPos(kids[i], x, y, nm, gm, tm, ntm, cm);
+            setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
             y += hs[i] + (i < gaps.length ? gaps[i] : 0);
         }
     }
     // Recurse into nested groups
     for (const r of kids) {
-        if (r.kind === 'group')
-            place(gm.get(r.id), nm, gm, tm, ntm, cm);
+        if (r.kind === "group")
+            place(gm.get(r.id), nm, gm, tm, ntm, cm, mdm);
     }
 }
 // ── Edge routing ──────────────────────────────────────────
@@ -1530,9 +1772,9 @@ function connPoint(n, other) {
     const dx = ox - cx, dy = oy - cy;
     if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
         return [cx, cy];
-    if (n.shape === 'circle') {
+    if (n.shape === "circle") {
         const r = n.w * 0.44, len = Math.sqrt(dx * dx + dy * dy);
-        return [cx + dx / len * r, cy + dy / len * r];
+        return [cx + (dx / len) * r, cy + (dy / len) * r];
     }
     const hw = n.w / 2 - 2, hh = n.h / 2 - 2;
     const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
@@ -1577,9 +1819,12 @@ function routeEdges(sg) {
     }
     function connPt(src, dstCX, dstCY) {
         // SceneNode has a .shape field; use the existing connPoint for it
-        if ('shape' in src && src.shape) {
+        if ("shape" in src && src.shape) {
             return connPoint(src, {
-                x: dstCX - 1, y: dstCY - 1, w: 2, h: 2});
+                x: dstCX - 1,
+                y: dstCY - 1,
+                w: 2,
+                h: 2});
         }
         return rectConnPoint$2(src.x, src.y, src.w, src.h, dstCX, dstCY);
     }
@@ -1592,84 +1837,84 @@ function routeEdges(sg) {
         }
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
         const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-        e.points = [
-            connPt(src, dstCX, dstCY),
-            connPt(dst, srcCX, srcCY),
-        ];
+        e.points = [connPt(src, dstCX, dstCY), connPt(dst, srcCX, srcCY)];
     }
 }
 function computeBounds(sg, margin) {
     const allX = [
-        ...sg.nodes.map(n => n.x + n.w),
-        ...sg.groups.filter(g => g.w).map(g => g.x + g.w),
-        ...sg.tables.map(t => t.x + t.w),
-        ...sg.notes.map(n => n.x + n.w),
-        ...sg.charts.map(c => c.x + c.w)
+        ...sg.nodes.map((n) => n.x + n.w),
+        ...sg.groups.filter((g) => g.w).map((g) => g.x + g.w),
+        ...sg.tables.map((t) => t.x + t.w),
+        ...sg.notes.map((n) => n.x + n.w),
+        ...sg.charts.map((c) => c.x + c.w),
+        ...sg.markdowns.map((m) => m.x + m.w),
     ];
     const allY = [
-        ...sg.nodes.map(n => n.y + n.h),
-        ...sg.groups.filter(g => g.h).map(g => g.y + g.h),
-        ...sg.tables.map(t => t.y + t.h),
-        ...sg.notes.map(n => n.y + n.h),
-        ...sg.charts.map(c => c.y + c.h)
+        ...sg.nodes.map((n) => n.y + n.h),
+        ...sg.groups.filter((g) => g.h).map((g) => g.y + g.h),
+        ...sg.tables.map((t) => t.y + t.h),
+        ...sg.notes.map((n) => n.y + n.h),
+        ...sg.charts.map((c) => c.y + c.h),
+        ...sg.markdowns.map((m) => m.y + m.h),
     ];
     sg.width = (allX.length ? Math.max(...allX) : 400) + margin;
     sg.height = (allY.length ? Math.max(...allY) : 300) + margin;
 }
 // ── Public entry point ────────────────────────────────────
 function layout(sg) {
-    const GAP_MAIN = Number(sg.config['gap'] ?? DEFAULT_GAP_MAIN);
-    const MARGIN = Number(sg.config['margin'] ?? DEFAULT_MARGIN);
+    const GAP_MAIN = Number(sg.config["gap"] ?? DEFAULT_GAP_MAIN);
+    const MARGIN = Number(sg.config["margin"] ?? DEFAULT_MARGIN);
     const nm = nodeMap(sg);
     const gm = groupMap(sg);
     const tm = tableMap(sg);
     const ntm = noteMap(sg);
     const cm = chartMap(sg);
-    console.log('[layout] sg.charts:', sg.charts.map(c => c.id));
-    console.log('[layout] sg.rootOrder:', sg.rootOrder.map(r => r.kind + ':' + r.id));
+    const mdm = markdownMap(sg);
     // 1. Size all nodes and tables
     sg.nodes.forEach(sizeNode);
     sg.tables.forEach(sizeTable);
     sg.notes.forEach(sizeNote);
     sg.charts.forEach(sizeChart);
+    sg.markdowns.forEach(sizeMarkdown);
     // src/layout/index.ts — after sg.charts.forEach(sizeChart);
     // 2. Identify root vs nested items
-    const nestedGroupIds = new Set(sg.groups.flatMap(g => g.children.filter(c => c.kind === 'group').map(c => c.id)));
-    const groupedNodeIds = new Set(sg.groups.flatMap(g => g.children.filter(c => c.kind === 'node').map(c => c.id)));
-    const groupedTableIds = new Set(sg.groups.flatMap(g => g.children.filter(c => c.kind === 'table').map(c => c.id)));
-    const groupedNoteIds = new Set(sg.groups.flatMap(g => g.children.filter(c => c.kind === 'note').map(c => c.id)));
-    const groupedChartIds = new Set(sg.groups.flatMap(g => g.children.filter(c => c.kind === 'chart').map(c => c.id)));
-    const rootGroups = sg.groups.filter(g => !nestedGroupIds.has(g.id));
-    const rootNodes = sg.nodes.filter(n => !groupedNodeIds.has(n.id));
-    const rootTables = sg.tables.filter(t => !groupedTableIds.has(t.id));
-    const rootNotes = sg.notes.filter(n => !groupedNoteIds.has(n.id));
-    const rootCharts = sg.charts.filter(c => !groupedChartIds.has(c.id));
+    const nestedGroupIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "group").map((c) => c.id)));
+    const groupedNodeIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "node").map((c) => c.id)));
+    const groupedTableIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "table").map((c) => c.id)));
+    const groupedNoteIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "note").map((c) => c.id)));
+    const groupedChartIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "chart").map((c) => c.id)));
+    const groupedMarkdownIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "markdown").map((c) => c.id)));
+    const rootGroups = sg.groups.filter((g) => !nestedGroupIds.has(g.id));
+    const rootNodes = sg.nodes.filter((n) => !groupedNodeIds.has(n.id));
+    const rootTables = sg.tables.filter((t) => !groupedTableIds.has(t.id));
+    const rootNotes = sg.notes.filter((n) => !groupedNoteIds.has(n.id));
+    const rootCharts = sg.charts.filter((c) => !groupedChartIds.has(c.id));
+    const rootMarkdowns = sg.markdowns.filter((m) => !groupedMarkdownIds.has(m.id));
     // 3. Measure root groups bottom-up
     for (const g of rootGroups)
-        measure(g, nm, gm, tm, ntm, cm);
+        measure(g, nm, gm, tm, ntm, cm, mdm);
     // 4. Build root order
     //    sg.rootOrder preserves DSL declaration order.
     //    Fall back: groups, then nodes, then tables.
     const rootOrder = sg.rootOrder?.length
         ? sg.rootOrder
         : [
-            ...rootGroups.map(g => ({ kind: 'group', id: g.id })),
-            ...rootNodes.map(n => ({ kind: 'node', id: n.id })),
-            ...rootTables.map(t => ({ kind: 'table', id: t.id })),
-            ...rootNotes.map(n => ({ kind: 'note', id: n.id })),
-            ...rootCharts.map(c => ({ kind: 'chart', id: c.id }))
+            ...rootGroups.map((g) => ({ kind: "group", id: g.id })),
+            ...rootNodes.map((n) => ({ kind: "node", id: n.id })),
+            ...rootTables.map((t) => ({ kind: "table", id: t.id })),
+            ...rootNotes.map((n) => ({ kind: "note", id: n.id })),
+            ...rootCharts.map((c) => ({ kind: "chart", id: c.id })),
+            ...rootMarkdowns.map((m) => ({ kind: "markdown", id: m.id })),
         ];
     // 5. Root-level layout
     //    sg.layout:
     //      'row'    → items flow left to right  (default)
     //      'column' → items flow top to bottom
     //      'grid'   → config columns=N grid
-    const rootLayout = (sg.layout ?? 'row');
-    const rootCols = Number(sg.config['columns'] ?? 1);
-    const useGrid = rootLayout === 'grid' && rootCols > 0;
-    const useColumn = rootLayout === 'column';
-    console.log('[layout] sized charts:', sg.charts.map(c => `${c.id} w=${c.w} h=${c.h}`));
-    console.log('[layout] rootOrder chart refs:', rootOrder.filter(r => r.kind === 'chart'));
+    const rootLayout = (sg.layout ?? "row");
+    const rootCols = Number(sg.config["columns"] ?? 1);
+    const useGrid = rootLayout === "grid" && rootCols > 0;
+    const useColumn = rootLayout === "column";
     if (useGrid) {
         // ── Grid: per-row heights, per-column widths (no wasted space) ──
         const cols = rootCols;
@@ -1680,21 +1925,25 @@ function layout(sg) {
             const col = idx % cols;
             const row = Math.floor(idx / cols);
             let w = 0, h = 0;
-            if (ref.kind === 'group') {
+            if (ref.kind === "group") {
                 w = gm.get(ref.id).w;
                 h = gm.get(ref.id).h;
             }
-            else if (ref.kind === 'table') {
+            else if (ref.kind === "table") {
                 w = tm.get(ref.id).w;
                 h = tm.get(ref.id).h;
             }
-            else if (ref.kind === 'note') {
+            else if (ref.kind === "note") {
                 w = ntm.get(ref.id).w;
                 h = ntm.get(ref.id).h;
             }
-            else if (ref.kind === 'chart') {
+            else if (ref.kind === "chart") {
                 w = cm.get(ref.id).w;
                 h = cm.get(ref.id).h;
+            }
+            else if (ref.kind === "markdown") {
+                w = mdm.get(ref.id).w;
+                h = mdm.get(ref.id).h;
             }
             else {
                 w = nm.get(ref.id).w;
@@ -1718,21 +1967,25 @@ function layout(sg) {
         rootOrder.forEach((ref, idx) => {
             const x = colX[idx % cols];
             const y = rowY[Math.floor(idx / cols)];
-            if (ref.kind === 'group') {
+            if (ref.kind === "group") {
                 gm.get(ref.id).x = x;
                 gm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'table') {
+            else if (ref.kind === "table") {
                 tm.get(ref.id).x = x;
                 tm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'note') {
+            else if (ref.kind === "note") {
                 ntm.get(ref.id).x = x;
                 ntm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'chart') {
+            else if (ref.kind === "chart") {
                 cm.get(ref.id).x = x;
                 cm.get(ref.id).y = y;
+            }
+            else if (ref.kind === "markdown") {
+                mdm.get(ref.id).x = x;
+                mdm.get(ref.id).y = y;
             }
             else {
                 nm.get(ref.id).x = x;
@@ -1745,21 +1998,25 @@ function layout(sg) {
         let pos = MARGIN;
         for (const ref of rootOrder) {
             let w = 0, h = 0;
-            if (ref.kind === 'group') {
+            if (ref.kind === "group") {
                 w = gm.get(ref.id).w;
                 h = gm.get(ref.id).h;
             }
-            else if (ref.kind === 'table') {
+            else if (ref.kind === "table") {
                 w = tm.get(ref.id).w;
                 h = tm.get(ref.id).h;
             }
-            else if (ref.kind === 'note') {
+            else if (ref.kind === "note") {
                 w = ntm.get(ref.id).w;
                 h = ntm.get(ref.id).h;
             }
-            else if (ref.kind === 'chart') {
+            else if (ref.kind === "chart") {
                 w = cm.get(ref.id).w;
                 h = cm.get(ref.id).h;
+            }
+            else if (ref.kind === "markdown") {
+                w = mdm.get(ref.id).w;
+                h = mdm.get(ref.id).h;
             }
             else {
                 w = nm.get(ref.id).w;
@@ -1767,21 +2024,25 @@ function layout(sg) {
             }
             const x = useColumn ? MARGIN : pos;
             const y = useColumn ? pos : MARGIN;
-            if (ref.kind === 'group') {
+            if (ref.kind === "group") {
                 gm.get(ref.id).x = x;
                 gm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'table') {
+            else if (ref.kind === "table") {
                 tm.get(ref.id).x = x;
                 tm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'note') {
+            else if (ref.kind === "note") {
                 ntm.get(ref.id).x = x;
                 ntm.get(ref.id).y = y;
             }
-            else if (ref.kind === 'chart') {
+            else if (ref.kind === "chart") {
                 cm.get(ref.id).x = x;
                 cm.get(ref.id).y = y;
+            }
+            else if (ref.kind === "markdown") {
+                mdm.get(ref.id).x = x;
+                mdm.get(ref.id).y = y;
             }
             else {
                 nm.get(ref.id).x = x;
@@ -1792,10 +2053,9 @@ function layout(sg) {
     }
     // 6. Place children within each root group (top-down, recursive)
     for (const g of rootGroups)
-        place(g, nm, gm, tm, ntm, cm);
+        place(g, nm, gm, tm, ntm, cm, mdm);
     // 7. Route edges and compute canvas size
     routeEdges(sg);
-    console.log('[layout] chart positions:', sg.charts.map(c => `${c.id} x=${c.x} y=${c.y}`));
     computeBounds(sg, MARGIN);
     return sg;
 }
@@ -2524,6 +2784,26 @@ function resolveStyleFont$1(style, fallback) {
     loadFont(raw);
     return resolveFont(raw);
 }
+function wrapText$1(text, maxWidth, fontSize) {
+    const words = text.split(' ');
+    const charsPerPx = fontSize * 0.55; // approximate
+    const maxChars = Math.floor(maxWidth / charsPerPx);
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (test.length > maxChars && current) {
+            lines.push(current);
+            current = word;
+        }
+        else {
+            current = test;
+        }
+    }
+    if (current)
+        lines.push(current);
+    return lines;
+}
 // ── SVG text helpers ──────────────────────────────────────────────────────
 /**
  * Single-line SVG text element.
@@ -2866,7 +3146,9 @@ function renderToSVG(sg, container, options = {}) {
         const gFontSize = Number(gs.fontSize ?? 12);
         const gFont = resolveStyleFont$1(gs, diagramFont);
         const gLetterSpacing = gs.letterSpacing;
-        gg.appendChild(mkText(g.label, g.x + 14, g.y + 14, gFontSize, 500, gLabelColor, "start", gFont, gLetterSpacing));
+        if (g.label) {
+            gg.appendChild(mkText(g.label, g.x + 14, g.y + 14, gFontSize, 500, gLabelColor, "start", gFont, gLetterSpacing));
+        }
         GL.appendChild(gg);
     }
     svg.appendChild(GL);
@@ -2959,7 +3241,9 @@ function renderToSVG(sg, container, options = {}) {
             : textAlign === "right"
                 ? n.x + n.w - 8
                 : n.x + n.w / 2;
-        const lines = n.label.split("\n");
+        const lines = n.shape === 'text' && !n.label.includes('\n')
+            ? wrapText$1(n.label, n.w - 16, fontSize)
+            : n.label.split('\n');
         const verticalAlign = String(n.style?.verticalAlign ?? "middle");
         const nodeBodyTop = n.y + 6;
         const nodeBodyBottom = n.y + n.h - 6;
@@ -3156,6 +3440,54 @@ function renderToSVG(sg, container, options = {}) {
         NoteL.appendChild(ng);
     }
     svg.appendChild(NoteL);
+    markdownMap(sg);
+    const MDL = mkGroup('markdown-layer');
+    for (const m of sg.markdowns) {
+        const mg = mkGroup(`markdown-${m.id}`, 'mdg');
+        const mFont = resolveStyleFont$1(m.style, diagramFont);
+        const baseColor = String(m.style?.color ?? palette.nodeText);
+        const textAlign = String(m.style?.textAlign ?? 'left');
+        const anchor = textAlign === 'right' ? 'end'
+            : textAlign === 'center' ? 'middle'
+                : 'start';
+        const PAD = Number(m.style?.padding ?? 16);
+        const textX = textAlign === 'right' ? m.x + m.w - PAD
+            : textAlign === 'center' ? m.x + m.w / 2
+                : m.x + PAD;
+        let y = m.y + PAD;
+        for (const line of m.lines) {
+            if (line.kind === 'blank') {
+                y += LINE_SPACING.blank;
+                continue;
+            }
+            const fontSize = LINE_FONT_SIZE[line.kind];
+            const fontWeight = LINE_FONT_WEIGHT[line.kind];
+            const t = se('text');
+            t.setAttribute('x', String(textX));
+            t.setAttribute('y', String(y + fontSize / 2));
+            t.setAttribute('text-anchor', anchor);
+            t.setAttribute('dominant-baseline', 'middle');
+            t.setAttribute('font-family', mFont);
+            t.setAttribute('font-size', String(fontSize));
+            t.setAttribute('font-weight', String(fontWeight));
+            t.setAttribute('fill', baseColor);
+            t.setAttribute('pointer-events', 'none');
+            t.setAttribute('user-select', 'none');
+            for (const run of line.runs) {
+                const span = se('tspan');
+                span.textContent = run.text;
+                if (run.bold)
+                    span.setAttribute('font-weight', '700');
+                if (run.italic)
+                    span.setAttribute('font-style', 'italic');
+                t.appendChild(span);
+            }
+            mg.appendChild(t);
+            y += LINE_SPACING[line.kind];
+        }
+        MDL.appendChild(mg);
+    }
+    svg.appendChild(MDL);
     // ── Charts ────────────────────────────────────────────────
     const CL = mkGroup("chart-layer");
     for (const c of sg.charts) {
@@ -3438,10 +3770,6 @@ function resolveStyleFont(style, fallback) {
     return resolveFont(raw);
 }
 // ── Canvas text helpers ────────────────────────────────────────────────────
-/**
- * Draw a single line of text.
- * align: 'left' | 'center' | 'right'  (maps to ctx.textAlign)
- */
 function drawText(ctx, txt, x, y, sz = 14, wt = 500, col = '#1a1208', align = 'center', font = 'system-ui, sans-serif', letterSpacing) {
     ctx.save();
     ctx.font = `${wt} ${sz}px ${font}`;
@@ -3466,15 +3794,33 @@ function drawText(ctx, txt, x, y, sz = 14, wt = 500, col = '#1a1208', align = 'c
     }
     ctx.restore();
 }
-/**
- * Draw multiple lines of text, vertically centred around cy.
- */
 function drawMultilineText(ctx, lines, x, cy, sz = 14, wt = 500, col = '#1a1208', align = 'center', lineH = 18, font = 'system-ui, sans-serif', letterSpacing) {
     const totalH = (lines.length - 1) * lineH;
     const startY = cy - totalH / 2;
     lines.forEach((line, i) => {
         drawText(ctx, line, x, startY + i * lineH, sz, wt, col, align, font, letterSpacing);
     });
+}
+// Soft word-wrap for `text` shape nodes
+function wrapText(text, maxWidth, fontSize) {
+    const charWidth = fontSize * 0.55;
+    const maxChars = Math.floor(maxWidth / charWidth);
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (test.length > maxChars && current) {
+            lines.push(current);
+            current = word;
+        }
+        else {
+            current = test;
+        }
+    }
+    if (current)
+        lines.push(current);
+    return lines.length ? lines : [text];
 }
 // ── Arrow direction ────────────────────────────────────────────────────────
 function connMeta(connector) {
@@ -3567,7 +3913,7 @@ function renderShape(rc, ctx, n, palette, R) {
             ], opts);
             break;
         case 'text':
-            break;
+            break; // no shape drawn
         case 'image': {
             if (n.imageUrl) {
                 const img = new Image();
@@ -3657,7 +4003,9 @@ function renderToCanvas(sg, canvas, options = {}) {
     // ── Title ────────────────────────────────────────────────
     if (sg.title) {
         const titleSize = Number(sg.config['title-size'] ?? 18);
-        drawText(ctx, sg.title, sg.width / 2, 28, titleSize, 600, palette.titleText, 'center', diagramFont);
+        const titleWeight = Number(sg.config['title-weight'] ?? 600);
+        const titleColor = String(sg.config['title-color'] ?? palette.titleText);
+        drawText(ctx, sg.title, sg.width / 2, 28, titleSize, titleWeight, titleColor, 'center', diagramFont);
     }
     // ── Groups (outermost first) ─────────────────────────────
     const sortedGroups = [...sg.groups].sort((a, b) => groupDepth(a, gm) - groupDepth(b, gm));
@@ -3673,13 +4021,16 @@ function renderToCanvas(sg, canvas, options = {}) {
             strokeWidth: Number(gs.strokeWidth ?? 1.2),
             strokeLineDash: gs.strokeDash ?? palette.groupDash,
         });
-        // ── Group label: font, font-size, letter-spacing ─────
-        // always left-anchored (single line)
-        const gFontSize = Number(gs.fontSize ?? 12);
-        const gFont = resolveStyleFont(gs, diagramFont);
-        const gLetterSpacing = gs.letterSpacing;
-        const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
-        drawText(ctx, g.label, g.x + 14, g.y + 16, gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+        // ── Group label ──────────────────────────────────────
+        // Only render when label has content — empty label = no reserved space
+        // supports: font, font-size, letter-spacing (always left-anchored)
+        if (g.label) {
+            const gFontSize = Number(gs.fontSize ?? 12);
+            const gFont = resolveStyleFont(gs, diagramFont);
+            const gLetterSpacing = gs.letterSpacing;
+            const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
+            drawText(ctx, g.label, g.x + 14, g.y + 16, gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+        }
     }
     // ── Edges ─────────────────────────────────────────────────
     for (const e of sg.edges) {
@@ -3732,7 +4083,8 @@ function renderToCanvas(sg, canvas, options = {}) {
     for (const n of sg.nodes) {
         renderShape(rc, ctx, n, palette, R);
         // ── Node / text typography ─────────────────────────
-        // supports: font, font-size, letter-spacing, text-align, line-height
+        // supports: font, font-size, letter-spacing, text-align,
+        //           vertical-align, line-height, word-wrap (text shape)
         const fontSize = Number(n.style?.fontSize ?? (n.shape === 'text' ? 13 : 14));
         const fontWeight = n.style?.fontWeight ?? (n.shape === 'text' ? 400 : 500);
         const textColor = String(n.style?.color ??
@@ -3741,15 +4093,28 @@ function renderToCanvas(sg, canvas, options = {}) {
         const textAlign = String(n.style?.textAlign ?? 'center');
         const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
         const letterSpacing = n.style?.letterSpacing;
+        const vertAlign = String(n.style?.verticalAlign ?? 'middle');
+        // x shifts for left/right alignment
         const textX = textAlign === 'left' ? n.x + 8
             : textAlign === 'right' ? n.x + n.w - 8
                 : n.x + n.w / 2;
-        const lines = n.label.split('\n');
+        // word-wrap for text shape; explicit \n for all others
+        const rawLines = n.label.split('\n');
+        const lines = n.shape === 'text' && rawLines.length === 1
+            ? wrapText(n.label, n.w - 16, fontSize)
+            : rawLines;
+        // vertical-align: compute textCY from top/middle/bottom
+        const nodeBodyTop = n.y + 6;
+        const nodeBodyBottom = n.y + n.h - 6;
+        const blockH = (lines.length - 1) * lineHeight;
+        const textCY = vertAlign === 'top' ? nodeBodyTop + blockH / 2
+            : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
+                : n.y + n.h / 2; // middle (default)
         if (lines.length > 1) {
-            drawMultilineText(ctx, lines, textX, n.y + n.h / 2, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
+            drawMultilineText(ctx, lines, textX, textCY, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
         }
         else {
-            drawText(ctx, n.label, textX, n.y + n.h / 2, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
+            drawText(ctx, lines[0] ?? '', textX, textCY, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
         }
     }
     // ── Tables ────────────────────────────────────────────────
@@ -3760,7 +4125,8 @@ function renderToCanvas(sg, canvas, options = {}) {
         const textCol = String(gs.color ?? palette.tableText);
         const pad = t.labelH;
         // ── Table-level font ────────────────────────────────
-        // supports: font, font-size, letter-spacing (cells also support text-align)
+        // supports: font, font-size, letter-spacing
+        // cells also support text-align
         const tFontSize = Number(gs.fontSize ?? 12);
         const tFont = resolveStyleFont(gs, diagramFont);
         const tLetterSpacing = gs.letterSpacing;
@@ -3771,8 +4137,7 @@ function renderToCanvas(sg, canvas, options = {}) {
         rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
             roughness: 0.6, seed: hashStr$1(t.id + 'l'), stroke: strk, strokeWidth: 1,
         });
-        // ── Table label: font, font-size, letter-spacing ────
-        // always left-anchored
+        // ── Table label: always left-anchored ───────────────
         drawText(ctx, t.label, t.x + 10, t.y + pad / 2, tFontSize, 500, textCol, 'left', tFont, tLetterSpacing);
         let rowY = t.y + pad;
         for (const row of t.rows) {
@@ -3786,7 +4151,7 @@ function renderToCanvas(sg, canvas, options = {}) {
                 stroke: row.kind === 'header' ? strk : palette.tableDivider,
                 strokeWidth: row.kind === 'header' ? 1.2 : 0.6,
             });
-            // ── Cell text: font, font-size, letter-spacing, text-align ──
+            // ── Cell text ───────────────────────────────────
             // header always centered; data rows respect gs.textAlign
             const cellAlignProp = (row.kind === 'header'
                 ? 'center'
@@ -3834,22 +4199,91 @@ function renderToCanvas(sg, canvas, options = {}) {
         ], { roughness: 0.4, seed: hashStr$1(n.id + 'f'),
             fill: palette.noteFold, fillStyle: 'solid', stroke: strk, strokeWidth: 0.8 });
         // ── Note typography ─────────────────────────────────
-        // supports: font, font-size, letter-spacing, text-align, line-height
+        // supports: font, font-size, letter-spacing, text-align,
+        //           vertical-align, line-height
         const nFontSize = Number(gs.fontSize ?? 12);
         const nFont = resolveStyleFont(gs, diagramFont);
         const nLetterSpacing = gs.letterSpacing;
         const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
         const nTextAlign = String(gs.textAlign ?? 'left');
+        const nVertAlign = String(gs.verticalAlign ?? 'top');
         const nColor = String(gs.color ?? palette.noteText);
         const nTextX = nTextAlign === 'right' ? x + w - fold - 6
             : nTextAlign === 'center' ? x + (w - fold) / 2
                 : x + 12;
+        // vertical-align inside note body (below fold)
+        const bodyTop = y + fold + 8;
+        const bodyBottom = y + h - 8;
+        const blockH = (n.lines.length - 1) * nLineHeight;
+        const blockCY = nVertAlign === 'bottom' ? bodyBottom - blockH / 2
+            : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
+                : bodyTop + blockH / 2; // top (default)
         if (n.lines.length > 1) {
-            const blockCY = y + fold / 2 + (h - fold) / 2;
             drawMultilineText(ctx, n.lines, nTextX, blockCY, nFontSize, 400, nColor, nTextAlign, nLineHeight, nFont, nLetterSpacing);
         }
         else {
-            drawText(ctx, n.lines[0] ?? '', nTextX, y + h / 2, nFontSize, 400, nColor, nTextAlign, nFont, nLetterSpacing);
+            drawText(ctx, n.lines[0] ?? '', nTextX, blockCY, nFontSize, 400, nColor, nTextAlign, nFont, nLetterSpacing);
+        }
+    }
+    // ── Markdown blocks ────────────────────────────────────────
+    // Renders prose with Markdown headings and bold/italic inline spans.
+    // Canvas has no native bold-within-a-run, so each run is drawn
+    // individually with its own ctx.font setting.
+    for (const m of (sg.markdowns ?? [])) {
+        const mFont = resolveStyleFont(m.style, diagramFont);
+        const baseColor = String(m.style?.color ?? palette.nodeText);
+        const textAlign = String(m.style?.textAlign ?? 'left');
+        const PAD = Number(m.style?.padding ?? 16);
+        const anchorX = textAlign === 'right' ? m.x + m.w - PAD
+            : textAlign === 'center' ? m.x + m.w / 2
+                : m.x + PAD;
+        let y = m.y + PAD;
+        for (const line of m.lines) {
+            if (line.kind === 'blank') {
+                y += LINE_SPACING.blank;
+                continue;
+            }
+            const fontSize = LINE_FONT_SIZE[line.kind];
+            const fontWeight = LINE_FONT_WEIGHT[line.kind];
+            const lineY = y + fontSize / 2;
+            // Measure total run width for left-offset when runs mix bold/italic
+            // Simple: draw each run consecutively from a computed start x
+            ctx.save();
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = baseColor;
+            if (textAlign === 'center' || textAlign === 'right') {
+                // Measure full line width first
+                let totalW = 0;
+                for (const run of line.runs) {
+                    const runStyle = run.italic ? 'italic ' : '';
+                    const runWeight = run.bold ? 700 : fontWeight;
+                    ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+                    totalW += ctx.measureText(run.text).width;
+                }
+                let runX = textAlign === 'center' ? anchorX - totalW / 2 : anchorX - totalW;
+                ctx.textAlign = 'left';
+                for (const run of line.runs) {
+                    const runStyle = run.italic ? 'italic ' : '';
+                    const runWeight = run.bold ? 700 : fontWeight;
+                    ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+                    ctx.fillText(run.text, runX, lineY);
+                    runX += ctx.measureText(run.text).width;
+                }
+            }
+            else {
+                // left-aligned — draw runs left to right from anchorX
+                let runX = anchorX;
+                ctx.textAlign = 'left';
+                for (const run of line.runs) {
+                    const runStyle = run.italic ? 'italic ' : '';
+                    const runWeight = run.bold ? 700 : fontWeight;
+                    ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
+                    ctx.fillText(run.text, runX, lineY);
+                    runX += ctx.measureText(run.text).width;
+                }
+            }
+            ctx.restore();
+            y += LINE_SPACING[line.kind];
         }
     }
     // ── Charts ────────────────────────────────────────────────
@@ -4810,6 +5244,89 @@ class EventEmitter {
 }
 
 // ============================================================
+// sketchmark — Encrypted sharing
+// Diagram DSL is encrypted in the browser.
+// The server stores an opaque blob it cannot read.
+// The decryption key lives only in the URL fragment (#key=...).
+// ============================================================
+const WORKER_URL = 'https://sketchmark.anmism7.workers.dev/';
+// ── Crypto helpers ────────────────────────────────────────
+async function generateKey() {
+    return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, // extractable so we can export to URL
+    ['encrypt', 'decrypt']);
+}
+async function keyToBase64(key) {
+    const raw = await crypto.subtle.exportKey('raw', key);
+    return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+async function base64ToKey(b64) {
+    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, // not extractable on the receiving end
+    ['decrypt']);
+}
+// ── Encrypt ───────────────────────────────────────────────
+async function encryptDSL(dsl, key) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(dsl);
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+    // prepend iv to the blob: [ iv (12 bytes) | ciphertext ]
+    const result = new Uint8Array(12 + encrypted.byteLength);
+    result.set(iv, 0);
+    result.set(new Uint8Array(encrypted), 12);
+    return result;
+}
+// ── Decrypt ───────────────────────────────────────────────
+async function decryptBlob(blob, key) {
+    const iv = blob.slice(0, 12);
+    const ciphertext = blob.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+    return new TextDecoder().decode(decrypted);
+}
+// ── Public API ────────────────────────────────────────────
+/**
+ * Encrypt DSL, upload to worker, return shareable URL.
+ * The URL fragment (#key=...) never reaches the server.
+ */
+async function shareDiagram(dsl) {
+    const key = await generateKey();
+    const blob = await encryptDSL(dsl, key);
+    const keyB64 = await keyToBase64(key);
+    const res = await fetch(`${WORKER_URL}/api/blob`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: blob.buffer,
+    });
+    if (!res.ok)
+        throw new Error(`Upload failed: ${res.status}`);
+    const { id } = await res.json();
+    // key goes into the fragment — browser never sends this to any server
+    return `${window.location.origin}/playground.html?s=${id}#key=${keyB64}`;
+}
+/**
+ * Read ?s= and #key= from the current URL, fetch + decrypt the diagram.
+ * Returns null if no share params found.
+ */
+async function loadSharedDiagram() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('s');
+    if (!id)
+        return null;
+    // key is in the fragment — parse manually, not via URLSearchParams
+    // (URLSearchParams on hash strips the #)
+    const fragment = window.location.hash.slice(1);
+    const keyMatch = fragment.match(/key=([^&]+)/);
+    if (!keyMatch)
+        return null;
+    const keyB64 = keyMatch[1];
+    const res = await fetch(`${WORKER_URL}/api/blob/${id}`);
+    if (!res.ok)
+        throw new Error('Diagram not found or expired');
+    const blob = await res.arrayBuffer();
+    const key = await base64ToKey(keyB64);
+    return decryptBlob(blob, key);
+}
+
+// ============================================================
 // sketchmark — Public API
 // ============================================================
 // ── Core Pipeline ─────────────────────────────────────────
@@ -4900,6 +5417,8 @@ exports.layout = layout;
 exports.lerp = lerp;
 exports.listThemes = listThemes;
 exports.loadFont = loadFont;
+exports.loadSharedDiagram = loadSharedDiagram;
+exports.markdownMap = markdownMap;
 exports.nodeMap = nodeMap;
 exports.parse = parse;
 exports.parseHex = parseHex;
@@ -4909,6 +5428,7 @@ exports.renderToCanvas = renderToCanvas;
 exports.renderToSVG = renderToSVG;
 exports.resolveFont = resolveFont;
 exports.resolvePalette = resolvePalette;
+exports.shareDiagram = shareDiagram;
 exports.sleep = sleep;
 exports.svgToPNGDataURL = svgToPNGDataURL;
 exports.svgToString = svgToString;

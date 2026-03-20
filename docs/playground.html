@@ -1,541 +1,636 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>sketchmark Playground</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <head>
+    <meta charset="utf-8" />
+    <title>sketchmark Playground</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    :root {
-      --bg:        #18160e;
-      --bg2:       #12100a;
-      --bg3:       #1c1608;
-      --bg4:       #22190e;
-      --border:    #3a2a12;
-      --border2:   #4a3520;
-      --accent:    #c85428;
-      --gold:      #f0c96a;
-      --text:      #e0c898;
-      --text2:     #dcc48a;
-      --text3:     #9a7848;
-      --anim-bg:   #eee7d8;
-      --anim-border: #caba98;
-      --anim-text: #3a2010;
-      --canvas-bg: #f8f4ea;
-    }
+      :root {
+        --bg: #18160e;
+        --bg2: #12100a;
+        --bg3: #1c1608;
+        --bg4: #22190e;
+        --border: #3a2a12;
+        --border2: #4a3520;
+        --accent: #c85428;
+        --gold: #f0c96a;
+        --text: #e0c898;
+        --text2: #dcc48a;
+        --text3: #9a7848;
+        --anim-bg: #eee7d8;
+        --anim-border: #caba98;
+        --anim-text: #3a2010;
+        --canvas-bg: #f8f4ea;
+      }
 
-    html, body { height: 100%; overflow: hidden; }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
 
-    body {
-      display: flex;
-      flex-direction: column;
-      font-family: 'Courier New', monospace;
-      background: var(--bg);
-      color: var(--text);
-      user-select: none;
-    }
+      body {
+        display: flex;
+        flex-direction: column;
+        font-family: "Courier New", monospace;
+        background: var(--bg);
+        color: var(--text);
+        user-select: none;
+      }
 
-    /* ── Header ─────────────────────────── */
-    header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      height: 44px;
-      padding: 0 14px;
-      background: var(--bg2);
-      border-bottom: 2px solid var(--border);
-      flex-shrink: 0;
-      z-index: 100;
-    }
+      /* ── Header ─────────────────────────── */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 14px;
+        background: var(--bg2);
+        border-bottom: 2px solid var(--border);
+        flex-shrink: 0;
+        z-index: 100;
+      }
 
-    header h1 {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--gold);
-      letter-spacing: .04em;
-      white-space: nowrap;
-      font-family: 'Courier New', monospace;
-    }
+      header h1 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--gold);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        font-family: "Courier New", monospace;
+      }
 
-    header h1 span { color: var(--accent); }
+      header h1 span {
+        color: var(--accent);
+      }
 
-    .hdr-sep { flex: 1; }
+      .hdr-sep {
+        flex: 1;
+      }
 
-    .hdr-btn {
-      background: var(--bg4);
-      color: var(--text2);
-      border: 1px solid var(--border2);
-      border-radius: 4px;
-      padding: 3px 10px;
-      cursor: pointer;
-      font-size: 11px;
-      font-family: 'Courier New', monospace;
-      transition: border-color .15s, color .15s;
-    }
-    .hdr-btn:hover { border-color: var(--gold); color: var(--gold); }
+      .hdr-btn {
+        background: var(--bg4);
+        color: var(--text2);
+        border: 1px solid var(--border2);
+        border-radius: 4px;
+        padding: 3px 10px;
+        cursor: pointer;
+        font-size: 11px;
+        font-family: "Courier New", monospace;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .hdr-btn:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
 
-    /* ── Layout ─────────────────────────── */
-    main {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      position: relative;
-    }
+      /* ── Layout ─────────────────────────── */
+      main {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+        position: relative;
+      }
 
-    /* ── Sidebar ────────────────────────── */
-    #sidebar {
-      width: 320px;
-      min-width: 180px;
-      max-width: 600px;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg3);
-      border-right: 2px solid var(--border);
-      flex-shrink: 0;
-      position: relative;
-      transition: width .18s ease;
-      z-index: 10;
-    }
+      /* ── Sidebar ────────────────────────── */
+      #sidebar {
+        width: 320px;
+        min-width: 180px;
+        max-width: 600px;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg3);
+        border-right: 2px solid var(--border);
+        flex-shrink: 0;
+        position: relative;
+        transition: width 0.18s ease;
+        z-index: 10;
+      }
 
-    #sidebar.collapsed { width: 36px !important; min-width: 36px; }
-    #sidebar.collapsed .sidebar-inner { display: none; }
+      #sidebar.collapsed {
+        width: 36px !important;
+        min-width: 36px;
+      }
+      #sidebar.collapsed .sidebar-inner {
+        display: none;
+      }
 
-    .sidebar-inner { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+      .sidebar-inner {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+      }
 
-    /* example picker */
-    #example-tabs {
-      display: flex;
-      gap: 0;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-      flex-shrink: 0;
-      scrollbar-width: none;
-    }
-    #example-tabs::-webkit-scrollbar { display: none; }
+      /* example picker */
+      #example-tabs {
+        display: flex;
+        gap: 0;
+        background: var(--bg2);
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+        flex-shrink: 0;
+        scrollbar-width: none;
+      }
+      #example-tabs::-webkit-scrollbar {
+        display: none;
+      }
 
+      .ex-tab {
+        background: none;
+        color: var(--text3);
+        border: none;
+        border-right: 1px solid var(--border);
+        padding: 5px 10px;
+        cursor: pointer;
+        font-size: 10px;
+        font-family: "Courier New", monospace;
+        white-space: nowrap;
+        transition:
+          background 0.12s,
+          color 0.12s;
+      }
+      .ex-tab:hover {
+        background: var(--bg4);
+        color: var(--text2);
+      }
+      .ex-tab.active {
+        background: var(--bg3);
+        color: var(--gold);
+        border-bottom: 2px solid var(--accent);
+      }
 
-    ::-webkit-scrollbar {
-    width: 0;  /* Remove scrollbar space */
-    background: transparent;  /* Optional: just make scrollbar invisible */
-}
+      /* toolbar */
+      #toolbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        background: var(--bg2);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
 
-    .ex-tab {
-      background: none;
-      color: var(--text3);
-      border: none;
-      border-right: 1px solid var(--border);
-      padding: 5px 10px;
-      cursor: pointer;
-      font-size: 10px;
-      font-family: 'Courier New', monospace;
-      white-space: nowrap;
-      transition: background .12s, color .12s;
-    }
-    .ex-tab:hover  { background: var(--bg4); color: var(--text2); }
-    .ex-tab.active { background: var(--bg3); color: var(--gold); border-bottom: 2px solid var(--accent); }
+      .run-btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 3px;
+        padding: 4px 12px;
+        cursor: pointer;
+        font-size: 11px;
+        font-family: "Courier New", monospace;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .run-btn:hover {
+        filter: brightness(1.1);
+      }
 
-    /* toolbar */
-    #toolbar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 8px;
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
+      .kbd {
+        font-size: 10px;
+        color: var(--text3);
+        flex: 1;
+      }
 
-    .run-btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 3px;
-      padding: 4px 12px;
-      cursor: pointer;
-      font-size: 11px;
-      font-family: 'Courier New', monospace;
-      font-weight: 600;
-      letter-spacing: .04em;
-    }
-    .run-btn:hover { filter: brightness(1.1); }
+      .tool-btn {
+        background: var(--bg4);
+        color: var(--text3);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 3px 7px;
+        cursor: pointer;
+        font-size: 10px;
+        font-family: "Courier New", monospace;
+      }
+      .tool-btn:hover {
+        border-color: var(--border2);
+        color: var(--text2);
+      }
 
-    .kbd {
-      font-size: 10px;
-      color: var(--text3);
-      flex: 1;
-    }
+      /* editor */
+      #dsl {
+        flex: 1;
+        background: var(--bg3);
+        color: var(--text);
+        border: none;
+        outline: none;
+        resize: none;
+        padding: 10px 12px;
+        font-family: "Courier New", monospace;
+        font-size: 11.5px;
+        line-height: 1.8;
+        caret-color: var(--gold);
+        tab-size: 2;
+        user-select: text;
+      }
 
-    .tool-btn {
-      background: var(--bg4);
-      color: var(--text3);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 3px 7px;
-      cursor: pointer;
-      font-size: 10px;
-      font-family: 'Courier New', monospace;
-    }
-    .tool-btn:hover { border-color: var(--border2); color: var(--text2); }
+      #error {
+        padding: 5px 10px;
+        background: #280a0a;
+        color: #f07070;
+        font-size: 10px;
+        font-family: "Courier New", monospace;
+        border-top: 1px solid #5a1818;
+        display: none;
+        flex-shrink: 0;
+      }
 
-    /* editor */
-    #dsl {
-      flex: 1;
-      background: var(--bg3);
-      color: var(--text);
-      border: none;
-      outline: none;
-      resize: none;
-      padding: 10px 12px;
-      font-family: 'Courier New', monospace;
-      font-size: 11.5px;
-      line-height: 1.8;
-      caret-color: var(--gold);
-      tab-size: 2;
-      user-select: text;
-    }
+      /* collapse toggle */
+      #collapse-btn {
+        position: absolute;
+        right: -13px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 40px;
+        background: var(--border);
+        border: 1px solid var(--border2);
+        border-radius: 0 4px 4px 0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: var(--text3);
+        z-index: 20;
+        transition: background 0.12s;
+      }
+      #collapse-btn:hover {
+        background: var(--border2);
+        color: var(--text2);
+      }
 
-    #error {
-      padding: 5px 10px;
-      background: #280a0a;
-      color: #f07070;
-      font-size: 10px;
-      font-family: 'Courier New', monospace;
-      border-top: 1px solid #5a1818;
-      display: none;
-      flex-shrink: 0;
-    }
+      /* resize handle */
+      #resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 4px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 30;
+        background: transparent;
+      }
+      #resize-handle:hover {
+        background: var(--accent);
+        opacity: 0.4;
+      }
 
-    /* collapse toggle */
-    #collapse-btn {
-      position: absolute;
-      right: -13px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 24px;
-      height: 40px;
-      background: var(--border);
-      border: 1px solid var(--border2);
-      border-radius: 0 4px 4px 0;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      color: var(--text3);
-      z-index: 20;
-      transition: background .12s;
-    }
-    #collapse-btn:hover { background: var(--border2); color: var(--text2); }
+      #sidebar.collapsed #resize-handle {
+        display: none;
+      }
 
-    /* resize handle */
-    #resize-handle {
-      position: absolute;
-      right: 0;
-      top: 0;
-      width: 4px;
-      height: 100%;
-      cursor: col-resize;
-      z-index: 30;
-      background: transparent;
-    }
-    #resize-handle:hover { background: var(--accent); opacity: .4; }
+      /* when collapsed show arrow pointing right to expand */
+      #sidebar.collapsed #collapse-btn {
+        right: -1px;
+        border-radius: 0 4px 4px 0;
+      }
+      #sidebar.collapsed .collapse-icon::before {
+        content: "▶";
+      }
+      .collapse-icon::before {
+        content: "◀";
+      }
 
-    #sidebar.collapsed #resize-handle { display: none; }
+      /* collapsed drag strip — full-height visible target */
+      #expand-strip {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 36px;
+        height: 100%;
+        cursor: col-resize;
+        background: var(--bg3);
+        border-right: 2px solid var(--border);
+        z-index: 9;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 3px;
+      }
+      #sidebar.collapsed ~ #expand-strip {
+        display: flex;
+      }
+      #expand-strip .strip-dot {
+        width: 3px;
+        height: 3px;
+        background: var(--border2);
+        border-radius: 50%;
+      }
+      #expand-strip:hover {
+        background: var(--bg4);
+      }
+      #expand-strip:hover .strip-dot {
+        background: var(--gold);
+      }
 
-    /* when collapsed show arrow pointing right to expand */
-    #sidebar.collapsed #collapse-btn { right: -1px; border-radius: 0 4px 4px 0; }
-    #sidebar.collapsed .collapse-icon::before { content: '▶'; }
-    .collapse-icon::before { content: '◀'; }
+      /* ── Canvas pane ─────────────────────── */
+      #canvas-pane {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
 
-    /* collapsed drag strip — full-height visible target */
-    #expand-strip {
-      display: none;
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 36px;
-      height: 100%;
-      cursor: col-resize;
-      background: var(--bg3);
-      border-right: 2px solid var(--border);
-      z-index: 9;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 3px;
-    }
-    #sidebar.collapsed ~ #expand-strip { display: flex; }
-    #expand-strip .strip-dot {
-      width: 3px; height: 3px;
-      background: var(--border2);
-      border-radius: 50%;
-    }
-    #expand-strip:hover { background: var(--bg4); }
-    #expand-strip:hover .strip-dot { background: var(--gold); }
+      /* anim bar */
+      #anim-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        background: var(--anim-bg);
+        border-bottom: 1.5px solid var(--anim-border);
+        flex-shrink: 0;
+        font-family: "Courier New", monospace;
+      }
 
-    /* ── Canvas pane ─────────────────────── */
-    #canvas-pane {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-    }
+      .anim-btn {
+        background: #f5eedd;
+        color: var(--anim-text);
+        border: 1.5px solid var(--anim-border);
+        border-radius: 3px;
+        padding: 2px 8px;
+        cursor: pointer;
+        font-size: 11px;
+        font-family: "Courier New", monospace;
+        transition: background 0.1s;
+      }
+      .anim-btn:hover:not(:disabled) {
+        background: #c8a060;
+        color: #fff;
+        border-color: #c8a060;
+      }
+      .anim-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
 
-    /* anim bar */
-    #anim-bar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 10px;
-      background: var(--anim-bg);
-      border-bottom: 1.5px solid var(--anim-border);
-      flex-shrink: 0;
-      font-family: 'Courier New', monospace;
-       position: relative;  
-  z-index: 15;  
-    }
+      #step-display {
+        font-size: 11px;
+        color: #6a4820;
+        min-width: 100px;
+        text-align: center;
+        font-family: "Courier New", monospace;
+      }
 
-    .anim-btn {
-      background: #f5eedd;
-      color: var(--anim-text);
-      border: 1.5px solid var(--anim-border);
-      border-radius: 3px;
-      padding: 2px 8px;
-      cursor: pointer;
-      font-size: 11px;
-      font-family: 'Courier New', monospace;
-      transition: background .1s;
-    }
-    .anim-btn:hover:not(:disabled) { background: #c8a060; color: #fff; border-color: #c8a060; }
-    .anim-btn:disabled { opacity: .4; cursor: default; }
+      #step-label {
+        font-size: 10px;
+        color: #8a6040;
+        font-style: italic;
+        font-family: "Courier New", monospace;
+      }
 
-    #step-display {
-      font-size: 11px;
-      color: #6a4820;
-      min-width: 100px;
-      text-align: center;
-      font-family: 'Courier New', monospace;
-    }
+      #stats {
+        font-size: 10px;
+        color: #9a7848;
+        font-family: "Courier New", monospace;
+      }
 
-    #step-label {
-      font-size: 10px;
-      color: #8a6040;
-      font-style: italic;
-      font-family: 'Courier New', monospace;
-    }
+      .anim-sep {
+        flex: 1;
+      }
 
-    #stats {
-      font-size: 10px;
-      color: #9a7848;
-      font-family: 'Courier New', monospace;
-    }
+      /* ── Infinite canvas ─────────────────── */
+      #viewport {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: var(--canvas-bg);
+        cursor: grab;
+        transition: background 0.2s;
+      }
+      #viewport.dark-canvas {
+        background: #12100a;
+      }
+      #viewport.dark-canvas #dot-grid circle {
+        fill: rgba(80, 60, 20, 0.45);
+      }
+      #viewport.panning {
+        cursor: grabbing;
+      }
 
-    .anim-sep { flex: 1; }
+      #dot-grid {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
 
-    /* ── Infinite canvas ─────────────────── */
-    #viewport {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      background: var(--canvas-bg);
-      cursor: grab;
-      transition: background .2s;
-    }
-    #viewport.dark-canvas { background: #12100a; }
-    #viewport.dark-canvas #dot-grid circle { fill: rgba(80,60,20,0.45); }
-    #viewport.panning { cursor: grabbing; }
+      #diagram-world {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        will-change: transform;
+      }
 
-    #dot-grid {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
+      /* ── Canvas controls ─────────────────── */
+      #canvas-controls {
+        position: absolute;
+        bottom: 14px;
+        right: 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        z-index: 20;
+      }
 
-    #diagram-world {
-      position: absolute;
-      top: 0;
-      left: 0;
-      transform-origin: 0 0;
-    }
+      .ctrl-btn {
+        width: 28px;
+        height: 28px;
+        background: rgba(255, 248, 234, 0.94);
+        color: #3a2010;
+        border: 1px solid var(--anim-border);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+        transition: background 0.1s;
+      }
+      .ctrl-btn:hover {
+        background: #ffe8c0;
+      }
 
-    /* ── Canvas controls ─────────────────── */
-    #canvas-controls {
-      position: absolute;
-      bottom: 14px;
-      right: 14px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      z-index: 20;
-    }
+      #zoom-label {
+        font-size: 9px;
+        color: #8a6040;
+        font-family: "Courier New", monospace;
+        min-width: 28px;
+        text-align: center;
+      }
 
-    .ctrl-btn {
-      width: 28px;
-      height: 28px;
-      background: rgba(255,248,234,.94);
-      color: #3a2010;
-      border: 1px solid var(--anim-border);
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(4px);
-      transition: background .1s;
-    }
-    .ctrl-btn:hover { background: #ffe8c0; }
+      /* ── Mini-map ────────────────────────── */
+      #minimap-wrap {
+        position: absolute;
+        bottom: 14px;
+        left: 14px;
+        width: 120px;
+        height: 80px;
+        background: rgba(255, 248, 234, 0.9);
+        border: 1px solid var(--anim-border);
+        border-radius: 4px;
+        overflow: hidden;
+        z-index: 20;
+        display: none; /* hidden until first render */
+      }
+      #minimap-wrap.visible {
+        display: block;
+      }
+      #minimap-viewport-indicator {
+        position: absolute;
+        border: 1.5px solid var(--accent);
+        background: rgba(200, 84, 40, 0.08);
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>✏ sketch<span>mark</span></h1>
+      <div class="hdr-sep"></div>
+      <button class="hdr-btn" id="btn-export-svg">↓ SVG</button>
+      <button class="hdr-btn" id="btn-export-png">↓ PNG</button>
+      <button class="hdr-btn" id="btn-export-html">↓ HTML</button>
+      <button class="hdr-btn" id="btn-theme-toggle">☀ light</button>
+      <button class="hdr-btn" id="btn-share">🔗 Share</button>
+    </header>
 
-    #zoom-label {
-      font-size: 9px;
-      color: #8a6040;
-      font-family: 'Courier New', monospace;
-      min-width: 28px;
-      text-align: center;
-    }
+    <main>
+      <!-- ── Sidebar ───────────────────────── -->
+      <div id="sidebar">
+        <div class="sidebar-inner">
+          <!-- example tabs -->
+          <div id="example-tabs">
+            <button class="ex-tab active" data-example="arch">🏗 arch</button>
+            <button class="ex-tab" data-example="auth">🔐 auth</button>
+            <button class="ex-tab" data-example="micro">⚙ micro</button>
+            <button class="ex-tab" data-example="nested">📦 nested</button>
+            <button class="ex-tab" data-example="pyramid">🔺 pyramid</button>
+            <button class="ex-tab" data-example="network">🌐 osi</button>
+            <button class="ex-tab" data-example="deploy">🚀 deploy</button>
+            <button class="ex-tab" data-example="charts">📊 charts</button>
+            <button class="ex-tab" data-example="tables">📋 tables</button>
+            <button class="ex-tab" data-example="notes">📝 notes</button>
+            <button class="ex-tab" data-example="shapes">⬡ shapes</button>
+            <button class="ex-tab" data-example="sketch">✏ sketch</button>
+            <button class="ex-tab" data-example="markdown">📄 markdown</button>
+            <button class="ex-tab" data-example="notes">📝 notes</button>
+          </div>
 
-    /* ── Mini-map ────────────────────────── */
-    #minimap-wrap {
-      position: absolute;
-      bottom: 14px;
-      left: 14px;
-      width: 120px;
-      height: 80px;
-      background: rgba(255,248,234,.9);
-      border: 1px solid var(--anim-border);
-      border-radius: 4px;
-      overflow: hidden;
-      z-index: 20;
-      display: none;  /* hidden until first render */
-    }
-    #minimap-wrap.visible { display: block; }
-    #minimap-viewport-indicator {
-      position: absolute;
-      border: 1.5px solid var(--accent);
-      background: rgba(200,84,40,.08);
-      pointer-events: none;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>✏ sketch<span>mark</span></h1>
-    <div class="hdr-sep"></div>
-    <button class="hdr-btn" id="btn-export-svg">↓ SVG</button>
-    <button class="hdr-btn" id="btn-export-png">↓ PNG</button>
-    <button class="hdr-btn" id="btn-export-html">↓ HTML</button>
-    <button class="hdr-btn" id="btn-theme-toggle">☀ light</button>
-  </header>
+          <!-- toolbar -->
+          <div id="toolbar">
+            <button class="run-btn" id="btn-run">▶ Run</button>
+            <span class="kbd">Ctrl+Enter</span>
+            <button class="tool-btn" id="btn-format">⇥ fmt</button>
+            <button class="tool-btn" id="btn-clear">✕ clear</button>
+          </div>
 
-  <main>
-    <!-- ── Sidebar ───────────────────────── -->
-    <div id="sidebar">
-      <div class="sidebar-inner">
-        <!-- example tabs -->
-        <div id="example-tabs">
-          <button class="ex-tab active" data-example="arch">🏗 arch</button>
-          <button class="ex-tab" data-example="auth">🔐 auth</button>
-          <button class="ex-tab" data-example="micro">⚙ micro</button>
-          <button class="ex-tab" data-example="nested">📦 nested</button>
-          <button class="ex-tab" data-example="pyramid">🔺 pyramid</button>
-          <button class="ex-tab" data-example="network">🌐 osi</button>
-          <button class="ex-tab" data-example="deploy">🚀 deploy</button>
-          <button class="ex-tab" data-example="charts">📊 charts</button>
-          <button class="ex-tab" data-example="tables">📋 tables</button>
-          <button class="ex-tab" data-example="notes">📝 notes</button>
-          <button class="ex-tab" data-example="shapes">⬡ shapes</button>
-          <button class="ex-tab" data-example="sketch">✏ sketch</button>
+          <textarea id="dsl" spellcheck="false"></textarea>
+          <div id="error"></div>
         </div>
 
-        <!-- toolbar -->
-        <div id="toolbar">
-          <button class="run-btn" id="btn-run">▶ Run</button>
-          <span class="kbd">Ctrl+Enter</span>
-          <button class="tool-btn" id="btn-format">⇥ fmt</button>
-          <button class="tool-btn" id="btn-clear">✕ clear</button>
-        </div>
+        <!-- resize handle -->
+        <div id="resize-handle"></div>
 
-        <textarea id="dsl" spellcheck="false"></textarea>
-        <div id="error"></div>
+        <!-- collapse toggle -->
+        <button id="collapse-btn" title="Collapse sidebar">
+          <span class="collapse-icon"></span>
+        </button>
       </div>
 
-      <!-- resize handle -->
-      <div id="resize-handle"></div>
+      <!-- ── Canvas pane ─────────────────── -->
+      <div id="canvas-pane">
+        <!-- expand strip shown when sidebar collapsed -->
+        <div id="expand-strip" title="Drag to expand editor">
+          <div class="strip-dot"></div>
+          <div class="strip-dot"></div>
+          <div class="strip-dot"></div>
+          <div class="strip-dot"></div>
+          <div class="strip-dot"></div>
+        </div>
+        <!-- animation bar -->
+        <div id="anim-bar">
+          <button class="anim-btn" id="btn-reset" title="Reset">↺</button>
+          <button class="anim-btn" id="btn-prev" disabled>←</button>
+          <span id="step-display">No steps</span>
+          <button class="anim-btn" id="btn-next" disabled>→</button>
+          <button class="anim-btn" id="btn-play">▶ Play</button>
+          <span id="step-label"></span>
+          <div class="anim-sep"></div>
+          <span id="stats"></span>
+        </div>
 
-      <!-- collapse toggle -->
-      <button id="collapse-btn" title="Collapse sidebar">
-        <span class="collapse-icon"></span>
-      </button>
-    </div>
+        <!-- infinite canvas viewport -->
+        <div id="viewport">
+          <svg id="dot-grid" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern
+                id="pg"
+                x="0"
+                y="0"
+                width="24"
+                height="24"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="12" cy="12" r="0.9" fill="rgba(170,145,100,0.38)" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#pg)" />
+          </svg>
 
-    <!-- ── Canvas pane ─────────────────── -->
-    <div id="canvas-pane">
+          <div id="diagram-world">
+            <div id="diagram-wrap"></div>
+          </div>
 
-    <!-- expand strip shown when sidebar collapsed -->
-    <div id="expand-strip" title="Drag to expand editor">
-      <div class="strip-dot"></div>
-      <div class="strip-dot"></div>
-      <div class="strip-dot"></div>
-      <div class="strip-dot"></div>
-      <div class="strip-dot"></div>
-    </div>
-      <!-- animation bar -->
-      <div id="anim-bar">
-        <button class="anim-btn" id="btn-reset" title="Reset">↺</button>
-        <button class="anim-btn" id="btn-prev" disabled>←</button>
-        <span id="step-display">No steps</span>
-        <button class="anim-btn" id="btn-next" disabled>→</button>
-        <button class="anim-btn" id="btn-play">▶ Play</button>
-        <span id="step-label"></span>
-        <div class="anim-sep"></div>
-        <span id="stats"></span>
+          <!-- zoom controls -->
+          <div id="canvas-controls">
+            <button class="ctrl-btn" id="btn-fit" title="Fit to screen">
+              ⊡
+            </button>
+            <button class="ctrl-btn" id="btn-reset-view" title="Reset view">
+              ⌂
+            </button>
+            <button class="ctrl-btn" id="btn-zoomin" title="Zoom in">+</button>
+            <span id="zoom-label">100%</span>
+            <button class="ctrl-btn" id="btn-zoomout" title="Zoom out">
+              −
+            </button>
+          </div>
+
+          <!-- mini-map -->
+          <div id="minimap-wrap">
+            <canvas id="minimap" width="120" height="80"></canvas>
+            <div id="minimap-viewport-indicator"></div>
+          </div>
+        </div>
       </div>
+    </main>
 
-      <!-- infinite canvas viewport -->
-      <div id="viewport">
-        <svg id="dot-grid" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="pg" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="12" cy="12" r="0.9" fill="rgba(170,145,100,0.38)"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#pg)"/>
-        </svg>
+    <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+    <script type="module">
+      import { render , shareDiagram, loadSharedDiagram } from "../dist/index.js";
+;
 
-        <div id="diagram-world">
-          <div id="diagram-wrap"></div>
-        </div>
-
-        <!-- zoom controls -->
-        <div id="canvas-controls">
-          <button class="ctrl-btn" id="btn-fit"    title="Fit to screen">⊡</button>
-          <button class="ctrl-btn" id="btn-reset-view" title="Reset view">⌂</button>
-          <button class="ctrl-btn" id="btn-zoomin" title="Zoom in">+</button>
-          <span   id="zoom-label">100%</span>
-          <button class="ctrl-btn" id="btn-zoomout" title="Zoom out">−</button>
-        </div>
-
-        <!-- mini-map -->
-        <div id="minimap-wrap">
-          <canvas id="minimap" width="120" height="80"></canvas>
-          <div id="minimap-viewport-indicator"></div>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-  <script type="module">
-  import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
-
-    // ── Examples ────────────────────────────────────────────────────────────
-    const EXAMPLES = {
-      arch: `diagram
+      // ── Examples ────────────────────────────────────────────────────────────
+      const EXAMPLES = {
+        arch: `diagram
 title label="System Architecture"
 layout row
 config gap=60
@@ -575,7 +670,7 @@ step draw auth-->database
 step highlight database
 end`,
 
-      auth: `diagram
+        auth: `diagram
 title label="Authentication Flow"
 layout row
 config gap=50
@@ -656,7 +751,7 @@ step draw tokengen-->audit
 step highlight audit
 end`,
 
-      micro: `diagram
+        micro: `diagram
 title label="E-Commerce Microservices"
 layout row
 config gap=60
@@ -728,7 +823,7 @@ svc_payment --> db_payment
 svc_order   --> redis        label="cache"
 end`,
 
-      nested: `diagram
+        nested: `diagram
 title label="Nested Groups Demo"
 layout row
 config gap=50
@@ -797,7 +892,7 @@ queue  --> pg
 events --> redis
 end`,
 
-      pyramid: `diagram
+        pyramid: `diagram
 title label="Org Chart Pyramid"
 layout column
 config gap=40
@@ -855,7 +950,7 @@ fin    --> data
 ops    --> sec
 end`,
 
-      network: `diagram
+        network: `diagram
 title label="OSI Network Stack"
 layout column
 config gap=30
@@ -901,7 +996,7 @@ step draw datalink-->physical
 step highlight physical
 end`,
 
-      deploy: `diagram
+        deploy: `diagram
 title label="Blue-Green Deployment"
 layout row
 config gap=50
@@ -948,7 +1043,7 @@ step highlight g1
 step draw g1-->db
 end`,
 
-      charts: `diagram
+        charts: `diagram
 title label="Dashboard Charts"
 layout row
 config gap=40
@@ -985,7 +1080,7 @@ data
 
 end`,
 
-      tables: `diagram
+        tables: `diagram
 title label="Pricing Comparison"
 layout column
 config gap=40
@@ -993,24 +1088,24 @@ config gap=40
 table pricing label="Pricing Plans"
 {
   header  Plan        Price   Requests    Support
-  row     Free        $0      "1k/day"      "Community"
-  row     Pro         $29     "100k/day"    "Email"
-  row     Business    $99     "1M/day"      "Priority"
-  row     Enterprise  $299    "Unlimited"   "Dedicated"
+  row     Free        $0      1k/day      Community
+  row     Pro         $29     100k/day    Email
+  row     Business    $99     1M/day      Priority
+  row     Enterprise  $299    Unlimited   Dedicated
 }
 
 table stack label="Tech Stack"
 {
   header  Layer       Technology  Version
-  row     Frontend    "React"       "18.x"
-  row     Backend     "Node.js"     "20 LTS"
-  row     Database    PostgreSQL  "16.x"
-  row     Cache       Redis       "7.x"
-  row     Queue       Kafka       "3.6"
+  row     Frontend    React       18.x
+  row     Backend     Node.js     20 LTS
+  row     Database    PostgreSQL  16.x
+  row     Cache       Redis       7.x
+  row     Queue       Kafka       3.6
 }
 end`,
 
-      notes: `diagram
+        notes: `diagram
 title label="System Notes"
 layout row
 config gap=40
@@ -1029,7 +1124,7 @@ note n3 label="All writes go\nthrough a queue\nbefore commit"
 
 end`,
 
-      shapes: `diagram
+        shapes: `diagram
 title label="All Node Shapes"
 layout row
 config gap=40
@@ -1052,7 +1147,7 @@ group row2 layout=row gap=30 padding=30
 }
 end`,
 
-      sketch: `diagram
+        sketch: `diagram
 title label="Sketch Theme Demo"
 layout row
 config theme=sketch
@@ -1087,315 +1182,537 @@ step highlight auth
 step draw auth-->db
 step highlight db
 end`,
-    };
 
-    // ── State ──────────────────────────────────────────────────────────────
-    let instance    = null;
-    let panX        = 60, panY = 60, zoom = 1;
-    let isPanning   = false;
-    let lastPX      = 0,  lastPY = 0;
-    let canvasTheme = 'light';
+        markdown: `diagram
+title label="Markdown Blocks"
+layout row
+config gap=60
 
-    const world   = document.getElementById('diagram-world');
-    const vp      = document.getElementById('viewport');
-    const wrap    = document.getElementById('diagram-wrap');
-    const grid    = document.querySelector('#pg');
-    const errEl   = document.getElementById('error');
-    const dslEl   = document.getElementById('dsl');
-    const zoomLbl = document.getElementById('zoom-label');
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
-    // ── Transform helpers ──────────────────────────────────────────────────
-    function applyTransform() {
-      world.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
-      zoomLbl.textContent   = Math.round(zoom * 100) + '%';
-      // update dot grid offset to feel infinite
-      const gw = 24 * zoom;
-      grid.setAttribute('x',      String(panX % gw));
-      grid.setAttribute('y',      String(panY % gw));
-      grid.setAttribute('width',  String(gw));
-      grid.setAttribute('height', String(gw));
-      const dot = grid.querySelector('circle');
-      dot.setAttribute('cx', String(gw / 2));
-      dot.setAttribute('cy', String(gw / 2));
-      dot.setAttribute('r',  String(Math.min(1.1, zoom * 0.85)));
-      updateMinimap();
-    }
+group page layout=row gap=60 padding=0
+{
+  markdown intro width=340 padding=0
+  """
+# Sketchmark
 
-    function zoomTo(newZoom, pivotX, pivotY) {
-      newZoom = Math.min(4, Math.max(0.08, newZoom));
-      const r = newZoom / zoom;
-      panX    = pivotX - (pivotX - panX) * r;
-      panY    = pivotY - (pivotY - panY) * r;
-      zoom    = newZoom;
-      applyTransform();
-    }
+A text-based diagram DSL that renders
+**hand-drawn** SVG diagrams using rough.js.
 
-    function fitContent() {
-      if (!instance?.svg) return;
-      const svgW  = parseFloat(instance.svg.getAttribute('width')  || '400');
-      const svgH  = parseFloat(instance.svg.getAttribute('height') || '300');
-      const vpW   = vp.clientWidth;
-      const vpH   = vp.clientHeight;
-      const newZ  = Math.min((vpW - 80) / svgW, (vpH - 80) / svgH, 1);
-      zoom  = newZ;
-      panX  = (vpW - svgW * newZ) / 2;
-      panY  = (vpH - svgH * newZ) / 2;
-      applyTransform();
-    }
+## Why text?
 
-    // ── Minimap ────────────────────────────────────────────────────────────
-    const mmWrap = document.getElementById('minimap-wrap');
-    const mmCanvas = document.getElementById('minimap');
-    const mmIndi   = document.getElementById('minimap-viewport-indicator');
+Because diagrams should live in *version
+control*, not binary files.
 
-    function updateMinimap() {
-      if (!instance?.svg) return;
-      const svgW  = parseFloat(instance.svg.getAttribute('width')  || '400');
-      const svgH  = parseFloat(instance.svg.getAttribute('height') || '300');
-      const mW    = 120, mH = 80;
-      const scale = Math.min(mW / svgW, mH / svgH) * 0.9;
-      const offX  = (mW - svgW * scale) / 2;
-      const offY  = (mH - svgH * scale) / 2;
-      // Viewport indicator
-      const vpW   = vp.clientWidth, vpH = vp.clientHeight;
-      const ix    = offX + (-panX / zoom) * scale;
-      const iy    = offY + (-panY / zoom) * scale;
-      const iw    = (vpW / zoom) * scale;
-      const ih    = (vpH / zoom) * scale;
-      mmIndi.style.left   = Math.max(0, ix) + 'px';
-      mmIndi.style.top    = Math.max(0, iy) + 'px';
-      mmIndi.style.width  = Math.min(mW - Math.max(0, ix), iw) + 'px';
-      mmIndi.style.height = Math.min(mH - Math.max(0, iy), ih) + 'px';
-    }
+Because a diff should tell you what changed
+in the architecture.
 
-    // ── Pointer events: pan ────────────────────────────────────────────────
-    // Pan starts on any pointerdown inside the viewport (middle-btn anywhere,
-    // left-btn anywhere). A tiny distance threshold separates a click from a drag,
-    // so node click handlers still fire for taps.
-    let panMoved = false;
+## Animation
 
- vp.addEventListener('pointerdown', e => {
-  if (e.button === 0 || e.button === 1) {
-    // don't capture if clicking a button/control overlaid on the viewport
-    if (e.target.closest('#canvas-controls, #minimap-wrap, .ctrl-btn')) return;
-    isPanning = true;
-    panMoved  = false;
-    lastPX = e.clientX; lastPY = e.clientY;
-    vp.setPointerCapture(e.pointerId);
+Every element supports step-by-step
+animation — **draw**, highlight, fade,
+move, scale, rotate.
+  """
+
+  group diagram layout=column gap=20 padding=30 theme=muted
+  {
+    box parser  label="Parser"   theme=primary width=130 height=52
+    box scene   label="Scene"    theme=success width=130 height=52
+    box render  label="Renderer" theme=muted   width=130 height=52
   }
-});
+}
 
-    vp.addEventListener('pointermove', e => {
-      if (!isPanning) return;
-      const dx = e.clientX - lastPX;
-      const dy = e.clientY - lastPY;
-      if (!panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
-        panMoved = true;
-        vp.classList.add('panning');
+parser --> scene  label="AST"
+scene  --> render label="SceneGraph"
+
+step draw intro
+step highlight parser
+step draw parser-->scene
+step highlight scene
+step draw scene-->render
+step highlight render
+end`,
+
+        notes: `diagram
+title label="Notes and Annotations"
+layout row
+config gap=50
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+group arch layout=column gap=30 padding=0
+{
+  group top layout=row gap=40 padding=0
+  {
+    box api    label="API Server"  theme=primary width=140 height=55
+    box worker label="Worker"      theme=success width=140 height=55
+  }
+
+  group bottom layout=row gap=40 padding=0
+  {
+    cylinder db    label="PostgreSQL" theme=muted    width=140 height=65
+    cylinder redis label="Redis"      theme=warning  width=140 height=65
+  }
+}
+
+group annotations layout=column gap=20 padding=0
+{
+  note n1 label="Rate limited\nto 1000 req/s\nper tenant" width=200 height=90
+  note n2 label="Postgres 16\nwith pg_vector\nfor embeddings" width=200 height=90
+  note n3 label="All writes go\nthrough a queue\nbefore commit" width=200 height=90
+  note n4 label="Redis TTL = 24h\nLRU eviction\non memory limit" width=200 height=90
+}
+
+api    --> db    label="SQL"
+api    --> redis label="cache"
+worker --> db    label="batch"
+
+step draw n1
+step highlight api
+step draw n2
+step highlight db
+step draw n3
+step highlight worker
+step draw n4
+step highlight redis
+end`,
+      };
+
+      // ── State ──────────────────────────────────────────────────────────────
+      let instance = null;
+      let panX = 60,
+        panY = 60,
+        zoom = 1;
+      let isPanning = false;
+      let lastPX = 0,
+        lastPY = 0;
+      let canvasTheme = "light";
+      let hasRenderedOnce = false; // only auto-fit on the very first render
+
+      const world = document.getElementById("diagram-world");
+      const vp = document.getElementById("viewport");
+      const wrap = document.getElementById("diagram-wrap");
+      const grid = document.querySelector("#pg");
+      const errEl = document.getElementById("error");
+      const dslEl = document.getElementById("dsl");
+      const zoomLbl = document.getElementById("zoom-label");
+
+      (async () => {
+        try {
+          const shared = await loadSharedDiagram();
+          if (shared) {
+            dslEl.value = shared;
+            runDiagram(shared);
+            showToast("Shared diagram loaded");
+            // clean up the URL without reloading
+            const clean = window.location.pathname;
+            window.history.replaceState({}, "", clean);
+          }
+        } catch (e) {
+          showToast("Failed to load shared diagram", "error");
+        }
+      })();
+
+      // ── Transform helpers ──────────────────────────────────────────────────
+      function applyTransform() {
+        world.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+        zoomLbl.textContent = Math.round(zoom * 100) + "%";
+        // update dot grid offset to feel infinite
+        const gw = 24 * zoom;
+        grid.setAttribute("x", String(panX % gw));
+        grid.setAttribute("y", String(panY % gw));
+        grid.setAttribute("width", String(gw));
+        grid.setAttribute("height", String(gw));
+        const dot = grid.querySelector("circle");
+        dot.setAttribute("cx", String(gw / 2));
+        dot.setAttribute("cy", String(gw / 2));
+        dot.setAttribute("r", String(Math.min(1.1, zoom * 0.85)));
+        updateMinimap();
       }
-      if (panMoved) {
-        panX += dx; panY += dy;
+
+      function zoomTo(newZoom, pivotX, pivotY) {
+        newZoom = Math.min(4, Math.max(0.08, newZoom));
+        const r = newZoom / zoom;
+        panX = pivotX - (pivotX - panX) * r;
+        panY = pivotY - (pivotY - panY) * r;
+        zoom = newZoom;
         applyTransform();
       }
-      lastPX = e.clientX; lastPY = e.clientY;
-    });
 
-    vp.addEventListener('pointerup',    () => { isPanning = false; panMoved = false; vp.classList.remove('panning'); });
-    vp.addEventListener('pointerleave', () => { isPanning = false; panMoved = false; vp.classList.remove('panning'); });
-
-    vp.addEventListener('wheel', e => {
-      e.preventDefault();
-      const rect   = vp.getBoundingClientRect();
-      const pivotX = e.clientX - rect.left;
-      const pivotY = e.clientY - rect.top;
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoomTo(zoom * factor, pivotX, pivotY);
-    }, { passive: false });
-
-    // ── Zoom buttons ───────────────────────────────────────────────────────
-    document.getElementById('btn-zoomin')     .onclick = () => zoomTo(zoom * 1.2, vp.clientWidth/2, vp.clientHeight/2);
-    document.getElementById('btn-zoomout')    .onclick = () => zoomTo(zoom * 0.8, vp.clientWidth/2, vp.clientHeight/2);
-    document.getElementById('btn-fit')        .onclick = fitContent;
-    document.getElementById('btn-reset-view') .onclick = () => { panX=60; panY=60; zoom=1; applyTransform(); };
-
-    // ── Run diagram ────────────────────────────────────────────────────────
-    function runDiagram(dsl) {
-      dsl = dsl ?? dslEl.value;
-      errEl.style.display = 'none';
-      wrap.innerHTML      = '';
-      try {
-        instance = render({
-          container:  wrap,
-          dsl,
-          renderer:   'svg',
-          svgOptions: { interactive: true, showTitle: true, theme: canvasTheme , transparent: true},
-          canvasOptions:{transparent:true}
-        });
-        syncAnim();
-        document.getElementById('stats').textContent =
-          `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e · ${instance.scene.groups.length}g`;
-        mmWrap.classList.add('visible');
-        requestAnimationFrame(fitContent);
-      } catch(e) {
-        errEl.style.display  = 'block';
-        errEl.textContent    = '⚠ ' + e.message;
-        console.error(e);
+      function fitContent() {
+        if (!instance?.svg) return;
+        const svgW = parseFloat(instance.svg.getAttribute("width") || "400");
+        const svgH = parseFloat(instance.svg.getAttribute("height") || "300");
+        const vpW = vp.clientWidth;
+        const vpH = vp.clientHeight;
+        const newZ = Math.min((vpW - 80) / svgW, (vpH - 80) / svgH, 1);
+        zoom = newZ;
+        panX = (vpW - svgW * newZ) / 2;
+        panY = (vpH - svgH * newZ) / 2;
+        applyTransform();
       }
-    }
 
-    // ── Animation ──────────────────────────────────────────────────────────
-    function syncAnim() {
-      if (!instance) return;
-      const { anim } = instance;
-      const display  = document.getElementById('step-display');
-      const label    = document.getElementById('step-label');
-      if (!anim.total) {
-        display.textContent = 'No steps';
-        label.textContent   = '';
-      } else {
-        display.textContent = anim.currentStep < 0
-          ? `${anim.total} steps`
-          : `${anim.currentStep + 1} / ${anim.total}`;
-        label.textContent = anim.currentStep >= 0
-          ? `${anim.steps[anim.currentStep].action} ${anim.steps[anim.currentStep].target}`
-          : '';
+      // ── Minimap ────────────────────────────────────────────────────────────
+      const mmWrap = document.getElementById("minimap-wrap");
+      const mmCanvas = document.getElementById("minimap");
+      const mmIndi = document.getElementById("minimap-viewport-indicator");
+
+      function updateMinimap() {
+        if (!instance?.svg) return;
+        const svgW = parseFloat(instance.svg.getAttribute("width") || "400");
+        const svgH = parseFloat(instance.svg.getAttribute("height") || "300");
+        const mW = 120,
+          mH = 80;
+        const scale = Math.min(mW / svgW, mH / svgH) * 0.9;
+        const offX = (mW - svgW * scale) / 2;
+        const offY = (mH - svgH * scale) / 2;
+        // Viewport indicator
+        const vpW = vp.clientWidth,
+          vpH = vp.clientHeight;
+        const ix = offX + (-panX / zoom) * scale;
+        const iy = offY + (-panY / zoom) * scale;
+        const iw = (vpW / zoom) * scale;
+        const ih = (vpH / zoom) * scale;
+        mmIndi.style.left = Math.max(0, ix) + "px";
+        mmIndi.style.top = Math.max(0, iy) + "px";
+        mmIndi.style.width = Math.min(mW - Math.max(0, ix), iw) + "px";
+        mmIndi.style.height = Math.min(mH - Math.max(0, iy), ih) + "px";
       }
-      document.getElementById('btn-prev').disabled = !anim.canPrev;
-      document.getElementById('btn-next').disabled = !anim.canNext;
-    }
 
-    document.getElementById('btn-run')  .onclick = () => runDiagram();
-    document.getElementById('btn-reset').onclick = () => { instance?.anim.reset();  syncAnim(); };
-    document.getElementById('btn-prev') .onclick = () => { instance?.anim.prev();   syncAnim(); };
-    document.getElementById('btn-next') .onclick = () => { instance?.anim.next();   syncAnim(); };
-    document.getElementById('btn-play') .onclick = async function() {
-      this.disabled = true;
-      await instance?.anim.play(800);
-      syncAnim();
-      this.disabled = false;
-    };
+      // ── Pointer events: pan ────────────────────────────────────────────────
+      // Pan starts on any pointerdown inside the viewport (middle-btn anywhere,
+      // left-btn anywhere). A tiny distance threshold separates a click from a drag,
+      // so node click handlers still fire for taps.
+      let panMoved = false;
 
-    // ── Export ─────────────────────────────────────────────────────────────
-    document.getElementById('btn-export-svg') .onclick = () => instance?.exportSVG();
-    document.getElementById('btn-export-png') .onclick = () => instance?.exportPNG();
-    document.getElementById('btn-export-html').onclick = () => {
-      if (instance?.svg) {
-        import('../dist/index.js').then(m => m.exportHTML(instance.svg, dslEl.value));
-      }
-    };
-
-    // ── Theme toggle ───────────────────────────────────────────────────────
-    const themeBtn = document.getElementById('btn-theme-toggle');
-    themeBtn.onclick = () => {
-      canvasTheme = canvasTheme === 'light' ? 'dark' : 'light';
-      themeBtn.textContent = canvasTheme === 'dark' ? '🌙 dark' : '☀ light';
-      vp.classList.toggle('dark-canvas', canvasTheme === 'dark');
-      runDiagram();
-    };
-
-    // ── Expand strip: click to expand, drag to resize ──────────────────────
-    const expandStrip = document.getElementById('expand-strip');
-    let expandDragging = false, expandStartX = 0;
-
-    expandStrip.addEventListener('mousedown', e => {
-      expandDragging = true;
-      expandStartX   = e.clientX;
-      document.body.style.cursor = 'col-resize';
-      e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', e => {
-      if (!expandDragging) return;
-      const dragged = e.clientX - expandStartX;
-      if (Math.abs(dragged) > 6 && sidebar.classList.contains('collapsed')) {
-        // start expanding — uncollapse and set a sensible starting width
-        sidebar.classList.remove('collapsed');
-        sidebar.style.width = '200px';
-      }
-      if (!sidebar.classList.contains('collapsed')) {
-        const newW = Math.min(600, Math.max(180, e.clientX));
-        sidebar.style.width = newW + 'px';
-      }
-    });
-
-    document.addEventListener('mouseup', e => {
-      if (expandDragging) {
-        // if user just clicked without dragging, toggle collapse
-        if (Math.abs(e.clientX - expandStartX) < 6) {
-          sidebar.classList.remove('collapsed');
+      vp.addEventListener("pointerdown", (e) => {
+        // middle button always pans; left button pans everywhere
+        if (e.button === 0 || e.button === 1) {
+          isPanning = true;
+          panMoved = false;
+          lastPX = e.clientX;
+          lastPY = e.clientY;
+          vp.setPointerCapture(e.pointerId);
+          // don't preventDefault here — lets clicks reach interactive nodes
         }
-        expandDragging = false;
-        document.body.style.cursor = '';
+      });
+
+      vp.addEventListener("pointermove", (e) => {
+        if (!isPanning) return;
+        const dx = e.clientX - lastPX;
+        const dy = e.clientY - lastPY;
+        if (!panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
+          panMoved = true;
+          vp.classList.add("panning");
+        }
+        if (panMoved) {
+          panX += dx;
+          panY += dy;
+          applyTransform();
+        }
+        lastPX = e.clientX;
+        lastPY = e.clientY;
+      });
+
+      vp.addEventListener("pointerup", () => {
+        isPanning = false;
+        panMoved = false;
+        vp.classList.remove("panning");
+      });
+      vp.addEventListener("pointerleave", () => {
+        isPanning = false;
+        panMoved = false;
+        vp.classList.remove("panning");
+      });
+
+      vp.addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+          const rect = vp.getBoundingClientRect();
+          const pivotX = e.clientX - rect.left;
+          const pivotY = e.clientY - rect.top;
+          const factor = e.deltaY > 0 ? 0.9 : 1.1;
+          zoomTo(zoom * factor, pivotX, pivotY);
+        },
+        { passive: false },
+      );
+
+      // ── Zoom buttons ───────────────────────────────────────────────────────
+      document.getElementById("btn-zoomin").onclick = () =>
+        zoomTo(zoom * 1.2, vp.clientWidth / 2, vp.clientHeight / 2);
+      document.getElementById("btn-zoomout").onclick = () =>
+        zoomTo(zoom * 0.8, vp.clientWidth / 2, vp.clientHeight / 2);
+      document.getElementById("btn-fit").onclick = fitContent;
+      document.getElementById("btn-reset-view").onclick = () => {
+        panX = 60;
+        panY = 60;
+        zoom = 1;
+        applyTransform();
+      };
+
+      // ── Run diagram ────────────────────────────────────────────────────────
+      function runDiagram(dsl) {
+        dsl = dsl ?? dslEl.value;
+        errEl.style.display = "none";
+        wrap.innerHTML = "";
+        try {
+          instance = render({
+            container: wrap,
+            dsl,
+            renderer: "svg",
+            svgOptions: {
+              interactive: true,
+              showTitle: true,
+              theme: canvasTheme,
+            },
+          });
+          syncAnim();
+          document.getElementById("stats").textContent =
+            `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e · ${instance.scene.groups.length}g`;
+          mmWrap.classList.add("visible");
+          // Only auto-fit on the very first render.
+          // After that, preserve whatever pan/zoom the user has set.
+          if (!hasRenderedOnce) {
+            hasRenderedOnce = true;
+            requestAnimationFrame(fitContent);
+          } else {
+            // re-apply current transform so the SVG sits in the right place
+            applyTransform();
+          }
+        } catch (e) {
+          errEl.style.display = "block";
+          errEl.textContent = "⚠ " + e.message;
+          console.error(e);
+        }
       }
-    });
 
-    // ── Format DSL (naive indent normalise) ────────────────────────────────
-    document.getElementById('btn-format').onclick = () => {
-      const lines  = dslEl.value.split('\n');
-      let depth    = 0;
-      const result = lines.map(l => {
-        const t = l.trim();
-        if (t === '}') depth = Math.max(0, depth - 1);
-        const out = '  '.repeat(depth) + t;
-        if (t.endsWith('{')) depth++;
-        return out;
+      // ── Animation ──────────────────────────────────────────────────────────
+      function syncAnim() {
+        if (!instance) return;
+        const { anim } = instance;
+        const display = document.getElementById("step-display");
+        const label = document.getElementById("step-label");
+        if (!anim.total) {
+          display.textContent = "No steps";
+          label.textContent = "";
+        } else {
+          display.textContent =
+            anim.currentStep < 0
+              ? `${anim.total} steps`
+              : `${anim.currentStep + 1} / ${anim.total}`;
+          label.textContent =
+            anim.currentStep >= 0
+              ? `${anim.steps[anim.currentStep].action} ${anim.steps[anim.currentStep].target}`
+              : "";
+        }
+        document.getElementById("btn-prev").disabled = !anim.canPrev;
+        document.getElementById("btn-next").disabled = !anim.canNext;
+      }
+
+      document.getElementById("btn-run").onclick = () => runDiagram();
+      document.getElementById("btn-reset").onclick = () => {
+        instance?.anim.reset();
+        syncAnim();
+      };
+      document.getElementById("btn-prev").onclick = () => {
+        instance?.anim.prev();
+        syncAnim();
+      };
+      document.getElementById("btn-next").onclick = () => {
+        instance?.anim.next();
+        syncAnim();
+      };
+      document.getElementById("btn-play").onclick = async function () {
+        this.disabled = true;
+        await instance?.anim.play(800);
+        syncAnim();
+        this.disabled = false;
+      };
+
+      // ── Export ─────────────────────────────────────────────────────────────
+      document.getElementById("btn-export-svg").onclick = () =>
+        instance?.exportSVG();
+      document.getElementById("btn-export-png").onclick = () =>
+        instance?.exportPNG();
+      document.getElementById("btn-export-html").onclick = () => {
+        if (instance?.svg) {
+          import("../dist/index.js").then((m) =>
+            m.exportHTML(instance.svg, dslEl.value),
+          );
+        }
+      };
+
+      // ── Theme toggle ───────────────────────────────────────────────────────
+      const themeBtn = document.getElementById("btn-theme-toggle");
+      themeBtn.onclick = () => {
+        canvasTheme = canvasTheme === "light" ? "dark" : "light";
+        themeBtn.textContent = canvasTheme === "dark" ? "🌙 dark" : "☀ light";
+        vp.classList.toggle("dark-canvas", canvasTheme === "dark");
+        runDiagram();
+      };
+
+      // ── Expand strip: click to expand, drag to resize ──────────────────────
+      const expandStrip = document.getElementById("expand-strip");
+      let expandDragging = false,
+        expandStartX = 0;
+
+      expandStrip.addEventListener("mousedown", (e) => {
+        expandDragging = true;
+        expandStartX = e.clientX;
+        document.body.style.cursor = "col-resize";
+        e.preventDefault();
       });
-      dslEl.value = result.join('\n');
-    };
 
-    document.getElementById('btn-clear').onclick = () => {
-      dslEl.value = 'diagram\n\nend';
-      runDiagram();
-    };
-
-    // ── Keyboard shortcut ──────────────────────────────────────────────────
-    dslEl.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runDiagram(); }
-    });
-
-    // ── Example tabs ───────────────────────────────────────────────────────
-    document.querySelectorAll('.ex-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.ex-tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const ex = EXAMPLES[btn.dataset.example];
-        if (ex) { dslEl.value = ex; runDiagram(ex); }
+      document.addEventListener("mousemove", (e) => {
+        if (!expandDragging) return;
+        const dragged = e.clientX - expandStartX;
+        if (Math.abs(dragged) > 6 && sidebar.classList.contains("collapsed")) {
+          // start expanding — uncollapse and set a sensible starting width
+          sidebar.classList.remove("collapsed");
+          sidebar.style.width = "200px";
+        }
+        if (!sidebar.classList.contains("collapsed")) {
+          const newW = Math.min(600, Math.max(180, e.clientX));
+          sidebar.style.width = newW + "px";
+        }
       });
-    });
 
-    // ── Sidebar collapse ───────────────────────────────────────────────────
-    const sidebar   = document.getElementById('sidebar');
-    const collapseBtn = document.getElementById('collapse-btn');
+      document.addEventListener("mouseup", (e) => {
+        if (expandDragging) {
+          // if user just clicked without dragging, toggle collapse
+          if (Math.abs(e.clientX - expandStartX) < 6) {
+            sidebar.classList.remove("collapsed");
+          }
+          expandDragging = false;
+          document.body.style.cursor = "";
+        }
+      });
 
-    collapseBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('collapsed');
-    });
+      // ── Format DSL (naive indent normalise) ────────────────────────────────
+      document.getElementById("btn-format").onclick = () => {
+        const lines = dslEl.value.split("\n");
+        let depth = 0;
+        const result = lines.map((l) => {
+          const t = l.trim();
+          if (t === "}") depth = Math.max(0, depth - 1);
+          const out = "  ".repeat(depth) + t;
+          if (t.endsWith("{")) depth++;
+          return out;
+        });
+        dslEl.value = result.join("\n");
+      };
 
-    // ── Sidebar resize drag ────────────────────────────────────────────────
-    const handle = document.getElementById('resize-handle');
-    let resizing = false, resizeStartX = 0, resizeStartW = 0;
+      document.getElementById("btn-clear").onclick = () => {
+        dslEl.value = "diagram\n\nend";
+        runDiagram();
+      };
 
-    handle.addEventListener('mousedown', e => {
-      resizing     = true;
-      resizeStartX = e.clientX;
-      resizeStartW = sidebar.offsetWidth;
-      document.body.style.cursor = 'col-resize';
-      e.preventDefault();
-    });
+      // ── Keyboard shortcut ──────────────────────────────────────────────────
+      dslEl.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          runDiagram();
+        }
+      });
 
-    document.addEventListener('mousemove', e => {
-      if (!resizing) return;
-      const newW = Math.min(600, Math.max(180, resizeStartW + e.clientX - resizeStartX));
-      sidebar.style.width = newW + 'px';
-    });
+      // ── Example tabs ───────────────────────────────────────────────────────
+      document.querySelectorAll(".ex-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".ex-tab")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          const ex = EXAMPLES[btn.dataset.example];
+          if (ex) {
+            dslEl.value = ex;
+            hasRenderedOnce = false; // fit the new example on first render
+            runDiagram(ex);
+          }
+        });
+      });
 
-    document.addEventListener('mouseup', () => {
-      if (resizing) { resizing = false; document.body.style.cursor = ''; }
-    });
+      // ── Share button ───────────────────────────────────────────
+      document.getElementById("btn-share").onclick = async function () {
+        this.textContent = "⏳ Sharing...";
+        this.disabled = true;
+        try {
+          const url = await shareDiagram(dslEl.value);
+          await navigator.clipboard.writeText(url);
+          showToast("Link copied to clipboard!");
+        } catch (e) {
+          showToast("Share failed: " + e.message, "error");
+        } finally {
+          this.textContent = "🔗 Share";
+          this.disabled = false;
+        }
+      };
 
-    // ── Boot ───────────────────────────────────────────────────────────────
-    dslEl.value = EXAMPLES.arch;
-    runDiagram(EXAMPLES.arch);
-  </script>
-</body>
+      // ── Toast helper ───────────────────────────────────────────
+      function showToast(msg, type = "success") {
+        const t = document.createElement("div");
+        t.textContent = msg;
+        t.style.cssText = `
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: ${type === "error" ? "#c85428" : "#1a1208"};
+    color: #f0c96a; padding: 10px 20px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: 12px;
+    z-index: 9999; opacity: 1; transition: opacity .4s;
+  `;
+        document.body.appendChild(t);
+        setTimeout(() => {
+          t.style.opacity = "0";
+        }, 2200);
+        setTimeout(() => t.remove(), 2700);
+      }
+
+      // ── Sidebar collapse ───────────────────────────────────────────────────
+      const sidebar = document.getElementById("sidebar");
+      const collapseBtn = document.getElementById("collapse-btn");
+
+      collapseBtn.addEventListener("click", () => {
+        sidebar.classList.toggle("collapsed");
+      });
+
+      // ── Sidebar resize drag ────────────────────────────────────────────────
+      const handle = document.getElementById("resize-handle");
+      let resizing = false,
+        resizeStartX = 0,
+        resizeStartW = 0;
+
+      handle.addEventListener("mousedown", (e) => {
+        resizing = true;
+        resizeStartX = e.clientX;
+        resizeStartW = sidebar.offsetWidth;
+        document.body.style.cursor = "col-resize";
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!resizing) return;
+        const newW = Math.min(
+          600,
+          Math.max(180, resizeStartW + e.clientX - resizeStartX),
+        );
+        sidebar.style.width = newW + "px";
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (resizing) {
+          resizing = false;
+          document.body.style.cursor = "";
+        }
+      });
+
+      // ── Boot ───────────────────────────────────────────────────────────────
+      dslEl.value = EXAMPLES.arch;
+      runDiagram(EXAMPLES.arch);
+    </script>
+  </body>
 </html>
