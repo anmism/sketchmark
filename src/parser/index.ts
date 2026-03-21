@@ -678,6 +678,7 @@ export function parse(src: string): DiagramAST {
         v === "config" || // ← ADD
         v === "theme" || // ← ADD
         v === "style" ||
+        v === "markdown" ||
         CHART_TYPES.includes(v)
       ) {
         break;

@@ -837,6 +837,7 @@ var AIDiagram = (function (exports) {
                     v === "config" || // ← ADD
                     v === "theme" || // ← ADD
                     v === "style" ||
+                    v === "markdown" ||
                     CHART_TYPES.includes(v)) {
                     break;
                 }

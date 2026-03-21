@@ -836,6 +836,7 @@ function parse(src) {
                 v === "config" || // ← ADD
                 v === "theme" || // ← ADD
                 v === "style" ||
+                v === "markdown" ||
                 CHART_TYPES.includes(v)) {
                 break;
             }
