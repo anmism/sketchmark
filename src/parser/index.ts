@@ -656,6 +656,7 @@ export function parse(src: string): DiagramAST {
     skipNL();
     while (cur().type !== "EOF" && cur().value !== "end") {
       skipNL();
+      if (cur().type === "RBRACE") break;
       const v = cur().value;
       if (v === "data") {
         dataRows = parseDataArray();
