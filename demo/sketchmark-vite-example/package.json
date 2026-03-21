@@ -8,7 +8,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "roughjs":    "^4.6.6",
     "sketchmark": "latest"
   },
   "devDependencies": {

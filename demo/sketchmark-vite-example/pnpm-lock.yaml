@@ -8,12 +8,9 @@ importers:
 
   .:
     dependencies:
-      roughjs:
-        specifier: ^4.6.6
-        version: 4.6.6
       sketchmark:
         specifier: latest
-        version: 0.1.6(roughjs@4.6.6)
+        version: 0.1.8(roughjs@4.6.6)
     devDependencies:
       vite:
         specifier: ^5.0.0
@@ -329,8 +326,8 @@ packages:
   roughjs@4.6.6:
     resolution: {integrity: sha512-ZUz/69+SYpFN/g/lUlo2FXcIjRkSu3nDarreVdGGndHEBJ6cXPdKguS8JGxwj5HA5xIbVKSmLgr5b3AWxtRfvQ==}
 
-  sketchmark@0.1.6:
-    resolution: {integrity: sha512-EOqhHZeDUiZIJakIEZVAsgOM008VtBfLjMGWyZpgMg2l1zDSsKabzeuINuKSQMG1H6l7ZbW9qND2sP/U7Egzww==}
+  sketchmark@0.1.8:
+    resolution: {integrity: sha512-K7GRoID5JTi55AHSV8a11zyKDNSRrLQa/dfNUOZ7KGdxRRCjhp5j9xheicZomZoL45YI5Ny6uaSR66tExDhSUA==}
     peerDependencies:
       roughjs: ^4.6.0
 
@@ -605,7 +602,7 @@ snapshots:
       points-on-curve: 0.2.0
       points-on-path: 0.2.1
 
-  sketchmark@0.1.6(roughjs@4.6.6):
+  sketchmark@0.1.8(roughjs@4.6.6):
     dependencies:
       roughjs: 4.6.6
 
