@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sketchmark — HTML Example</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: #f8f4ea;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        font-family: monospace;
+      }
+
+      h1 {
+        font-size: 28px;
+        color: #1a1208;
+        margin-bottom: 6px;
+      }
+      h1 em {
+        color: #c85428;
+        font-style: italic;
+      }
+
+      p.sub {
+        font-size: 13px;
+        color: #9a7848;
+        margin-bottom: 40px;
+      }
+
+      #diagram {
+        margin-bottom: 20px;
+      }
+
+      #controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      button {
+        background: #1a1208;
+        color: #f8f4ea;
+        border: none;
+        padding: 7px 16px;
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background 0.15s;
+      }
+      button:hover:not(:disabled) {
+        background: #c85428;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      #step-info {
+        font-size: 12px;
+        color: #9a7848;
+        min-width: 80px;
+        text-align: center;
+      }
+
+      #error {
+        color: #cc0000;
+        font-size: 12px;
+        margin-top: 12px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>✏ sketchmark</h1>
+    <p class="sub">
+      Hand-drawn diagrams from plain text — no build step needed
+    </p>
+
+    <div id="diagram"></div>
+    <p id="error"></p>
+
+    <div id="controls">
+      <button id="btn-reset">↺ Reset</button>
+      <button id="btn-prev" disabled>← Prev</button>
+      <span id="step-info">—</span>
+      <button id="btn-next" disabled>→ Next</button>
+      <button id="btn-play">▶ Play</button>
+      <button id="btn-svg">↓ SVG</button>
+      <button id="btn-png">↓ PNG</button>
+    </div>
+
+    <!--
+    Step 1 — load rough.js first.
+    It puts itself on window.rough which sketchmark reads.
+  -->
+    <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+
+    <!--
+    Step 2 — import sketchmark via an import map.
+    This lets you write  import { render } from 'sketchmark'
+    without any build step.
+  -->
+    <script type="importmap">
+      {
+        "imports": {
+          "sketchmark": "https://unpkg.com/sketchmark/dist/index.js"
+        }
+      }
+    </script>
+
+    <!--
+    Step 3 — your code.
+    type="module" is required when using import statements.
+  -->
+    <script type="module">
+      import { render } from "sketchmark";
+
+      // ── DSL string ──────────────────────────────────────────
+      // Keep it at the top level — NOT indented inside render({}).
+      // Indentation becomes part of the string and breaks the parser.
+      const dsl = `
+diagram
+title label="System Architecture"
+layout row
+config gap=60
+
+theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
+theme success fill="#e8ffe8" stroke="#007700" color="#004400"
+theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
+theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+
+box client  label="Client App"   theme=primary width=140 height=55
+box gateway label="API Gateway"  theme=warning width=140 height=55
+
+group services label="Services" layout=column gap=16 padding=30 theme=muted
+{
+  box auth label="Auth Service"  theme=primary width=130 height=50
+  box data label="Data Service"  theme=primary width=130 height=50
+}
+
+cylinder db label="PostgreSQL" theme=success width=140 height=65
+
+client  --> gateway label="HTTPS"
+gateway --> auth
+gateway --> data
+auth    --> db label="SQL"
+data    --> db label="SQL"
+
+step highlight client
+step draw client-->gateway
+step highlight gateway
+step draw gateway-->auth
+step draw gateway-->data
+step highlight auth
+step draw auth-->db
+step highlight db
+end
+`.trim();
+
+      // ── Render ──────────────────────────────────────────────
+      let instance;
+
+      try {
+        instance = render({
+          container: document.getElementById("diagram"),
+          dsl,
+          renderer: "svg",
+          svgOptions: {
+            showTitle: true,
+            interactive: true,
+            theme: "light",
+            transparent: true,
+          },
+        });
+      } catch (e) {
+        const errEl = document.getElementById("error");
+        errEl.textContent = "⚠ " + e.message;
+        errEl.style.display = "block";
+      }
+
+      // ── Animation controls ──────────────────────────────────
+      const { anim } = instance;
+
+      const stepInfo = document.getElementById("step-info");
+      const btnPrev = document.getElementById("btn-prev");
+      const btnNext = document.getElementById("btn-next");
+      const btnPlay = document.getElementById("btn-play");
+      const btnReset = document.getElementById("btn-reset");
+      const btnSvg = document.getElementById("btn-svg");
+      const btnPng = document.getElementById("btn-png");
+
+      function syncUI() {
+        btnPrev.disabled = !anim.canPrev;
+        btnNext.disabled = !anim.canNext;
+        stepInfo.textContent = !anim.total
+          ? "no steps"
+          : anim.currentStep < 0
+            ? `${anim.total} steps`
+            : `${anim.currentStep + 1} / ${anim.total}`;
+      }
+
+      syncUI();
+
+      btnReset.addEventListener("click", () => {
+        anim.reset();
+        syncUI();
+      });
+      btnPrev.addEventListener("click", () => {
+        anim.prev();
+        syncUI();
+      });
+      btnNext.addEventListener("click", () => {
+        anim.next();
+        syncUI();
+      });
+
+      btnPlay.addEventListener("click", async () => {
+        btnPlay.disabled = true;
+        btnPlay.textContent = "⏳ Playing";
+        await anim.play(700);
+        syncUI();
+        btnPlay.disabled = false;
+        btnPlay.textContent = "▶ Play";
+      });
+
+      btnSvg.addEventListener("click", () => instance.exportSVG());
+      btnPng.addEventListener("click", () => instance.exportPNG());
+    </script>
+  </body>
+</html>

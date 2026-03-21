@@ -49,5 +49,4 @@ export interface DiagramInstance {
 export declare function render(options: RenderOptions): DiagramInstance;
 export { PALETTES, resolvePalette, THEME_CONFIG_KEY, listThemes, THEME_NAMES } from './theme';
 export { resolveFont, loadFont, registerFont, BUILTIN_FONTS } from './fonts';
-export { shareDiagram, loadSharedDiagram } from './share/encrypted';
 //# sourceMappingURL=index.d.ts.map

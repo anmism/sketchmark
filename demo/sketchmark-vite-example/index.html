@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sketchmark — Vite Example</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #f8f4ea;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      font-family:  monospace;
+    }
+
+    h1 {
+      font-size: 22px;
+      color: #1a1208;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    p {
+      font-size: 13px;
+      color: #9a7848;
+      margin-bottom: 36px;
+    }
+
+    #diagram {
+      max-width: 100%;
+    }
+
+    #anim-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    button {
+      background: #1a1208;
+      color: #f8f4ea;
+      border: none;
+      padding: 8px 18px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+      transition: background 0.15s;
+    }
+
+    button:hover:not(:disabled) { background: #c85428; }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    #step-info {
+      font-size: 12px;
+      color: #9a7848;
+      min-width: 80px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>✏ sketchmark</h1>
+  <p>Hand-drawn diagrams from plain text</p>
+
+  <!-- rough.js MUST be loaded before sketchmark initialises -->
+  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+
+  <div id="diagram"></div>
+
+  <div id="anim-controls">
+    <button id="btn-reset">↺ Reset</button>
+    <button id="btn-prev" disabled>← Prev</button>
+    <span  id="step-info">—</span>
+    <button id="btn-next" disabled>→ Next</button>
+    <button id="btn-play">▶ Play</button>
+  </div>
+
+  <!-- your module code — runs after rough.js is on window -->
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

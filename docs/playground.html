@@ -509,7 +509,6 @@
       <button class="hdr-btn" id="btn-export-png">↓ PNG</button>
       <button class="hdr-btn" id="btn-export-html">↓ HTML</button>
       <button class="hdr-btn" id="btn-theme-toggle">☀ light</button>
-      <button class="hdr-btn" id="btn-share">🔗 Share</button>
     </header>
 
     <main>
@@ -625,7 +624,7 @@
 
     <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
     <script type="module">
-      import { render , shareDiagram, loadSharedDiagram } from 'https://unpkg.com/sketchmark/dist/index.js';
+      import { render , shareDiagram, loadSharedDiagram } from '../dist/index.js';
 
       // ── Examples ────────────────────────────────────────────────────────────
       const EXAMPLES = {
@@ -1636,40 +1635,6 @@ end`,
           }
         });
       });
-
-      // ── Share button ───────────────────────────────────────────
-      document.getElementById("btn-share").onclick = async function () {
-        this.textContent = "⏳ Sharing...";
-        this.disabled = true;
-        try {
-          const url = await shareDiagram(dslEl.value);
-          await navigator.clipboard.writeText(url);
-          showToast("Link copied to clipboard!");
-        } catch (e) {
-          showToast("Share failed: " + e.message, "error");
-        } finally {
-          this.textContent = "🔗 Share";
-          this.disabled = false;
-        }
-      };
-
-      // ── Toast helper ───────────────────────────────────────────
-      function showToast(msg, type = "success") {
-        const t = document.createElement("div");
-        t.textContent = msg;
-        t.style.cssText = `
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    background: ${type === "error" ? "#c85428" : "#1a1208"};
-    color: #f0c96a; padding: 10px 20px; border-radius: 4px;
-    font-family: 'Courier New', monospace; font-size: 12px;
-    z-index: 9999; opacity: 1; transition: opacity .4s;
-  `;
-        document.body.appendChild(t);
-        setTimeout(() => {
-          t.style.opacity = "0";
-        }, 2200);
-        setTimeout(() => t.remove(), 2700);
-      }
 
       // ── Sidebar collapse ───────────────────────────────────────────────────
       const sidebar = document.getElementById("sidebar");

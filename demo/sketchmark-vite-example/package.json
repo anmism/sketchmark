@@ -1,0 +1,17 @@
+{
+  "name": "sketchmark-vite-example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev":   "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "roughjs":    "^4.6.6",
+    "sketchmark": "latest"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
