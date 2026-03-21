@@ -18,6 +18,6 @@
     "noUnusedParameters": false,
     "exactOptionalPropertyTypes": false
   },
-  "include": ["src/**/*", ".temp/share"],
-  "exclude": ["node_modules", "dist", ".temp/tests"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

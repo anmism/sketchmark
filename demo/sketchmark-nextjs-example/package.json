@@ -11,7 +11,6 @@
     "next":      "15.0.0",
     "react":     "^19.0.0",
     "react-dom": "^19.0.0",
-    "roughjs":   "^4.6.6",
     "sketchmark": "latest"
   },
   "devDependencies": {

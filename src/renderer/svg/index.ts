@@ -17,12 +17,13 @@ import { renderRoughChartSVG } from "./roughChartSVG";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
 import { resolveFont, loadFont, DEFAULT_FONT } from "../../fonts";
+import rough from 'roughjs/bin/rough';
 
 import {
   LINE_FONT_SIZE, LINE_FONT_WEIGHT, LINE_SPACING,
 } from '../../markdown/parser';
 
-declare const rough: { svg(el: SVGSVGElement): RoughSVG };
+// declare const rough: { svg(el: SVGSVGElement): RoughSVG };
 
 interface RoughSVG {
   rectangle(

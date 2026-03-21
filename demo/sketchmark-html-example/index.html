@@ -106,32 +106,8 @@
       <button id="btn-png">↓ PNG</button>
     </div>
 
-    <!--
-    Step 1 — load rough.js first.
-    It puts itself on window.rough which sketchmark reads.
-  -->
-    <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-
-    <!--
-    Step 2 — import sketchmark via an import map.
-    This lets you write  import { render } from 'sketchmark'
-    without any build step.
-  -->
-    <script type="importmap">
-      {
-        "imports": {
-          "sketchmark": "https://unpkg.com/sketchmark/dist/index.js"
-        }
-      }
-    </script>
-
-    <!--
-    Step 3 — your code.
-    type="module" is required when using import statements.
-  -->
     <script type="module">
-      import { render } from "sketchmark";
-
+      import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
       // ── DSL string ──────────────────────────────────────────
       // Keep it at the top level — NOT indented inside render({}).
       // Indentation becomes part of the string and breaks the parser.

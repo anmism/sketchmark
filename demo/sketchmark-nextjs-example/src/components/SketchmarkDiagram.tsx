@@ -1,11 +1,7 @@
 'use client';
 
-// ── Why 'use client'? ────────────────────────────────────────────────────
-// sketchmark calls document.createElement and reads window.rough.
-// Both of those crash during Next.js server rendering.
-// 'use client' tells Next.js to only run this component in the browser.
-
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { render } from 'sketchmark';   // ← clean top-level import
 
 interface DiagramInstance {
   svg:  SVGSVGElement;
@@ -26,11 +22,11 @@ interface DiagramInstance {
 }
 
 interface Props {
-  dsl:         string;
-  showTitle?:  boolean;
-  theme?:      'light' | 'dark' | 'auto';
-  transparent?: boolean;
-  className?:  string;
+  dsl:           string;
+  showTitle?:    boolean;
+  theme?:        'light' | 'dark' | 'auto';
+  transparent?:  boolean;
+  className?:    string;
   showControls?: boolean;
 }
 
@@ -45,82 +41,50 @@ export default function SketchmarkDiagram({
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef  = useRef<DiagramInstance | null>(null);
 
-  const [stepInfo,  setStepInfo]  = useState('—');
-  const [canNext,   setCanNext]   = useState(false);
-  const [canPrev,   setCanPrev]   = useState(false);
-  const [playing,   setPlaying]   = useState(false);
-  const [error,     setError]     = useState('');
+  const [stepInfo, setStepInfo] = useState('—');
+  const [canNext,  setCanNext]  = useState(false);
+  const [canPrev,  setCanPrev]  = useState(false);
+  const [playing,  setPlaying]  = useState(false);
+  const [error,    setError]    = useState('');
 
-  // ── Sync UI with animation state ──────────────────────
   const syncAnim = useCallback(() => {
     const anim = instanceRef.current?.anim;
     if (!anim) return;
     setCanNext(anim.canNext);
     setCanPrev(anim.canPrev);
-    if (!anim.total) {
-      setStepInfo('no steps');
-    } else if (anim.currentStep < 0) {
-      setStepInfo(`${anim.total} steps`);
-    } else {
-      setStepInfo(`${anim.currentStep + 1} / ${anim.total}`);
-    }
+    setStepInfo(
+      !anim.total         ? 'no steps'
+      : anim.currentStep < 0 ? `${anim.total} steps`
+      : `${anim.currentStep + 1} / ${anim.total}`
+    );
   }, []);
 
-  // ── Render diagram ─────────────────────────────────────
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let cancelled = false;
+    el.innerHTML = '';
+    setError('');
 
-    async function init() {
-      // Wait for rough.js to land on window (loaded via <script> in layout.tsx)
-      let attempts = 0;
-      while (typeof (window as any).rough === 'undefined' && attempts < 50) {
-        await new Promise(r => setTimeout(r, 100));
-        attempts++;
-      }
+    try {
+      // render() is synchronous now — no waiting, no async, no polling
+      instanceRef.current = render({
+        container:  el,
+        dsl,
+        renderer:   'svg',
+        svgOptions: { showTitle, theme, transparent, interactive: true },
+      }) as DiagramInstance;
 
-      if (cancelled) return;
-
-      if (typeof (window as any).rough === 'undefined') {
-        setError('rough.js failed to load. Check your network connection.');
-        return;
-      }
-
-      // Dynamic import — sketchmark is browser-only so never imported at module level
-      // This is the correct pattern for any browser-only library in Next.js
-      const { render } = await import('sketchmark');
-
-      if (cancelled) return;
-
-      el.innerHTML = '';
-      setError('');
-
-      try {
-        instanceRef.current = render({
-          container:  el,
-          dsl,
-          renderer:   'svg',
-          svgOptions: { showTitle, theme, transparent, interactive: true },
-        }) as DiagramInstance;
-
-        syncAnim();
-      } catch (e: any) {
-        setError(e?.message ?? 'Failed to render diagram');
-      }
+      syncAnim();
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to render diagram');
     }
 
-    init();
-
-    return () => {
-      cancelled = true;
-    };
+    // no cleanup needed — re-render clears innerHTML above
   }, [dsl, showTitle, theme, transparent, syncAnim]);
 
   return (
     <div className={className}>
-      {/* diagram SVG renders here */}
       <div ref={containerRef} />
 
       {error && (
@@ -129,27 +93,14 @@ export default function SketchmarkDiagram({
         </p>
       )}
 
-      {/* animation controls */}
       {showControls && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
-          <AnimBtn onClick={() => { instanceRef.current?.anim.reset(); syncAnim(); }}>
-            ↺ Reset
-          </AnimBtn>
-          <AnimBtn
-            disabled={!canPrev}
-            onClick={() => { instanceRef.current?.anim.prev(); syncAnim(); }}
-          >
-            ← Prev
-          </AnimBtn>
+          <AnimBtn onClick={() => { instanceRef.current?.anim.reset(); syncAnim(); }}>↺ Reset</AnimBtn>
+          <AnimBtn disabled={!canPrev} onClick={() => { instanceRef.current?.anim.prev(); syncAnim(); }}>← Prev</AnimBtn>
           <span style={{ fontSize: 12, color: '#9a7848', minWidth: 70, textAlign: 'center' }}>
             {stepInfo}
           </span>
-          <AnimBtn
-            disabled={!canNext}
-            onClick={() => { instanceRef.current?.anim.next(); syncAnim(); }}
-          >
-            Next →
-          </AnimBtn>
+          <AnimBtn disabled={!canNext} onClick={() => { instanceRef.current?.anim.next(); syncAnim(); }}>Next →</AnimBtn>
           <AnimBtn
             disabled={playing}
             onClick={async () => {
@@ -169,14 +120,9 @@ export default function SketchmarkDiagram({
   );
 }
 
-// ── Tiny button helper ────────────────────────────────────
-function AnimBtn({
-  children,
-  onClick,
-  disabled = false,
-}: {
+function AnimBtn({ children, onClick, disabled = false }: {
   children: React.ReactNode;
-  onClick: () => void;
+  onClick:  () => void;
   disabled?: boolean;
 }) {
   return (
@@ -184,16 +130,16 @@ function AnimBtn({
       onClick={onClick}
       disabled={disabled}
       style={{
-        background:    disabled ? '#ccc' : '#1a1208',
-        color:         '#f8f4ea',
-        border:        'none',
-        padding:       '6px 14px',
-        fontFamily:    "'Courier New', monospace",
-        fontSize:      11,
-        cursor:        disabled ? 'default' : 'pointer',
-        borderRadius:  2,
-        opacity:       disabled ? 0.45 : 1,
-        transition:    'background 0.15s',
+        background:   disabled ? '#ccc' : '#1a1208',
+        color:        '#f8f4ea',
+        border:       'none',
+        padding:      '6px 14px',
+        fontFamily:   "'Courier New', monospace",
+        fontSize:     11,
+        cursor:       disabled ? 'default' : 'pointer',
+        borderRadius: 2,
+        opacity:      disabled ? 0.45 : 1,
+        transition:   'background 0.15s',
       }}
       onMouseEnter={e => { if (!disabled) (e.target as HTMLElement).style.background = '#c85428'; }}
       onMouseLeave={e => { if (!disabled) (e.target as HTMLElement).style.background = '#1a1208'; }}

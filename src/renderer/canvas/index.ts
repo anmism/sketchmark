@@ -23,8 +23,9 @@ import {
   LINE_FONT_WEIGHT,
   LINE_SPACING,
 } from "../../markdown/parser";
+import rough from 'roughjs/bin/rough';
 
-declare const rough: { canvas(el: HTMLCanvasElement): RoughCanvas };
+
 interface RoughCanvas {
   rectangle(x: number, y: number, w: number, h: number, opts?: any): void;
   circle(cx: number, cy: number, d: number, opts?: any): void;

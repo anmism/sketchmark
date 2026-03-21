@@ -52,7 +52,7 @@ end
 ## Installation
 
 ```bash
-npm install sketchmark roughjs
+npm install sketchmark
 ```
 
 rough.js is a peer dependency — it must be available at runtime.

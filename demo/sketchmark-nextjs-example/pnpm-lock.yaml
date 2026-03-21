@@ -22,7 +22,7 @@ importers:
         version: 4.6.6
       sketchmark:
         specifier: latest
-        version: 0.1.6(roughjs@4.6.6)
+        version: 0.1.8(roughjs@4.6.6)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -322,8 +322,8 @@ packages:
   simple-swizzle@0.2.4:
     resolution: {integrity: sha512-nAu1WFPQSMNr2Zn9PGSZK9AGn4t/y97lEm+MXTtUDwfP0ksAIX4nO+6ruD9Jwut4C49SB1Ws+fbXsm/yScWOHw==}
 
-  sketchmark@0.1.6:
-    resolution: {integrity: sha512-EOqhHZeDUiZIJakIEZVAsgOM008VtBfLjMGWyZpgMg2l1zDSsKabzeuINuKSQMG1H6l7ZbW9qND2sP/U7Egzww==}
+  sketchmark@0.1.8:
+    resolution: {integrity: sha512-K7GRoID5JTi55AHSV8a11zyKDNSRrLQa/dfNUOZ7KGdxRRCjhp5j9xheicZomZoL45YI5Ny6uaSR66tExDhSUA==}
     peerDependencies:
       roughjs: ^4.6.0
 
@@ -618,7 +618,7 @@ snapshots:
       is-arrayish: 0.3.4
     optional: true
 
-  sketchmark@0.1.6(roughjs@4.6.6):
+  sketchmark@0.1.8(roughjs@4.6.6):
     dependencies:
       roughjs: 4.6.6
 

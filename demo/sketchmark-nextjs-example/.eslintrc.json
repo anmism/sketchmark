@@ -1,0 +1,4 @@
+{
+  "ignorePatterns": ["src/**/*"],
+  "extends": "next/core-web-vitals"
+}
