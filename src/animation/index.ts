@@ -31,6 +31,8 @@ const getTableEl = (svg: SVGSVGElement, id: string) =>
 const getNoteEl = (svg: SVGSVGElement, id: string) => getEl(svg, `note-${id}`);
 const getChartEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `chart-${id}`);
+const getMarkdownEl = (svg: SVGSVGElement, id: string) =>
+  getEl(svg, `markdown-${id}`);
 
 function resolveEl(svg: SVGSVGElement, target: string): SVGGElement | null {
   // check edge first — target contains connector like "a-->b"
@@ -39,11 +41,12 @@ function resolveEl(svg: SVGSVGElement, target: string): SVGGElement | null {
 
   // everything else resolved by prefixed id
   return (
-    getNodeEl(svg, target)  ??
+    getNodeEl(svg, target) ??
     getGroupEl(svg, target) ??
     getTableEl(svg, target) ??
-    getNoteEl(svg, target)  ??
+    getNoteEl(svg, target) ??
     getChartEl(svg, target) ??
+    getMarkdownEl(svg, target) ??
     null
   );
 }
@@ -54,6 +57,16 @@ function pathLength(p: SVGGeometryElement): number {
   } catch {
     return 200;
   }
+}
+
+function clearDashOverridesAfter(el: SVGGElement, delayMs: number): void {
+  setTimeout(() => {
+    el.querySelectorAll<SVGGeometryElement>('path').forEach(p => {
+      p.style.strokeDasharray  = '';
+      p.style.strokeDashoffset = '';
+      p.style.transition       = '';
+    });
+  }, delayMs);
 }
 
 // ── Arrow connector parser ────────────────────────────────
@@ -202,35 +215,44 @@ function clearEdgeDrawStyles(el: SVGGElement): void {
 }
 
 function animateEdgeDraw(el: SVGGElement, conn: string): void {
-  const paths = Array.from(el.querySelectorAll<SVGGeometryElement>("path"));
+  const paths = Array.from(el.querySelectorAll<SVGGeometryElement>('path'));
   if (!paths.length) return;
-  const linePath = paths[0];
+  const linePath  = paths[0];
   const headPaths = paths.slice(1);
   const STROKE_DUR = 360;
   const len = pathLength(linePath);
-  const reversed = conn.startsWith("<") && !conn.includes(">");
+  const reversed = conn.startsWith('<') && !conn.includes('>');
 
-  linePath.style.strokeDasharray = `${len}`;
+  linePath.style.strokeDasharray  = `${len}`;
   linePath.style.strokeDashoffset = reversed ? `${-len}` : `${len}`;
-  linePath.style.transition = "none";
-  headPaths.forEach((p) => {
-    p.style.opacity = "0";
-    p.style.transition = "none";
+  linePath.style.transition = 'none';
+  headPaths.forEach(p => {
+    p.style.opacity    = '0';
+    p.style.transition = 'none';
   });
 
-  el.classList.remove("draw-hidden");
-  el.classList.add("draw-reveal");
-  el.style.opacity = "1";
+  el.classList.remove('draw-hidden');
+  el.classList.add('draw-reveal');
+  el.style.opacity = '1';
 
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
-      linePath.style.transition = `stroke-dashoffset ${STROKE_DUR}ms cubic-bezier(.4,0,.2,1)`;
-      linePath.style.strokeDashoffset = "0";
+      linePath.style.transition       = `stroke-dashoffset ${STROKE_DUR}ms cubic-bezier(.4,0,.2,1)`;
+      linePath.style.strokeDashoffset = '0';
       setTimeout(() => {
-        headPaths.forEach((p) => {
-          p.style.transition = "opacity 120ms ease";
-          p.style.opacity = "1";
+        headPaths.forEach(p => {
+          p.style.transition = 'opacity 120ms ease';
+          p.style.opacity    = '1';
         });
+
+        // ── ADD: clear inline dash overrides so SVG attribute
+        //    (stroke-dasharray="6,5" for dashed arrows) takes over again
+        setTimeout(() => {
+          linePath.style.strokeDasharray  = '';
+          linePath.style.strokeDashoffset = '';
+          linePath.style.transition       = '';
+        }, 160);  
+
       }, STROKE_DUR - 40);
     }),
   );
@@ -255,6 +277,7 @@ export class AnimationController {
   readonly drawTargetTables: Set<string>;
   readonly drawTargetNotes: Set<string>;
   readonly drawTargetCharts: Set<string>;
+  readonly drawTargetMarkdowns: Set<string>;
 
   get drawTargets(): Set<string> {
     return this.drawTargetEdges;
@@ -274,6 +297,7 @@ export class AnimationController {
     this.drawTargetTables = new Set<string>();
     this.drawTargetNotes = new Set<string>();
     this.drawTargetCharts = new Set<string>();
+    this.drawTargetMarkdowns = new Set<string>();
 
     for (const s of steps) {
       if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
@@ -292,6 +316,10 @@ export class AnimationController {
       }
       if (svg.querySelector(`#chart-${s.target}`)) {
         this.drawTargetCharts.add(`chart-${s.target}`);
+        this.drawTargetNodes.delete(`node-${s.target}`);
+      }
+      if (svg.querySelector(`#markdown-${s.target}`)) {
+        this.drawTargetMarkdowns.add(`markdown-${s.target}`);
         this.drawTargetNodes.delete(`node-${s.target}`);
       }
     }
@@ -467,13 +495,29 @@ export class AnimationController {
         });
       }
     });
-
-    this.svg.querySelectorAll<SVGGElement>(".tg, .ntg, .cg").forEach((el) => {
-      el.style.transform = "";
-      el.style.transition = "";
+    // Markdown
+    this.svg.querySelectorAll<SVGGElement>(".mdg").forEach((el) => {
+      clearDrawStyles(el);
+      el.style.transition = "none";
       el.style.opacity = "";
-      el.classList.remove("hl", "faded");
+      if (this.drawTargetMarkdowns.has(el.id)) {
+        el.classList.add("gg-hidden");
+      } else {
+        el.classList.remove("gg-hidden");
+        requestAnimationFrame(() => {
+          el.style.transition = "";
+        });
+      }
     });
+
+    this.svg
+      .querySelectorAll<SVGGElement>(".tg, .ntg, .cg, .mdg")
+      .forEach((el) => {
+        el.style.transform = "";
+        el.style.transition = "";
+        el.style.opacity = "";
+        el.classList.remove("hl", "faded");
+      });
   }
 
   private _applyStep(i: number, silent: boolean): void {
@@ -657,6 +701,10 @@ export class AnimationController {
         const firstPath = groupEl.querySelector("path");
         if (!firstPath?.style.strokeDasharray) prepareForDraw(groupEl);
         animateShapeDraw(groupEl, 550, 40);
+          
+        const pathCount = groupEl.querySelectorAll('path').length;
+        const totalMs   = pathCount * 40 + 550 + 120;  // stagger + duration + buffer
+        clearDashOverridesAfter(groupEl, totalMs);
       }
       return;
     }
@@ -679,6 +727,8 @@ export class AnimationController {
         tableEl.classList.remove("gg-hidden");
         prepareForDraw(tableEl);
         animateShapeDraw(tableEl, 500, 40);
+        const tablePathCount = tableEl.querySelectorAll('path').length;
+        clearDashOverridesAfter(tableEl, tablePathCount * 40 + 500 + 120);
       }
       return;
     }
@@ -701,6 +751,8 @@ export class AnimationController {
         noteEl.classList.remove("gg-hidden");
         prepareForDraw(noteEl);
         animateShapeDraw(noteEl, 420, 55);
+        const notePathCount = noteEl.querySelectorAll('path').length;
+        clearDashOverridesAfter(noteEl, notePathCount * 55 + 420 + 120);
       }
       return;
     }
@@ -733,6 +785,32 @@ export class AnimationController {
       return;
     }
 
+    // ── Markdown ──────────────────────────────────────────
+    const markdownEl = getMarkdownEl(this.svg, target);
+    if (markdownEl) {
+      if (silent) {
+        markdownEl.style.transition = "none";
+        markdownEl.style.opacity = "";
+        markdownEl.classList.remove("gg-hidden");
+        markdownEl.style.opacity = "1";
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            markdownEl.style.transition = "";
+          }),
+        );
+      } else {
+        markdownEl.style.opacity = "0";
+        markdownEl.classList.remove("gg-hidden");
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            markdownEl.style.transition = "opacity 500ms ease";
+            markdownEl.style.opacity = "1";
+          }),
+        );
+      }
+      return;
+    }
+
     // ── Node draw ──────────────────────────────────────
     const nodeEl = getNodeEl(this.svg, target);
     if (!nodeEl) return;
@@ -745,15 +823,17 @@ export class AnimationController {
       const firstPath = nodeEl.querySelector("path");
       if (!firstPath?.style.strokeDasharray) prepareForDraw(nodeEl);
       animateShapeDraw(nodeEl, 420, 55);
+      const nodePathCount = nodeEl.querySelectorAll('path').length;
+      clearDashOverridesAfter(nodeEl, nodePathCount * 55 + 420 + 120);
     }
   }
 
   // ── erase ─────────────────────────────────────────────────
   private _doErase(target: string): void {
-    const el = resolveEl(this.svg, target);   // handles edges too now
+    const el = resolveEl(this.svg, target); // handles edges too now
     if (el) {
-      el.style.transition = 'opacity 0.4s';
-      el.style.opacity    = '0';
+      el.style.transition = "opacity 0.4s";
+      el.style.opacity = "0";
     }
   }
 
@@ -778,39 +858,44 @@ export class AnimationController {
   }
 
   // ── color ─────────────────────────────────────────────────
-private _doColor(target: string, color: string | undefined): void {
-  if (!color) return;
-  const el = resolveEl(this.svg, target);
-  if (!el) return;
+  private _doColor(target: string, color: string | undefined): void {
+    if (!color) return;
+    const el = resolveEl(this.svg, target);
+    if (!el) return;
 
-  // edge — color stroke
-  if (parseEdgeTarget(target)) {
-    el.querySelectorAll<SVGElement>('path, line, polyline').forEach(p => {
-      p.style.stroke = color;
-    });
-    el.querySelectorAll<SVGElement>('polygon').forEach(p => {
-      p.style.fill = color; p.style.stroke = color;
-    });
-    return;
-  }
+    // edge — color stroke
+    if (parseEdgeTarget(target)) {
+      el.querySelectorAll<SVGElement>("path, line, polyline").forEach((p) => {
+        p.style.stroke = color;
+      });
+      el.querySelectorAll<SVGElement>("polygon").forEach((p) => {
+        p.style.fill = color;
+        p.style.stroke = color;
+      });
+      return;
+    }
 
-  // everything else — color fill
-  let hit = false;
-  el.querySelectorAll<SVGElement>('path, rect, ellipse, polygon').forEach(c => {
-    const attrFill = c.getAttribute('fill');
-    if (attrFill === 'none') return;
-    if (attrFill === null && c.tagName === 'path') return;
-    c.style.fill = color;
-    hit = true;
-  });
-  if (!hit) {
-    el.querySelectorAll<SVGTextElement>('text').forEach(t => { t.style.fill = color; });
+    // everything else — color fill
+    let hit = false;
+    el.querySelectorAll<SVGElement>("path, rect, ellipse, polygon").forEach(
+      (c) => {
+        const attrFill = c.getAttribute("fill");
+        if (attrFill === "none") return;
+        if (attrFill === null && c.tagName === "path") return;
+        c.style.fill = color;
+        hit = true;
+      },
+    );
+    if (!hit) {
+      el.querySelectorAll<SVGTextElement>("text").forEach((t) => {
+        t.style.fill = color;
+      });
+    }
   }
-}
 }
 
 export const ANIMATION_CSS = `
-.ng, .gg, .tg, .ntg, .cg, .eg {
+.ng, .gg, .tg, .ntg, .cg, .eg, .mdg {
   transform-box: fill-box;
   transform-origin: center;
   transition: filter 0.3s, opacity 0.35s;
@@ -821,9 +906,10 @@ export const ANIMATION_CSS = `
 .tg.hl path, .tg.hl rect,
 .ntg.hl path, .ntg.hl polygon,
 .cg.hl path, .cg.hl rect,
+.mdg.hl text,
 .eg.hl path, .eg.hl line, .eg.hl polygon { stroke-width: 2.8 !important; }
 
-.ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl {
+.ng.hl, .tg.hl, .ntg.hl, .cg.hl, .mdg.hl, .eg.hl {
   animation: ng-pulse 1.4s ease-in-out infinite;
 }
 @keyframes ng-pulse {
@@ -832,7 +918,8 @@ export const ANIMATION_CSS = `
 }
 
 /* fade */
-.ng.faded, .gg.faded, .tg.faded, .ntg.faded, .cg.faded, .eg.faded { opacity: 0.22; }
+.ng.faded, .gg.faded, .tg.faded, .ntg.faded,
+.cg.faded, .eg.faded, .mdg.faded { opacity: 0.22; }
 
 .ng.hidden { opacity: 0; pointer-events: none; }
 .eg.draw-hidden { opacity: 0; }
@@ -841,4 +928,5 @@ export const ANIMATION_CSS = `
 .tg.gg-hidden  { opacity: 0; }
 .ntg.gg-hidden { opacity: 0; }
 .cg.gg-hidden  { opacity: 0; }
+.mdg.gg-hidden { opacity: 0; }
 `;
