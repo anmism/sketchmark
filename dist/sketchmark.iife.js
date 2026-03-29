@@ -1487,13 +1487,22 @@ var AIDiagram = (function (exports) {
                 n.h = n.h || 50;
                 break;
             case "text": {
-                // read fontSize from style if set, otherwise use default
                 const fontSize = Number(n.style?.fontSize ?? 13);
                 const charWidth = fontSize * 0.55;
-                const maxW = n.width ?? 400;
-                const approxLines = Math.ceil((n.label.length * charWidth) / (maxW - 16));
-                n.w = maxW;
-                n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + 8);
+                const pad = Number(n.style?.padding ?? 8) * 2;
+                if (n.width) {
+                    // User set width → word-wrap within it
+                    const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
+                    n.w = n.width;
+                    n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
+                }
+                else {
+                    // Auto-size to content
+                    const lines = n.label.split("\\n");
+                    const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
+                    n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
+                    n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
+                }
                 break;
             }
             default:
