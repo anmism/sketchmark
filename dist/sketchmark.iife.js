@@ -5278,6 +5278,8 @@ var AIDiagram = (function (exports) {
             const [x1, y1] = getConnPoint$1(src, dstCX, dstCY);
             const [x2, y2] = getConnPoint$1(dst, srcCX, srcCY);
             const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
+            if (e.style?.opacity != null)
+                eg.setAttribute("opacity", String(e.style.opacity));
             const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
             const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
             const ecol = String(e.style?.stroke ?? palette.edgeStroke);
@@ -5318,7 +5320,9 @@ var AIDiagram = (function (exports) {
                 const eFontSize = Number(e.style?.fontSize ?? 11);
                 const eFont = resolveStyleFont$1(e.style ?? {}, diagramFont);
                 const eLetterSpacing = e.style?.letterSpacing;
-                eg.appendChild(mkText(e.label, mx, my, eFontSize, 400, palette.edgeLabelText, "middle", eFont, eLetterSpacing));
+                const eFontWeight = e.style?.fontWeight ?? 400;
+                const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
+                eg.appendChild(mkText(e.label, mx, my, eFontSize, eFontWeight, eLabelColor, "middle", eFont, eLetterSpacing));
             }
             EL.appendChild(eg);
         }
@@ -6187,6 +6191,8 @@ var AIDiagram = (function (exports) {
             const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
             const [x1, y1] = getConnPoint(src, dstCX, dstCY);
             const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+            if (e.style?.opacity != null)
+                ctx.globalAlpha = Number(e.style.opacity);
             const ecol = String(e.style?.stroke ?? palette.edgeStroke);
             const { arrowAt, dashed } = connMeta(e.connector);
             const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
@@ -6215,14 +6221,17 @@ var AIDiagram = (function (exports) {
                 const eFontSize = Number(e.style?.fontSize ?? 11);
                 const eFont = resolveStyleFont(e.style ?? {}, diagramFont);
                 const eLetterSpacing = e.style?.letterSpacing;
+                const eFontWeight = e.style?.fontWeight ?? 400;
+                const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
                 ctx.save();
-                ctx.font = `400 ${eFontSize}px ${eFont}`;
+                ctx.font = `${eFontWeight} ${eFontSize}px ${eFont}`;
                 const tw = ctx.measureText(e.label).width + 12;
                 ctx.restore();
                 ctx.fillStyle = palette.edgeLabelBg;
                 ctx.fillRect(mx - tw / 2, my - 8, tw, 15);
-                drawText(ctx, e.label, mx, my + 3, eFontSize, 400, palette.edgeLabelText, 'center', eFont, eLetterSpacing);
+                drawText(ctx, e.label, mx, my + 3, eFontSize, eFontWeight, eLabelColor, 'center', eFont, eLetterSpacing);
             }
+            ctx.globalAlpha = 1;
         }
         // ── Nodes ─────────────────────────────────────────────────
         for (const n of sg.nodes) {

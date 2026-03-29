@@ -414,6 +414,7 @@ export function renderToCanvas(
     const [x1, y1] = getConnPoint(src, dstCX, dstCY);
     const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
 
+    if (e.style?.opacity != null) ctx.globalAlpha = Number(e.style.opacity);
     const ecol   = String(e.style?.stroke ?? palette.edgeStroke);
     const { arrowAt, dashed } = connMeta(e.connector);
     const len    = Math.sqrt((x2-x1)**2 + (y2-y1)**2) || 1;
@@ -448,16 +449,20 @@ export function renderToCanvas(
       const eFont          = resolveStyleFont(e.style as Record<string,unknown> ?? {}, diagramFont);
       const eLetterSpacing = e.style?.letterSpacing as number | undefined;
 
+      const eFontWeight    = e.style?.fontWeight ?? 400;
+      const eLabelColor    = String(e.style?.color ?? palette.edgeLabelText);
+
       ctx.save();
-      ctx.font = `400 ${eFontSize}px ${eFont}`;
+      ctx.font = `${eFontWeight} ${eFontSize}px ${eFont}`;
       const tw = ctx.measureText(e.label).width + 12;
       ctx.restore();
 
       ctx.fillStyle = palette.edgeLabelBg;
       ctx.fillRect(mx - tw/2, my - 8, tw, 15);
       drawText(ctx, e.label, mx, my + 3,
-        eFontSize, 400, palette.edgeLabelText, 'center', eFont, eLetterSpacing);
+        eFontSize, eFontWeight, eLabelColor, 'center', eFont, eLetterSpacing);
     }
+    ctx.globalAlpha = 1;
   }
 
   // ── Nodes ─────────────────────────────────────────────────

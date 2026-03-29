@@ -660,6 +660,7 @@ export function renderToSVG(
     const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
 
     const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
+    if (e.style?.opacity != null) eg.setAttribute("opacity", String(e.style.opacity));
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
     const nx = (x2 - x1) / len,
       ny = (y2 - y1) / len;
@@ -731,14 +732,17 @@ export function renderToSVG(
       );
       const eLetterSpacing = e.style?.letterSpacing as number | undefined;
 
+      const eFontWeight = e.style?.fontWeight ?? 400;
+      const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
+
       eg.appendChild(
         mkText(
           e.label,
           mx,
           my,
           eFontSize,
-          400,
-          palette.edgeLabelText,
+          eFontWeight,
+          eLabelColor,
           "middle",
           eFont,
           eLetterSpacing,
