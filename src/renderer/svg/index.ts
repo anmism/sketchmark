@@ -78,6 +78,14 @@ function hashStr(s: string): number {
 
 const BASE_ROUGH: RoughOpts = { roughness: 1.3, bowing: 0.7 };
 
+/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
+function darkenHex(hex: string, amount = 0.12): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const d = (v: string) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
+  return `#${d(m[1]).toString(16).padStart(2,"0")}${d(m[2]).toString(16).padStart(2,"0")}${d(m[3]).toString(16).padStart(2,"0")}`;
+}
+
 // ── Small helper: load + resolve font from style or fall back ─────────────
 function resolveStyleFont(
   style: Record<string, unknown>,
@@ -852,16 +860,20 @@ export function renderToSVG(
     const fill = String(gs.fill ?? palette.tableFill);
     const strk = String(gs.stroke ?? palette.tableStroke);
     const textCol = String(gs.color ?? palette.tableText);
-    const hdrFill = palette.tableHeaderFill;
+    const hdrFill = gs.fill ? darkenHex(fill, 0.08) : palette.tableHeaderFill;
     const hdrText = String(gs.color ?? palette.tableHeaderText);
     const divCol = palette.tableDivider;
     const pad = t.labelH;
+    const tStrokeWidth = Number(gs.strokeWidth ?? 1.5);
+    const tFontWeight = gs.fontWeight ?? 500;
 
     // ── Table-level font (applies to label + all cells) ─
     // supports: font, font-size, letter-spacing
     const tFontSize = Number(gs.fontSize ?? 12);
     const tFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
     const tLetterSpacing = gs.letterSpacing as number | undefined;
+
+    if (gs.opacity != null) tg.setAttribute("opacity", String(gs.opacity));
 
     // outer border
     tg.appendChild(
@@ -871,7 +883,8 @@ export function renderToSVG(
         fill,
         fillStyle: "solid",
         stroke: strk,
-        strokeWidth: 1.5,
+        strokeWidth: tStrokeWidth,
+        ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
       }),
     );
 
@@ -885,14 +898,14 @@ export function renderToSVG(
       }),
     );
 
-    // ── Table label: font, font-size, letter-spacing (always left) ──
+    // ── Table label: font, font-size, font-weight, letter-spacing (always left) ──
     tg.appendChild(
       mkText(
         t.label,
         t.x + 10,
         t.y + pad / 2,
         tFontSize,
-        500,
+        tFontWeight,
         textCol,
         "start",
         tFont,
@@ -934,7 +947,7 @@ export function renderToSVG(
         right: "end",
       };
       const cellAnchor = cellAnchorMap[cellAlignProp] ?? "middle";
-      const cellFw = row.kind === "header" ? 600 : 400;
+      const cellFw = row.kind === "header" ? 600 : (gs.fontWeight ?? 400);
       const cellColor = row.kind === "header" ? hdrText : textCol;
 
       let cx = t.x;

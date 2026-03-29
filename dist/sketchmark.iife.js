@@ -4858,6 +4858,14 @@ var AIDiagram = (function (exports) {
         return h;
     }
     const BASE_ROUGH = { roughness: 1.3, bowing: 0.7 };
+    /** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
+    function darkenHex$1(hex, amount = 0.12) {
+        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+        if (!m)
+            return hex;
+        const d = (v) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
+        return `#${d(m[1]).toString(16).padStart(2, "0")}${d(m[2]).toString(16).padStart(2, "0")}${d(m[3]).toString(16).padStart(2, "0")}`;
+    }
     // ── Small helper: load + resolve font from style or fall back ─────────────
     function resolveStyleFont$1(style, fallback) {
         const raw = String(style["font"] ?? "");
@@ -5378,15 +5386,19 @@ var AIDiagram = (function (exports) {
             const fill = String(gs.fill ?? palette.tableFill);
             const strk = String(gs.stroke ?? palette.tableStroke);
             const textCol = String(gs.color ?? palette.tableText);
-            const hdrFill = palette.tableHeaderFill;
+            const hdrFill = gs.fill ? darkenHex$1(fill, 0.08) : palette.tableHeaderFill;
             const hdrText = String(gs.color ?? palette.tableHeaderText);
             const divCol = palette.tableDivider;
             const pad = t.labelH;
+            const tStrokeWidth = Number(gs.strokeWidth ?? 1.5);
+            const tFontWeight = gs.fontWeight ?? 500;
             // ── Table-level font (applies to label + all cells) ─
             // supports: font, font-size, letter-spacing
             const tFontSize = Number(gs.fontSize ?? 12);
             const tFont = resolveStyleFont$1(gs, diagramFont);
             const tLetterSpacing = gs.letterSpacing;
+            if (gs.opacity != null)
+                tg.setAttribute("opacity", String(gs.opacity));
             // outer border
             tg.appendChild(rc.rectangle(t.x, t.y, t.w, t.h, {
                 ...BASE_ROUGH,
@@ -5394,7 +5406,8 @@ var AIDiagram = (function (exports) {
                 fill,
                 fillStyle: "solid",
                 stroke: strk,
-                strokeWidth: 1.5,
+                strokeWidth: tStrokeWidth,
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
             }));
             // label strip separator
             tg.appendChild(rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
@@ -5403,8 +5416,8 @@ var AIDiagram = (function (exports) {
                 stroke: strk,
                 strokeWidth: 1,
             }));
-            // ── Table label: font, font-size, letter-spacing (always left) ──
-            tg.appendChild(mkText(t.label, t.x + 10, t.y + pad / 2, tFontSize, 500, textCol, "start", tFont, tLetterSpacing));
+            // ── Table label: font, font-size, font-weight, letter-spacing (always left) ──
+            tg.appendChild(mkText(t.label, t.x + 10, t.y + pad / 2, tFontSize, tFontWeight, textCol, "start", tFont, tLetterSpacing));
             // rows
             let rowY = t.y + pad;
             for (const row of t.rows) {
@@ -5433,7 +5446,7 @@ var AIDiagram = (function (exports) {
                     right: "end",
                 };
                 const cellAnchor = cellAnchorMap[cellAlignProp] ?? "middle";
-                const cellFw = row.kind === "header" ? 600 : 400;
+                const cellFw = row.kind === "header" ? 600 : (gs.fontWeight ?? 400);
                 const cellColor = row.kind === "header" ? hdrText : textCol;
                 let cx = t.x;
                 row.cells.forEach((cell, i) => {
@@ -5864,6 +5877,14 @@ var AIDiagram = (function (exports) {
             h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
         return h;
     }
+    /** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
+    function darkenHex(hex, amount = 0.12) {
+        const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+        if (!m)
+            return hex;
+        const d = (v) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
+        return `#${d(m[1]).toString(16).padStart(2, "0")}${d(m[2]).toString(16).padStart(2, "0")}${d(m[3]).toString(16).padStart(2, "0")}`;
+    }
     // ── Small helper: load + resolve font from a style map ────────────────────
     function resolveStyleFont(style, fallback) {
         const raw = String(style['font'] ?? '');
@@ -6241,25 +6262,28 @@ var AIDiagram = (function (exports) {
             const textCol = String(gs.color ?? palette.tableText);
             const pad = t.labelH;
             // ── Table-level font ────────────────────────────────
-            // supports: font, font-size, letter-spacing
-            // cells also support text-align
             const tFontSize = Number(gs.fontSize ?? 12);
             const tFont = resolveStyleFont(gs, diagramFont);
             const tLetterSpacing = gs.letterSpacing;
+            const tStrokeWidth = Number(gs.strokeWidth ?? 1.5);
+            const tFontWeight = gs.fontWeight ?? 500;
+            if (gs.opacity != null)
+                ctx.globalAlpha = Number(gs.opacity);
             rc.rectangle(t.x, t.y, t.w, t.h, {
                 ...R, seed: hashStr$1(t.id),
-                fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.5,
+                fill, fillStyle: 'solid', stroke: strk, strokeWidth: tStrokeWidth,
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
             });
             rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
                 roughness: 0.6, seed: hashStr$1(t.id + 'l'), stroke: strk, strokeWidth: 1,
             });
             // ── Table label: always left-anchored ───────────────
-            drawText(ctx, t.label, t.x + 10, t.y + pad / 2, tFontSize, 500, textCol, 'left', tFont, tLetterSpacing);
+            drawText(ctx, t.label, t.x + 10, t.y + pad / 2, tFontSize, tFontWeight, textCol, 'left', tFont, tLetterSpacing);
             let rowY = t.y + pad;
             for (const row of t.rows) {
                 const rh = row.kind === 'header' ? t.headerH : t.rowH;
                 if (row.kind === 'header') {
-                    ctx.fillStyle = palette.tableHeaderFill;
+                    ctx.fillStyle = gs.fill ? darkenHex(fill, 0.08) : palette.tableHeaderFill;
                     ctx.fillRect(t.x + 1, rowY + 1, t.w - 2, rh - 1);
                 }
                 rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
@@ -6272,7 +6296,7 @@ var AIDiagram = (function (exports) {
                 const cellAlignProp = (row.kind === 'header'
                     ? 'center'
                     : String(gs.textAlign ?? 'center'));
-                const cellFw = row.kind === 'header' ? 600 : 400;
+                const cellFw = row.kind === 'header' ? 600 : (gs.fontWeight ?? 400);
                 const cellColor = row.kind === 'header'
                     ? String(gs.color ?? palette.tableHeaderText)
                     : textCol;
@@ -6293,6 +6317,7 @@ var AIDiagram = (function (exports) {
                 });
                 rowY += rh;
             }
+            ctx.globalAlpha = 1;
         }
         // ── Notes ─────────────────────────────────────────────────
         for (const n of sg.notes) {

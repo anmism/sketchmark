@@ -41,6 +41,14 @@ function hashStr(s: string): number {
   return h;
 }
 
+/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
+function darkenHex(hex: string, amount = 0.12): string {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  const d = (v: string) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
+  return `#${d(m[1]).toString(16).padStart(2,"0")}${d(m[2]).toString(16).padStart(2,"0")}${d(m[3]).toString(16).padStart(2,"0")}`;
+}
+
 export interface CanvasRendererOptions {
   scale?:       number;
   background?:  string;
@@ -514,15 +522,18 @@ export function renderToCanvas(
     const pad     = t.labelH;
 
     // ── Table-level font ────────────────────────────────
-    // supports: font, font-size, letter-spacing
-    // cells also support text-align
     const tFontSize      = Number(gs.fontSize      ?? 12);
     const tFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const tLetterSpacing = gs.letterSpacing as number | undefined;
+    const tStrokeWidth   = Number(gs.strokeWidth   ?? 1.5);
+    const tFontWeight    = gs.fontWeight ?? 500;
+
+    if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);
 
     rc.rectangle(t.x, t.y, t.w, t.h, {
       ...R, seed: hashStr(t.id),
-      fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.5,
+      fill, fillStyle: 'solid', stroke: strk, strokeWidth: tStrokeWidth,
+      ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
     });
 
     rc.line(t.x, t.y+pad, t.x+t.w, t.y+pad, {
@@ -531,14 +542,14 @@ export function renderToCanvas(
 
     // ── Table label: always left-anchored ───────────────
     drawText(ctx, t.label, t.x + 10, t.y + pad/2,
-      tFontSize, 500, textCol, 'left', tFont, tLetterSpacing);
+      tFontSize, tFontWeight, textCol, 'left', tFont, tLetterSpacing);
 
     let rowY = t.y + pad;
     for (const row of t.rows) {
       const rh = row.kind === 'header' ? t.headerH : t.rowH;
 
       if (row.kind === 'header') {
-        ctx.fillStyle = palette.tableHeaderFill;
+        ctx.fillStyle = gs.fill ? darkenHex(fill, 0.08) : palette.tableHeaderFill;
         ctx.fillRect(t.x+1, rowY+1, t.w-2, rh-1);
       }
 
@@ -553,7 +564,7 @@ export function renderToCanvas(
       const cellAlignProp = (row.kind === 'header'
         ? 'center'
         : String(gs.textAlign ?? 'center')) as 'left'|'center'|'right';
-      const cellFw        = row.kind === 'header' ? 600 : 400;
+      const cellFw        = row.kind === 'header' ? 600 : (gs.fontWeight ?? 400);
       const cellColor     = row.kind === 'header'
         ? String(gs.color ?? palette.tableHeaderText)
         : textCol;
@@ -580,6 +591,7 @@ export function renderToCanvas(
 
       rowY += rh;
     }
+    ctx.globalAlpha = 1;
   }
 
   // ── Notes ─────────────────────────────────────────────────
