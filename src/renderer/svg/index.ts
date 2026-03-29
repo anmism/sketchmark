@@ -576,6 +576,8 @@ export function renderToSVG(
     const gs = g.style ?? {};
     const gg = mkGroup(`group-${g.id}`, "gg");
 
+    if (gs.opacity != null) gg.setAttribute("opacity", String(gs.opacity));
+
     gg.appendChild(
       rc.rectangle(g.x, g.y, g.w, g.h, {
         ...BASE_ROUGH,
@@ -591,22 +593,36 @@ export function renderToSVG(
     );
 
     // ── Group label typography ──────────────────────────
-    // supports: font, font-size, letter-spacing
-    // always left-anchored (single line)
     const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
     const gFontSize = Number(gs.fontSize ?? 12);
+    const gFontWeight = gs.fontWeight ?? 500;
     const gFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
     const gLetterSpacing = gs.letterSpacing as number | undefined;
+    const gPad = Number(gs.padding ?? 14);
+    const gTextAlign = String(gs.textAlign ?? "left");
+    const gAnchorMap: Record<string, "start" | "middle" | "end"> = {
+      left: "start",
+      center: "middle",
+      right: "end",
+    };
+    const gAnchor = gAnchorMap[gTextAlign] ?? "start";
+    const gTextX =
+      gTextAlign === "right"
+        ? g.x + g.w - gPad
+        : gTextAlign === "center"
+          ? g.x + g.w / 2
+          : g.x + gPad;
+
    if(g.label){
      gg.appendChild(
        mkText(
          g.label,
-         g.x + 14,
-         g.y + 14,
+         gTextX,
+         g.y + gPad,
          gFontSize,
-         500,
+         gFontWeight,
          gLabelColor,
-         "start",
+         gAnchor,
          gFont,
          gLetterSpacing,
        ),

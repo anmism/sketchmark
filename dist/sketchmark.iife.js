@@ -1719,17 +1719,16 @@ var AIDiagram = (function (exports) {
         if (layout === "row") {
             const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
             const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
-            const maxH = Math.max(...hs);
             const { start, gaps } = distribute(ws, contentW, gap, justify);
             let x = contentX + start;
             for (let i = 0; i < kids.length; i++) {
                 let y;
                 switch (align) {
                     case "center":
-                        y = contentY + (maxH - hs[i]) / 2;
+                        y = contentY + (contentH - hs[i]) / 2;
                         break;
                     case "end":
-                        y = contentY + maxH - hs[i];
+                        y = contentY + contentH - hs[i];
                         break;
                     default:
                         y = contentY;
@@ -1750,17 +1749,16 @@ var AIDiagram = (function (exports) {
             // column (default)
             const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
             const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
-            const maxW = Math.max(...ws);
             const { start, gaps } = distribute(hs, contentH, gap, justify);
             let y = contentY + start;
             for (let i = 0; i < kids.length; i++) {
                 let x;
                 switch (align) {
                     case "center":
-                        x = contentX + (maxW - ws[i]) / 2;
+                        x = contentX + (contentW - ws[i]) / 2;
                         break;
                     case "end":
-                        x = contentX + maxW - ws[i];
+                        x = contentX + contentW - ws[i];
                         break;
                     default:
                         x = contentX;
@@ -5213,6 +5211,8 @@ var AIDiagram = (function (exports) {
                 continue;
             const gs = g.style ?? {};
             const gg = mkGroup(`group-${g.id}`, "gg");
+            if (gs.opacity != null)
+                gg.setAttribute("opacity", String(gs.opacity));
             gg.appendChild(rc.rectangle(g.x, g.y, g.w, g.h, {
                 ...BASE_ROUGH,
                 roughness: 1.7,
@@ -5225,14 +5225,26 @@ var AIDiagram = (function (exports) {
                 strokeLineDash: gs.strokeDash ?? palette.groupDash,
             }));
             // ── Group label typography ──────────────────────────
-            // supports: font, font-size, letter-spacing
-            // always left-anchored (single line)
             const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
             const gFontSize = Number(gs.fontSize ?? 12);
+            const gFontWeight = gs.fontWeight ?? 500;
             const gFont = resolveStyleFont$1(gs, diagramFont);
             const gLetterSpacing = gs.letterSpacing;
+            const gPad = Number(gs.padding ?? 14);
+            const gTextAlign = String(gs.textAlign ?? "left");
+            const gAnchorMap = {
+                left: "start",
+                center: "middle",
+                right: "end",
+            };
+            const gAnchor = gAnchorMap[gTextAlign] ?? "start";
+            const gTextX = gTextAlign === "right"
+                ? g.x + g.w - gPad
+                : gTextAlign === "center"
+                    ? g.x + g.w / 2
+                    : g.x + gPad;
             if (g.label) {
-                gg.appendChild(mkText(g.label, g.x + 14, g.y + 14, gFontSize, 500, gLabelColor, "start", gFont, gLetterSpacing));
+                gg.appendChild(mkText(g.label, gTextX, g.y + gPad, gFontSize, gFontWeight, gLabelColor, gAnchor, gFont, gLetterSpacing));
             }
             GL.appendChild(gg);
         }
@@ -6105,6 +6117,8 @@ var AIDiagram = (function (exports) {
             if (!g.w)
                 continue;
             const gs = g.style ?? {};
+            if (gs.opacity != null)
+                ctx.globalAlpha = Number(gs.opacity);
             rc.rectangle(g.x, g.y, g.w, g.h, {
                 ...R, roughness: 1.7, bowing: 0.4, seed: hashStr$1(g.id),
                 fill: String(gs.fill ?? palette.groupFill),
@@ -6113,16 +6127,21 @@ var AIDiagram = (function (exports) {
                 strokeWidth: Number(gs.strokeWidth ?? 1.2),
                 strokeLineDash: gs.strokeDash ?? palette.groupDash,
             });
-            // ── Group label ──────────────────────────────────────
-            // Only render when label has content — empty label = no reserved space
-            // supports: font, font-size, letter-spacing (always left-anchored)
             if (g.label) {
                 const gFontSize = Number(gs.fontSize ?? 12);
+                const gFontWeight = gs.fontWeight ?? 500;
                 const gFont = resolveStyleFont(gs, diagramFont);
                 const gLetterSpacing = gs.letterSpacing;
                 const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
-                drawText(ctx, g.label, g.x + 14, g.y + 16, gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+                const gPad = Number(gs.padding ?? 14);
+                const gTextAlign = String(gs.textAlign ?? 'left');
+                const gTextX = gTextAlign === 'right' ? g.x + g.w - gPad
+                    : gTextAlign === 'center' ? g.x + g.w / 2
+                        : g.x + gPad;
+                drawText(ctx, g.label, gTextX, g.y + gPad + 2, gFontSize, gFontWeight, gLabelColor, gTextAlign, gFont, gLetterSpacing);
             }
+            if (gs.opacity != null)
+                ctx.globalAlpha = 1;
         }
         // ── Edges ─────────────────────────────────────────────────
         for (const e of sg.edges) {

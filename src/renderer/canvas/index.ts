@@ -363,6 +363,9 @@ export function renderToCanvas(
   for (const g of sortedGroups) {
     if (!g.w) continue;
     const gs = g.style ?? {};
+
+    if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);
+
     rc.rectangle(g.x, g.y, g.w, g.h, {
       ...R, roughness: 1.7, bowing: 0.4, seed: hashStr(g.id),
       fill:           String(gs.fill   ?? palette.groupFill),
@@ -372,17 +375,24 @@ export function renderToCanvas(
       strokeLineDash: (gs as any).strokeDash ?? palette.groupDash,
     });
 
-    // ── Group label ──────────────────────────────────────
-    // Only render when label has content — empty label = no reserved space
-    // supports: font, font-size, letter-spacing (always left-anchored)
     if (g.label) {
       const gFontSize      = Number(gs.fontSize      ?? 12);
+      const gFontWeight    = gs.fontWeight ?? 500;
       const gFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
       const gLetterSpacing = gs.letterSpacing as number | undefined;
       const gLabelColor    = gs.color ? String(gs.color) : palette.groupLabel;
-      drawText(ctx, g.label, g.x + 14, g.y + 16,
-        gFontSize, 500, gLabelColor, 'left', gFont, gLetterSpacing);
+      const gPad           = Number(gs.padding ?? 14);
+      const gTextAlign     = String(gs.textAlign ?? 'left') as 'left'|'center'|'right';
+      const gTextX =
+        gTextAlign === 'right'  ? g.x + g.w - gPad
+        : gTextAlign === 'center' ? g.x + g.w / 2
+        : g.x + gPad;
+
+      drawText(ctx, g.label, gTextX, g.y + gPad + 2,
+        gFontSize, gFontWeight, gLabelColor, gTextAlign, gFont, gLetterSpacing);
     }
+
+    if (gs.opacity != null) ctx.globalAlpha = 1;
   }
 
   // ── Edges ─────────────────────────────────────────────────

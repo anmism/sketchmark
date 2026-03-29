@@ -358,7 +358,6 @@ function place(
   if (layout === "row") {
     const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
     const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
-    const maxH = Math.max(...hs);
     const { start, gaps } = distribute(ws, contentW, gap, justify);
 
     let x = contentX + start;
@@ -366,10 +365,10 @@ function place(
       let y: number;
       switch (align) {
         case "center":
-          y = contentY + (maxH - hs[i]) / 2;
+          y = contentY + (contentH - hs[i]) / 2;
           break;
         case "end":
-          y = contentY + maxH - hs[i];
+          y = contentY + contentH - hs[i];
           break;
         default:
           y = contentY;
@@ -399,7 +398,6 @@ function place(
     const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
     const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
 
-    const maxW = Math.max(...ws);
     const { start, gaps } = distribute(hs, contentH, gap, justify);
 
     let y = contentY + start;
@@ -407,10 +405,10 @@ function place(
       let x: number;
       switch (align) {
         case "center":
-          x = contentX + (maxW - ws[i]) / 2;
+          x = contentX + (contentW - ws[i]) / 2;
           break;
         case "end":
-          x = contentX + maxW - ws[i];
+          x = contentX + contentW - ws[i];
           break;
         default:
           x = contentX;
