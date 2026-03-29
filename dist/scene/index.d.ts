@@ -16,6 +16,7 @@ export interface SceneNode extends SceneRect {
     width?: number;
     height?: number;
     imageUrl?: string;
+    iconName?: string;
     meta?: Record<string, string>;
     x: number;
     y: number;

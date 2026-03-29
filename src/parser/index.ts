@@ -45,6 +45,7 @@ const SHAPES: NodeShape[] = [
   "parallelogram",
   "text",
   "image",
+  "icon",
 ];
 const CHART_TYPES = [
   "bar-chart",
@@ -229,7 +230,7 @@ export function parse(src: string): DiagramAST {
       kind: "node",
       id,
       shape,
-      label: props.label || id,
+      label: props.label || (shape === "image" || shape === "icon" ? "" : id),
       ...(groupId ? { groupId } : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -237,6 +238,7 @@ export function parse(src: string): DiagramAST {
       style: propsToStyle(props),
     };
     if (props.url) node.imageUrl = props.url;
+    if (props.name) node.iconName = props.name;
     return node;
   }
 
@@ -315,7 +317,7 @@ export function parse(src: string): DiagramAST {
     }
 
     // Support multiline via literal \n in label string
-    const rawLabel = props.label ?? id;
+    const rawLabel = props.label ?? "";
 
     return {
       kind: "note",

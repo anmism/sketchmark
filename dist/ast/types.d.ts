@@ -1,4 +1,4 @@
-export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image';
+export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon';
 export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 export type LayoutType = 'row' | 'column' | 'grid';
 export type AlignItems = 'start' | 'center' | 'end';
@@ -66,6 +66,7 @@ export interface ASTNode {
     label: string;
     groupId?: string;
     imageUrl?: string;
+    iconName?: string;
     width?: number;
     height?: number;
     theme?: string;

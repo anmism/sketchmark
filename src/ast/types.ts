@@ -4,7 +4,7 @@
 
 export type NodeShape =
   | 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle'
-  | 'cylinder' | 'parallelogram' | 'text' | 'image';
+  | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon';
 
 export type EdgeConnector =
   | '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
@@ -53,7 +53,7 @@ export type RootItemRef =
 
 export interface ASTNode {
   kind: 'node'; id: string; shape: NodeShape; label: string;
-  groupId?: string; imageUrl?: string;
+  groupId?: string; imageUrl?: string; iconName?: string;
   width?: number; height?: number;
   theme?: string;
   style?: StyleProps; meta?: Record<string, string>;

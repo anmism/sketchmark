@@ -34,6 +34,7 @@ export interface SceneNode extends SceneRect {
   width?: number; // user-specified size override
   height?: number;
   imageUrl?: string;
+  iconName?: string;
   meta?: Record<string, string>;
   x: number;
   y: number;
@@ -162,6 +163,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       height: n.height,
       meta: n.meta,
       imageUrl: n.imageUrl,
+      iconName: n.iconName,
       x: 0,
       y: 0,
       w: 0,

@@ -259,6 +259,49 @@ function renderShape(
       ], opts); break;
     case 'text':
       break; // no shape drawn
+    case 'icon': {
+      if (n.iconName) {
+        const [prefix, name] = n.iconName.includes(':')
+          ? n.iconName.split(':', 2)
+          : ['mdi', n.iconName];
+        const iconColor = s.color
+          ? encodeURIComponent(String(s.color))
+          : encodeURIComponent(String(palette.nodeStroke));
+        const iconSize = Math.min(n.w, n.h) - 4;
+        const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          ctx.save();
+          if (s.opacity != null) ctx.globalAlpha = Number(s.opacity);
+          // clip-path for rounded corners (same as image)
+          ctx.beginPath();
+          const r = 6;
+          ctx.moveTo(n.x+r, n.y);
+          ctx.lineTo(n.x+n.w-r, n.y);
+          ctx.quadraticCurveTo(n.x+n.w, n.y,     n.x+n.w, n.y+r);
+          ctx.lineTo(n.x+n.w, n.y+n.h-r);
+          ctx.quadraticCurveTo(n.x+n.w, n.y+n.h, n.x+n.w-r, n.y+n.h);
+          ctx.lineTo(n.x+r,   n.y+n.h);
+          ctx.quadraticCurveTo(n.x, n.y+n.h, n.x, n.y+n.h-r);
+          ctx.lineTo(n.x, n.y+r);
+          ctx.quadraticCurveTo(n.x, n.y, n.x+r, n.y);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(img, n.x+1, n.y+1, n.w-2, n.h-2);
+          ctx.restore();
+          // only draw border when stroke is explicitly set
+          if (s.stroke) {
+            rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
+          }
+        };
+        img.src = iconUrl;
+      } else {
+        rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2,
+          { ...opts, fill: '#e0e0e0', stroke: '#999999' });
+      }
+      return;
+    }
     case 'image': {
       if (n.imageUrl) {
         const img = new Image();
@@ -280,7 +323,10 @@ function renderShape(
           ctx.clip();
           ctx.drawImage(img, n.x+1, n.y+1, n.w-2, n.h-2);
           ctx.restore();
-          rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
+          // only draw border when stroke is explicitly set
+          if (s.stroke) {
+            rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
+          }
         };
         img.src = n.imageUrl;
       } else {
@@ -506,14 +552,16 @@ export function renderToCanvas(
       : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
       : n.y + n.h / 2;   // middle (default)
 
-    if (lines.length > 1) {
-      drawMultilineText(ctx, lines, textX, textCY,
-        fontSize, fontWeight, textColor,
-        textAlign, lineHeight, nodeFont, letterSpacing);
-    } else {
-      drawText(ctx, lines[0] ?? '', textX, textCY,
-        fontSize, fontWeight, textColor,
-        textAlign, nodeFont, letterSpacing);
+    if (n.label) {
+      if (lines.length > 1) {
+        drawMultilineText(ctx, lines, textX, textCY,
+          fontSize, fontWeight, textColor,
+          textAlign, lineHeight, nodeFont, letterSpacing);
+      } else {
+        drawText(ctx, lines[0] ?? '', textX, textCY,
+          fontSize, fontWeight, textColor,
+          textAlign, nodeFont, letterSpacing);
+      }
     }
     if (n.style?.opacity != null) ctx.globalAlpha = 1;
   }

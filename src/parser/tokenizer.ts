@@ -48,6 +48,7 @@ export const KEYWORDS = new Set([
   "parallelogram",
   "text",
   "image",
+  "icon",
   "group",
   "style",
   "step",

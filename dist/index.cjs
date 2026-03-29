@@ -19,6 +19,7 @@ const KEYWORDS = new Set([
     "parallelogram",
     "text",
     "image",
+    "icon",
     "group",
     "style",
     "step",
@@ -232,6 +233,7 @@ const SHAPES = [
     "parallelogram",
     "text",
     "image",
+    "icon",
 ];
 const CHART_TYPES = [
     "bar-chart",
@@ -422,7 +424,7 @@ function parse(src) {
             kind: "node",
             id,
             shape,
-            label: props.label || id,
+            label: props.label || (shape === "image" || shape === "icon" ? "" : id),
             ...(groupId ? { groupId } : {}),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -431,6 +433,8 @@ function parse(src) {
         };
         if (props.url)
             node.imageUrl = props.url;
+        if (props.name)
+            node.iconName = props.name;
         return node;
     }
     function parseEdge(fromId, connector, rest) {
@@ -499,7 +503,7 @@ function parse(src) {
                 j++;
         }
         // Support multiline via literal \n in label string
-        const rawLabel = props.label ?? id;
+        const rawLabel = props.label ?? "";
         return {
             kind: "note",
             id,
@@ -1278,6 +1282,7 @@ function buildSceneGraph(ast) {
             height: n.height,
             meta: n.meta,
             imageUrl: n.imageUrl,
+            iconName: n.iconName,
             x: 0,
             y: 0,
             w: 0,
@@ -1504,6 +1509,10 @@ function sizeNode(n) {
             }
             break;
         }
+        case "icon":
+            n.w = n.w || 48;
+            n.h = n.h || (n.label !== n.id ? 64 : 48); // extra height for label
+            break;
         default:
             n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
             n.h = n.h || 52;
@@ -1540,9 +1549,8 @@ function sizeTable(t) {
     const nData = rows.filter((r) => r.kind === "data").length;
     t.h = labelH + nHeader * headerH + nData * rowH;
 }
-function sizeChart(c) {
-    c.w = c.w || 320;
-    c.h = c.h || 240;
+function sizeChart(_c) {
+    // defaults already applied in buildSceneGraph
 }
 function sizeMarkdown(m) {
     const pad = Number(m.style?.padding ?? 16);
@@ -5100,6 +5108,58 @@ function renderShape$1(rc, n, palette) {
         }
         case "text":
             return [];
+        case "icon": {
+            if (n.iconName) {
+                const [prefix, name] = n.iconName.includes(":")
+                    ? n.iconName.split(":", 2)
+                    : ["mdi", n.iconName];
+                const iconColor = s.color
+                    ? encodeURIComponent(String(s.color))
+                    : encodeURIComponent(String(palette.nodeStroke));
+                const iconSize = Math.min(n.w, n.h) - 4;
+                const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+                const img = document.createElementNS(NS, "image");
+                img.setAttribute("href", iconUrl);
+                img.setAttribute("x", String(n.x + 1));
+                img.setAttribute("y", String(n.y + 1));
+                img.setAttribute("width", String(n.w - 2));
+                img.setAttribute("height", String(n.h - 2));
+                img.setAttribute("preserveAspectRatio", "xMidYMid meet");
+                if (s.opacity != null)
+                    img.setAttribute("opacity", String(s.opacity));
+                // clip-path for rounded corners (same as image)
+                const clipId = `clip-${n.id}`;
+                const defs = document.createElementNS(NS, "defs");
+                const clip = document.createElementNS(NS, "clipPath");
+                clip.setAttribute("id", clipId);
+                const rect = document.createElementNS(NS, "rect");
+                rect.setAttribute("x", String(n.x + 1));
+                rect.setAttribute("y", String(n.y + 1));
+                rect.setAttribute("width", String(n.w - 2));
+                rect.setAttribute("height", String(n.h - 2));
+                rect.setAttribute("rx", "6");
+                clip.appendChild(rect);
+                defs.appendChild(clip);
+                img.setAttribute("clip-path", `url(#${clipId})`);
+                // only draw border when stroke is explicitly set
+                const els = [defs, img];
+                if (s.stroke) {
+                    els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+                        ...opts,
+                        fill: "none",
+                    }));
+                }
+                return els;
+            }
+            // fallback: placeholder square
+            return [
+                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+                    ...opts,
+                    fill: "#e0e0e0",
+                    stroke: "#999999",
+                }),
+            ];
+        }
         case "image": {
             if (n.imageUrl) {
                 const img = document.createElementNS(NS, "image");
@@ -5122,11 +5182,15 @@ function renderShape$1(rc, n, palette) {
                 clip.appendChild(rect);
                 defs.appendChild(clip);
                 img.setAttribute("clip-path", `url(#${clipId})`);
-                const border = rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                    ...opts,
-                    fill: "none",
-                });
-                return [defs, img, border];
+                // only draw border when stroke is explicitly set
+                const els = [defs, img];
+                if (s.stroke) {
+                    els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+                        ...opts,
+                        fill: "none",
+                    }));
+                }
+                return els;
             }
             return [
                 rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
@@ -5370,9 +5434,11 @@ function renderToSVG(sg, container, options = {}) {
             : verticalAlign === "bottom"
                 ? nodeBodyBottom - blockH / 2
                 : nodeBodyMid;
-        ng.appendChild(lines.length > 1
-            ? mkMultilineText(lines, textX, textCY, fontSize, fontWeight, textColor, textAnchor, lineHeight, nodeFont, letterSpacing)
-            : mkText(n.label, textX, textCY, fontSize, fontWeight, textColor, textAnchor, nodeFont, letterSpacing));
+        if (n.label) {
+            ng.appendChild(lines.length > 1
+                ? mkMultilineText(lines, textX, textCY, fontSize, fontWeight, textColor, textAnchor, lineHeight, nodeFont, letterSpacing)
+                : mkText(n.label, textX, textCY, fontSize, fontWeight, textColor, textAnchor, nodeFont, letterSpacing));
+        }
         if (options.interactive) {
             ng.style.cursor = "pointer";
             ng.addEventListener("click", () => options.onNodeClick?.(n.id));
@@ -5564,7 +5630,6 @@ function renderToSVG(sg, container, options = {}) {
         NoteL.appendChild(ng);
     }
     svg.appendChild(NoteL);
-    markdownMap(sg);
     const MDL = mkGroup('markdown-layer');
     for (const m of sg.markdowns) {
         const mg = mkGroup(`markdown-${m.id}`, 'mdg');
@@ -6071,6 +6136,50 @@ function renderShape(rc, ctx, n, palette, R) {
             break;
         case 'text':
             break; // no shape drawn
+        case 'icon': {
+            if (n.iconName) {
+                const [prefix, name] = n.iconName.includes(':')
+                    ? n.iconName.split(':', 2)
+                    : ['mdi', n.iconName];
+                const iconColor = s.color
+                    ? encodeURIComponent(String(s.color))
+                    : encodeURIComponent(String(palette.nodeStroke));
+                const iconSize = Math.min(n.w, n.h) - 4;
+                const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    ctx.save();
+                    if (s.opacity != null)
+                        ctx.globalAlpha = Number(s.opacity);
+                    // clip-path for rounded corners (same as image)
+                    ctx.beginPath();
+                    const r = 6;
+                    ctx.moveTo(n.x + r, n.y);
+                    ctx.lineTo(n.x + n.w - r, n.y);
+                    ctx.quadraticCurveTo(n.x + n.w, n.y, n.x + n.w, n.y + r);
+                    ctx.lineTo(n.x + n.w, n.y + n.h - r);
+                    ctx.quadraticCurveTo(n.x + n.w, n.y + n.h, n.x + n.w - r, n.y + n.h);
+                    ctx.lineTo(n.x + r, n.y + n.h);
+                    ctx.quadraticCurveTo(n.x, n.y + n.h, n.x, n.y + n.h - r);
+                    ctx.lineTo(n.x, n.y + r);
+                    ctx.quadraticCurveTo(n.x, n.y, n.x + r, n.y);
+                    ctx.closePath();
+                    ctx.clip();
+                    ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, n.h - 2);
+                    ctx.restore();
+                    // only draw border when stroke is explicitly set
+                    if (s.stroke) {
+                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
+                    }
+                };
+                img.src = iconUrl;
+            }
+            else {
+                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: '#e0e0e0', stroke: '#999999' });
+            }
+            return;
+        }
         case 'image': {
             if (n.imageUrl) {
                 const img = new Image();
@@ -6092,7 +6201,10 @@ function renderShape(rc, ctx, n, palette, R) {
                     ctx.clip();
                     ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, n.h - 2);
                     ctx.restore();
-                    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
+                    // only draw border when stroke is explicitly set
+                    if (s.stroke) {
+                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
+                    }
                 };
                 img.src = n.imageUrl;
             }
@@ -6282,11 +6394,13 @@ function renderToCanvas(sg, canvas, options = {}) {
         const textCY = vertAlign === 'top' ? nodeBodyTop + blockH / 2
             : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
                 : n.y + n.h / 2; // middle (default)
-        if (lines.length > 1) {
-            drawMultilineText(ctx, lines, textX, textCY, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
-        }
-        else {
-            drawText(ctx, lines[0] ?? '', textX, textCY, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
+        if (n.label) {
+            if (lines.length > 1) {
+                drawMultilineText(ctx, lines, textX, textCY, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
+            }
+            else {
+                drawText(ctx, lines[0] ?? '', textX, textCY, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
+            }
         }
         if (n.style?.opacity != null)
             ctx.globalAlpha = 1;

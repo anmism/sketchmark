@@ -406,6 +406,61 @@ function renderShape(
     case "text":
       return [];
 
+    case "icon": {
+      if (n.iconName) {
+        const [prefix, name] = n.iconName.includes(":")
+          ? n.iconName.split(":", 2)
+          : ["mdi", n.iconName];
+        const iconColor = s.color
+          ? encodeURIComponent(String(s.color))
+          : encodeURIComponent(String(palette.nodeStroke));
+        const iconSize = Math.min(n.w, n.h) - 4;
+        const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+
+        const img = document.createElementNS(NS, "image") as SVGImageElement;
+        img.setAttribute("href", iconUrl);
+        img.setAttribute("x", String(n.x + 1));
+        img.setAttribute("y", String(n.y + 1));
+        img.setAttribute("width", String(n.w - 2));
+        img.setAttribute("height", String(n.h - 2));
+        img.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        if (s.opacity != null) img.setAttribute("opacity", String(s.opacity));
+
+        // clip-path for rounded corners (same as image)
+        const clipId = `clip-${n.id}`;
+        const defs = document.createElementNS(NS, "defs");
+        const clip = document.createElementNS(NS, "clipPath");
+        clip.setAttribute("id", clipId);
+        const rect = document.createElementNS(NS, "rect") as SVGRectElement;
+        rect.setAttribute("x", String(n.x + 1));
+        rect.setAttribute("y", String(n.y + 1));
+        rect.setAttribute("width", String(n.w - 2));
+        rect.setAttribute("height", String(n.h - 2));
+        rect.setAttribute("rx", "6");
+        clip.appendChild(rect);
+        defs.appendChild(clip);
+        img.setAttribute("clip-path", `url(#${clipId})`);
+
+        // only draw border when stroke is explicitly set
+        const els: SVGElement[] = [defs as unknown as SVGElement, img];
+        if (s.stroke) {
+          els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+            ...opts,
+            fill: "none",
+          }));
+        }
+        return els;
+      }
+      // fallback: placeholder square
+      return [
+        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+          ...opts,
+          fill: "#e0e0e0",
+          stroke: "#999999",
+        }),
+      ];
+    }
+
     case "image": {
       if (n.imageUrl) {
         const img = document.createElementNS(NS, "image") as SVGImageElement;
@@ -430,11 +485,15 @@ function renderShape(
         defs.appendChild(clip);
         img.setAttribute("clip-path", `url(#${clipId})`);
 
-        const border = rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-          ...opts,
-          fill: "none",
-        });
-        return [defs as unknown as SVGElement, img, border];
+        // only draw border when stroke is explicitly set
+        const els: SVGElement[] = [defs as unknown as SVGElement, img];
+        if (s.stroke) {
+          els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
+            ...opts,
+            fill: "none",
+          }));
+        }
+        return els;
       }
       return [
         rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
@@ -815,32 +874,34 @@ export function renderToSVG(
           ? nodeBodyBottom - blockH / 2
           : nodeBodyMid;
 
-    ng.appendChild(
-      lines.length > 1
-        ? mkMultilineText(
-            lines,
-            textX,
-            textCY,
-            fontSize,
-            fontWeight,
-            textColor,
-            textAnchor,
-            lineHeight,
-            nodeFont,
-            letterSpacing,
-          )
-        : mkText(
-            n.label,
-            textX,
-            textCY,
-            fontSize,
-            fontWeight,
-            textColor,
-            textAnchor,
-            nodeFont,
-            letterSpacing,
-          ),
-    );
+    if (n.label) {
+      ng.appendChild(
+        lines.length > 1
+          ? mkMultilineText(
+              lines,
+              textX,
+              textCY,
+              fontSize,
+              fontWeight,
+              textColor,
+              textAnchor,
+              lineHeight,
+              nodeFont,
+              letterSpacing,
+            )
+          : mkText(
+              n.label,
+              textX,
+              textCY,
+              fontSize,
+              fontWeight,
+              textColor,
+              textAnchor,
+              nodeFont,
+              letterSpacing,
+            ),
+      );
+    }
 
     if (options.interactive) {
       ng.style.cursor = "pointer";
