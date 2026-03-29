@@ -230,7 +230,7 @@ export function parse(src: string): DiagramAST {
       kind: "node",
       id,
       shape,
-      label: props.label || (shape === "image" || shape === "icon" ? "" : id),
+      label: props.label || id,
       ...(groupId ? { groupId } : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),

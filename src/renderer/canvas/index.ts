@@ -267,30 +267,33 @@ function renderShape(
         const iconColor = s.color
           ? encodeURIComponent(String(s.color))
           : encodeURIComponent(String(palette.nodeStroke));
-        const iconSize = Math.min(n.w, n.h) - 4;
+        // reserve bottom for label
+        const iconLabelSpace = n.label ? 20 : 0;
+        const iconAreaH = n.h - iconLabelSpace;
+        const iconSize = Math.min(n.w, iconAreaH) - 4;
         const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
           ctx.save();
           if (s.opacity != null) ctx.globalAlpha = Number(s.opacity);
-          // clip-path for rounded corners (same as image)
+          const iconX = n.x + (n.w - iconSize) / 2;
+          const iconY = n.y + (iconAreaH - iconSize) / 2;
           ctx.beginPath();
           const r = 6;
-          ctx.moveTo(n.x+r, n.y);
-          ctx.lineTo(n.x+n.w-r, n.y);
-          ctx.quadraticCurveTo(n.x+n.w, n.y,     n.x+n.w, n.y+r);
-          ctx.lineTo(n.x+n.w, n.y+n.h-r);
-          ctx.quadraticCurveTo(n.x+n.w, n.y+n.h, n.x+n.w-r, n.y+n.h);
-          ctx.lineTo(n.x+r,   n.y+n.h);
-          ctx.quadraticCurveTo(n.x, n.y+n.h, n.x, n.y+n.h-r);
-          ctx.lineTo(n.x, n.y+r);
-          ctx.quadraticCurveTo(n.x, n.y, n.x+r, n.y);
+          ctx.moveTo(iconX+r, iconY);
+          ctx.lineTo(iconX+iconSize-r, iconY);
+          ctx.quadraticCurveTo(iconX+iconSize, iconY, iconX+iconSize, iconY+r);
+          ctx.lineTo(iconX+iconSize, iconY+iconSize-r);
+          ctx.quadraticCurveTo(iconX+iconSize, iconY+iconSize, iconX+iconSize-r, iconY+iconSize);
+          ctx.lineTo(iconX+r, iconY+iconSize);
+          ctx.quadraticCurveTo(iconX, iconY+iconSize, iconX, iconY+iconSize-r);
+          ctx.lineTo(iconX, iconY+r);
+          ctx.quadraticCurveTo(iconX, iconY, iconX+r, iconY);
           ctx.closePath();
           ctx.clip();
-          ctx.drawImage(img, n.x+1, n.y+1, n.w-2, n.h-2);
+          ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
           ctx.restore();
-          // only draw border when stroke is explicitly set
           if (s.stroke) {
             rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
           }
@@ -304,6 +307,9 @@ function renderShape(
     }
     case 'image': {
       if (n.imageUrl) {
+        // reserve bottom for label
+        const imgLblSpace = n.label ? 20 : 0;
+        const imgAreaH = n.h - imgLblSpace;
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -313,15 +319,15 @@ function renderShape(
           ctx.moveTo(n.x+r, n.y);
           ctx.lineTo(n.x+n.w-r, n.y);
           ctx.quadraticCurveTo(n.x+n.w, n.y,     n.x+n.w, n.y+r);
-          ctx.lineTo(n.x+n.w, n.y+n.h-r);
-          ctx.quadraticCurveTo(n.x+n.w, n.y+n.h, n.x+n.w-r, n.y+n.h);
-          ctx.lineTo(n.x+r,   n.y+n.h);
-          ctx.quadraticCurveTo(n.x, n.y+n.h, n.x, n.y+n.h-r);
+          ctx.lineTo(n.x+n.w, n.y+imgAreaH-r);
+          ctx.quadraticCurveTo(n.x+n.w, n.y+imgAreaH, n.x+n.w-r, n.y+imgAreaH);
+          ctx.lineTo(n.x+r,   n.y+imgAreaH);
+          ctx.quadraticCurveTo(n.x, n.y+imgAreaH, n.x, n.y+imgAreaH-r);
           ctx.lineTo(n.x, n.y+r);
           ctx.quadraticCurveTo(n.x, n.y, n.x+r, n.y);
           ctx.closePath();
           ctx.clip();
-          ctx.drawImage(img, n.x+1, n.y+1, n.w-2, n.h-2);
+          ctx.drawImage(img, n.x+1, n.y+1, n.w-2, imgAreaH-2);
           ctx.restore();
           // only draw border when stroke is explicitly set
           if (s.stroke) {
@@ -547,8 +553,10 @@ export function renderToCanvas(
     const nodeBodyTop    = n.y + pad;
     const nodeBodyBottom = n.y + n.h - pad;
     const blockH         = (lines.length - 1) * lineHeight;
-    const textCY =
-      vertAlign === 'top'    ? nodeBodyTop    + blockH / 2
+    const isMediaShape = n.shape === 'icon' || n.shape === 'image';
+    const textCY = isMediaShape
+      ? n.y + n.h - 10  // label below the icon/image
+      : vertAlign === 'top'    ? nodeBodyTop    + blockH / 2
       : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
       : n.y + n.h / 2;   // middle (default)
 

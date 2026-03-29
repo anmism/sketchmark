@@ -99,10 +99,13 @@ function sizeNode(n: SceneNode): void {
       }
       break;
     }
-    case "icon":
-      n.w = n.w || 48;
-      n.h = n.h || (n.label !== n.id ? 64 : 48); // extra height for label
+    case "icon": {
+      const iconBase = 48;
+      const labelH = n.label ? 20 : 0;
+      n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
+      n.h = n.h || (iconBase + labelH);
       break;
+    }
     default:
       n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
       n.h = n.h || 52;

@@ -422,7 +422,7 @@ function parse(src) {
             kind: "node",
             id,
             shape,
-            label: props.label || (shape === "image" || shape === "icon" ? "" : id),
+            label: props.label || id,
             ...(groupId ? { groupId } : {}),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -1507,10 +1507,13 @@ function sizeNode(n) {
             }
             break;
         }
-        case "icon":
-            n.w = n.w || 48;
-            n.h = n.h || (n.label !== n.id ? 64 : 48); // extra height for label
+        case "icon": {
+            const iconBase = 48;
+            const labelH = n.label ? 20 : 0;
+            n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
+            n.h = n.h || (iconBase + labelH);
             break;
+        }
         default:
             n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
             n.h = n.h || 52;
@@ -5114,27 +5117,32 @@ function renderShape$1(rc, n, palette) {
                 const iconColor = s.color
                     ? encodeURIComponent(String(s.color))
                     : encodeURIComponent(String(palette.nodeStroke));
-                const iconSize = Math.min(n.w, n.h) - 4;
+                // reserve bottom 20px for label when present
+                const labelSpace = n.label ? 20 : 0;
+                const iconAreaH = n.h - labelSpace;
+                const iconSize = Math.min(n.w, iconAreaH) - 4;
                 const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
                 const img = document.createElementNS(NS, "image");
                 img.setAttribute("href", iconUrl);
-                img.setAttribute("x", String(n.x + 1));
-                img.setAttribute("y", String(n.y + 1));
-                img.setAttribute("width", String(n.w - 2));
-                img.setAttribute("height", String(n.h - 2));
+                const iconX = n.x + (n.w - iconSize) / 2;
+                const iconY = n.y + (iconAreaH - iconSize) / 2;
+                img.setAttribute("x", String(iconX));
+                img.setAttribute("y", String(iconY));
+                img.setAttribute("width", String(iconSize));
+                img.setAttribute("height", String(iconSize));
                 img.setAttribute("preserveAspectRatio", "xMidYMid meet");
                 if (s.opacity != null)
                     img.setAttribute("opacity", String(s.opacity));
-                // clip-path for rounded corners (same as image)
+                // clip-path for rounded corners
                 const clipId = `clip-${n.id}`;
                 const defs = document.createElementNS(NS, "defs");
                 const clip = document.createElementNS(NS, "clipPath");
                 clip.setAttribute("id", clipId);
                 const rect = document.createElementNS(NS, "rect");
-                rect.setAttribute("x", String(n.x + 1));
-                rect.setAttribute("y", String(n.y + 1));
-                rect.setAttribute("width", String(n.w - 2));
-                rect.setAttribute("height", String(n.h - 2));
+                rect.setAttribute("x", String(iconX));
+                rect.setAttribute("y", String(iconY));
+                rect.setAttribute("width", String(iconSize));
+                rect.setAttribute("height", String(iconSize));
                 rect.setAttribute("rx", "6");
                 clip.appendChild(rect);
                 defs.appendChild(clip);
@@ -5160,12 +5168,15 @@ function renderShape$1(rc, n, palette) {
         }
         case "image": {
             if (n.imageUrl) {
+                // reserve bottom 20px for label when present
+                const imgLabelSpace = n.label ? 20 : 0;
+                const imgAreaH = n.h - imgLabelSpace;
                 const img = document.createElementNS(NS, "image");
                 img.setAttribute("href", n.imageUrl);
                 img.setAttribute("x", String(n.x + 1));
                 img.setAttribute("y", String(n.y + 1));
                 img.setAttribute("width", String(n.w - 2));
-                img.setAttribute("height", String(n.h - 2));
+                img.setAttribute("height", String(imgAreaH - 2));
                 img.setAttribute("preserveAspectRatio", "xMidYMid meet");
                 const clipId = `clip-${n.id}`;
                 const defs = document.createElementNS(NS, "defs");
@@ -5175,7 +5186,7 @@ function renderShape$1(rc, n, palette) {
                 rect.setAttribute("x", String(n.x + 1));
                 rect.setAttribute("y", String(n.y + 1));
                 rect.setAttribute("width", String(n.w - 2));
-                rect.setAttribute("height", String(n.h - 2));
+                rect.setAttribute("height", String(imgAreaH - 2));
                 rect.setAttribute("rx", "6");
                 clip.appendChild(rect);
                 defs.appendChild(clip);
@@ -5427,11 +5438,14 @@ function renderToSVG(sg, container, options = {}) {
         const nodeBodyBottom = n.y + n.h - pad;
         const nodeBodyMid = n.y + n.h / 2;
         const blockH = (lines.length - 1) * lineHeight;
-        const textCY = verticalAlign === "top"
-            ? nodeBodyTop + blockH / 2
-            : verticalAlign === "bottom"
-                ? nodeBodyBottom - blockH / 2
-                : nodeBodyMid;
+        const isMediaShape = n.shape === "icon" || n.shape === "image";
+        const textCY = isMediaShape
+            ? n.y + n.h - 10 // label below the icon/image
+            : verticalAlign === "top"
+                ? nodeBodyTop + blockH / 2
+                : verticalAlign === "bottom"
+                    ? nodeBodyBottom - blockH / 2
+                    : nodeBodyMid;
         if (n.label) {
             ng.appendChild(lines.length > 1
                 ? mkMultilineText(lines, textX, textCY, fontSize, fontWeight, textColor, textAnchor, lineHeight, nodeFont, letterSpacing)
@@ -6142,7 +6156,10 @@ function renderShape(rc, ctx, n, palette, R) {
                 const iconColor = s.color
                     ? encodeURIComponent(String(s.color))
                     : encodeURIComponent(String(palette.nodeStroke));
-                const iconSize = Math.min(n.w, n.h) - 4;
+                // reserve bottom for label
+                const iconLabelSpace = n.label ? 20 : 0;
+                const iconAreaH = n.h - iconLabelSpace;
+                const iconSize = Math.min(n.w, iconAreaH) - 4;
                 const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
@@ -6150,23 +6167,23 @@ function renderShape(rc, ctx, n, palette, R) {
                     ctx.save();
                     if (s.opacity != null)
                         ctx.globalAlpha = Number(s.opacity);
-                    // clip-path for rounded corners (same as image)
+                    const iconX = n.x + (n.w - iconSize) / 2;
+                    const iconY = n.y + (iconAreaH - iconSize) / 2;
                     ctx.beginPath();
                     const r = 6;
-                    ctx.moveTo(n.x + r, n.y);
-                    ctx.lineTo(n.x + n.w - r, n.y);
-                    ctx.quadraticCurveTo(n.x + n.w, n.y, n.x + n.w, n.y + r);
-                    ctx.lineTo(n.x + n.w, n.y + n.h - r);
-                    ctx.quadraticCurveTo(n.x + n.w, n.y + n.h, n.x + n.w - r, n.y + n.h);
-                    ctx.lineTo(n.x + r, n.y + n.h);
-                    ctx.quadraticCurveTo(n.x, n.y + n.h, n.x, n.y + n.h - r);
-                    ctx.lineTo(n.x, n.y + r);
-                    ctx.quadraticCurveTo(n.x, n.y, n.x + r, n.y);
+                    ctx.moveTo(iconX + r, iconY);
+                    ctx.lineTo(iconX + iconSize - r, iconY);
+                    ctx.quadraticCurveTo(iconX + iconSize, iconY, iconX + iconSize, iconY + r);
+                    ctx.lineTo(iconX + iconSize, iconY + iconSize - r);
+                    ctx.quadraticCurveTo(iconX + iconSize, iconY + iconSize, iconX + iconSize - r, iconY + iconSize);
+                    ctx.lineTo(iconX + r, iconY + iconSize);
+                    ctx.quadraticCurveTo(iconX, iconY + iconSize, iconX, iconY + iconSize - r);
+                    ctx.lineTo(iconX, iconY + r);
+                    ctx.quadraticCurveTo(iconX, iconY, iconX + r, iconY);
                     ctx.closePath();
                     ctx.clip();
-                    ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, n.h - 2);
+                    ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
                     ctx.restore();
-                    // only draw border when stroke is explicitly set
                     if (s.stroke) {
                         rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
                     }
@@ -6180,6 +6197,9 @@ function renderShape(rc, ctx, n, palette, R) {
         }
         case 'image': {
             if (n.imageUrl) {
+                // reserve bottom for label
+                const imgLblSpace = n.label ? 20 : 0;
+                const imgAreaH = n.h - imgLblSpace;
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
@@ -6189,15 +6209,15 @@ function renderShape(rc, ctx, n, palette, R) {
                     ctx.moveTo(n.x + r, n.y);
                     ctx.lineTo(n.x + n.w - r, n.y);
                     ctx.quadraticCurveTo(n.x + n.w, n.y, n.x + n.w, n.y + r);
-                    ctx.lineTo(n.x + n.w, n.y + n.h - r);
-                    ctx.quadraticCurveTo(n.x + n.w, n.y + n.h, n.x + n.w - r, n.y + n.h);
-                    ctx.lineTo(n.x + r, n.y + n.h);
-                    ctx.quadraticCurveTo(n.x, n.y + n.h, n.x, n.y + n.h - r);
+                    ctx.lineTo(n.x + n.w, n.y + imgAreaH - r);
+                    ctx.quadraticCurveTo(n.x + n.w, n.y + imgAreaH, n.x + n.w - r, n.y + imgAreaH);
+                    ctx.lineTo(n.x + r, n.y + imgAreaH);
+                    ctx.quadraticCurveTo(n.x, n.y + imgAreaH, n.x, n.y + imgAreaH - r);
                     ctx.lineTo(n.x, n.y + r);
                     ctx.quadraticCurveTo(n.x, n.y, n.x + r, n.y);
                     ctx.closePath();
                     ctx.clip();
-                    ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, n.h - 2);
+                    ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, imgAreaH - 2);
                     ctx.restore();
                     // only draw border when stroke is explicitly set
                     if (s.stroke) {
@@ -6389,9 +6409,12 @@ function renderToCanvas(sg, canvas, options = {}) {
         const nodeBodyTop = n.y + pad;
         const nodeBodyBottom = n.y + n.h - pad;
         const blockH = (lines.length - 1) * lineHeight;
-        const textCY = vertAlign === 'top' ? nodeBodyTop + blockH / 2
-            : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
-                : n.y + n.h / 2; // middle (default)
+        const isMediaShape = n.shape === 'icon' || n.shape === 'image';
+        const textCY = isMediaShape
+            ? n.y + n.h - 10 // label below the icon/image
+            : vertAlign === 'top' ? nodeBodyTop + blockH / 2
+                : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
+                    : n.y + n.h / 2; // middle (default)
         if (n.label) {
             if (lines.length > 1) {
                 drawMultilineText(ctx, lines, textX, textCY, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);

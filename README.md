@@ -180,9 +180,9 @@ icon          id  label="..." name="prefix:name"
 
 > **`text` shape:** No border or background. Long labels auto word-wrap. Use `width=` to control the wrap width.
 
-> **`image` shape:** Renders an image clipped to a rounded rect. Requires `url=` property. Label and border only shown when explicitly set.
+> **`image` shape:** Renders an image clipped to a rounded rect. Requires `url=` property. Label renders below the image. Border only shown when `stroke=` is set.
 
-> **`icon` shape:** Renders an icon from [Iconify](https://iconify.design/) (200,000+ open source icons). Requires `name=` property in `prefix:name` format (e.g. `mdi:database`). Defaults to `mdi` prefix if omitted. Use `color=` to tint the icon. Label and border only shown when explicitly set. Default size: 48x48.
+> **`icon` shape:** Renders an icon from [Iconify](https://iconify.design/) (200,000+ open source icons). Requires `name=` property in `prefix:name` format (e.g. `mdi:database`). Defaults to `mdi` prefix if omitted. Use `color=` to tint the icon. Label renders below the icon. Border only shown when `stroke=` is set. Default size: 48x48.
 
 **Example:**
 ```
@@ -210,7 +210,7 @@ icon id [label="..."] name="prefix:name" [color="#hex"] [width=N] [height=N]
 | `name` | `name="mdi:database"` | Icon identifier in `prefix:name` format. Defaults to `mdi` prefix if omitted |
 | `color` | `color="#1976D2"` | Icon tint color |
 | `stroke` | `stroke="#333"` | Optional border (not shown by default) |
-| `label` | `label="DB"` | Optional label (not shown by default) |
+| `label` | `label="DB"` | Label shown below the icon (defaults to id) |
 | `width` | `width=64` | Icon width (default: 48) |
 | `height` | `height=64` | Icon height (default: 48) |
 

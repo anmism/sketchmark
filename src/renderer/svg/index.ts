@@ -414,28 +414,33 @@ function renderShape(
         const iconColor = s.color
           ? encodeURIComponent(String(s.color))
           : encodeURIComponent(String(palette.nodeStroke));
-        const iconSize = Math.min(n.w, n.h) - 4;
+        // reserve bottom 20px for label when present
+        const labelSpace = n.label ? 20 : 0;
+        const iconAreaH = n.h - labelSpace;
+        const iconSize = Math.min(n.w, iconAreaH) - 4;
         const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
 
         const img = document.createElementNS(NS, "image") as SVGImageElement;
         img.setAttribute("href", iconUrl);
-        img.setAttribute("x", String(n.x + 1));
-        img.setAttribute("y", String(n.y + 1));
-        img.setAttribute("width", String(n.w - 2));
-        img.setAttribute("height", String(n.h - 2));
+        const iconX = n.x + (n.w - iconSize) / 2;
+        const iconY = n.y + (iconAreaH - iconSize) / 2;
+        img.setAttribute("x", String(iconX));
+        img.setAttribute("y", String(iconY));
+        img.setAttribute("width", String(iconSize));
+        img.setAttribute("height", String(iconSize));
         img.setAttribute("preserveAspectRatio", "xMidYMid meet");
         if (s.opacity != null) img.setAttribute("opacity", String(s.opacity));
 
-        // clip-path for rounded corners (same as image)
+        // clip-path for rounded corners
         const clipId = `clip-${n.id}`;
         const defs = document.createElementNS(NS, "defs");
         const clip = document.createElementNS(NS, "clipPath");
         clip.setAttribute("id", clipId);
         const rect = document.createElementNS(NS, "rect") as SVGRectElement;
-        rect.setAttribute("x", String(n.x + 1));
-        rect.setAttribute("y", String(n.y + 1));
-        rect.setAttribute("width", String(n.w - 2));
-        rect.setAttribute("height", String(n.h - 2));
+        rect.setAttribute("x", String(iconX));
+        rect.setAttribute("y", String(iconY));
+        rect.setAttribute("width", String(iconSize));
+        rect.setAttribute("height", String(iconSize));
         rect.setAttribute("rx", "6");
         clip.appendChild(rect);
         defs.appendChild(clip);
@@ -463,12 +468,16 @@ function renderShape(
 
     case "image": {
       if (n.imageUrl) {
+        // reserve bottom 20px for label when present
+        const imgLabelSpace = n.label ? 20 : 0;
+        const imgAreaH = n.h - imgLabelSpace;
+
         const img = document.createElementNS(NS, "image") as SVGImageElement;
         img.setAttribute("href", n.imageUrl);
         img.setAttribute("x", String(n.x + 1));
         img.setAttribute("y", String(n.y + 1));
         img.setAttribute("width", String(n.w - 2));
-        img.setAttribute("height", String(n.h - 2));
+        img.setAttribute("height", String(imgAreaH - 2));
         img.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
         const clipId = `clip-${n.id}`;
@@ -479,7 +488,7 @@ function renderShape(
         rect.setAttribute("x", String(n.x + 1));
         rect.setAttribute("y", String(n.y + 1));
         rect.setAttribute("width", String(n.w - 2));
-        rect.setAttribute("height", String(n.h - 2));
+        rect.setAttribute("height", String(imgAreaH - 2));
         rect.setAttribute("rx", "6");
         clip.appendChild(rect);
         defs.appendChild(clip);
@@ -867,8 +876,10 @@ export function renderToSVG(
     const nodeBodyMid = n.y + n.h / 2;
     const blockH = (lines.length - 1) * lineHeight;
 
-    const textCY =
-      verticalAlign === "top"
+    const isMediaShape = n.shape === "icon" || n.shape === "image";
+    const textCY = isMediaShape
+      ? n.y + n.h - 10  // label below the icon/image
+      : verticalAlign === "top"
         ? nodeBodyTop + blockH / 2
         : verticalAlign === "bottom"
           ? nodeBodyBottom - blockH / 2
