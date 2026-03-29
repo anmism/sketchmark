@@ -5460,27 +5460,31 @@ var AIDiagram = (function (exports) {
             const gs = n.style ?? {};
             const fill = String(gs.fill ?? palette.noteFill);
             const strk = String(gs.stroke ?? palette.noteStroke);
+            const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
             const fold = 14;
             const { x, y, w, h } = n;
+            if (gs.opacity != null)
+                ng.setAttribute("opacity", String(gs.opacity));
             // ── Note typography ─────────────────────────────────
-            // supports: font, font-size, letter-spacing, text-align, line-height
             const nFontSize = Number(gs.fontSize ?? 12);
+            const nFontWeight = gs.fontWeight ?? 400;
             const nFont = resolveStyleFont$1(gs, diagramFont);
             const nLetterSpacing = gs.letterSpacing;
             const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
             const nTextAlign = String(gs.textAlign ?? "left");
+            const nPad = Number(gs.padding ?? 12);
             const nAnchorMap = {
                 left: "start",
                 center: "middle",
                 right: "end",
             };
             const nAnchor = nAnchorMap[nTextAlign] ?? "start";
-            // x position for the text block (pad from left, with alignment)
             const nTextX = nTextAlign === "right"
-                ? x + w - fold - 6
+                ? x + w - fold - nPad
                 : nTextAlign === "center"
                     ? x + (w - fold) / 2
-                    : x + 12;
+                    : x + nPad;
+            const nFoldPad = fold + nPad; // text starts below fold + user padding
             ng.appendChild(rc.polygon([
                 [x, y],
                 [x + w - fold, y],
@@ -5493,7 +5497,8 @@ var AIDiagram = (function (exports) {
                 fill,
                 fillStyle: "solid",
                 stroke: strk,
-                strokeWidth: 1.2,
+                strokeWidth: nStrokeWidth,
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
             }));
             ng.appendChild(rc.polygon([
                 [x + w - fold, y],
@@ -5505,11 +5510,11 @@ var AIDiagram = (function (exports) {
                 fill: palette.noteFold,
                 fillStyle: "solid",
                 stroke: strk,
-                strokeWidth: 0.8,
+                strokeWidth: Math.min(nStrokeWidth, 0.8),
             }));
             const nVerticalAlign = String(gs.verticalAlign ?? "top");
-            const bodyTop = y + fold + 8; // below the fold triangle
-            const bodyBottom = y + h - 8; // above bottom edge
+            const bodyTop = y + nFoldPad;
+            const bodyBottom = y + h - nPad;
             const bodyMid = (bodyTop + bodyBottom) / 2;
             const blockH = (n.lines.length - 1) * nLineHeight;
             const blockCY = nVerticalAlign === "bottom"
@@ -5517,13 +5522,11 @@ var AIDiagram = (function (exports) {
                 : nVerticalAlign === "middle"
                     ? bodyMid
                     : bodyTop + blockH / 2;
-            // multiline: use mkMultilineText so line-height is respected
             if (n.lines.length > 1) {
-                // vertical centre of the text block inside the note
-                ng.appendChild(mkMultilineText(n.lines, nTextX, blockCY, nFontSize, 400, String(gs.color ?? palette.noteText), nAnchor, nLineHeight, nFont, nLetterSpacing));
+                ng.appendChild(mkMultilineText(n.lines, nTextX, blockCY, nFontSize, nFontWeight, String(gs.color ?? palette.noteText), nAnchor, nLineHeight, nFont, nLetterSpacing));
             }
             else {
-                ng.appendChild(mkText(n.lines[0] ?? "", nTextX, blockCY, nFontSize, 400, String(gs.color ?? palette.noteText), nAnchor, nFont, nLetterSpacing));
+                ng.appendChild(mkText(n.lines[0] ?? "", nTextX, blockCY, nFontSize, nFontWeight, String(gs.color ?? palette.noteText), nAnchor, nFont, nLetterSpacing));
             }
             NoteL.appendChild(ng);
         }
@@ -6277,47 +6280,56 @@ var AIDiagram = (function (exports) {
             const gs = n.style ?? {};
             const fill = String(gs.fill ?? palette.noteFill);
             const strk = String(gs.stroke ?? palette.noteStroke);
+            const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
             const fold = 14;
             const { x, y, w, h } = n;
+            if (gs.opacity != null)
+                ctx.globalAlpha = Number(gs.opacity);
             rc.polygon([
                 [x, y],
                 [x + w - fold, y],
                 [x + w, y + fold],
                 [x + w, y + h],
                 [x, y + h],
-            ], { ...R, seed: hashStr$1(n.id), fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.2 });
+            ], { ...R, seed: hashStr$1(n.id), fill, fillStyle: 'solid', stroke: strk,
+                strokeWidth: nStrokeWidth,
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
+            });
             rc.polygon([
                 [x + w - fold, y],
                 [x + w, y + fold],
                 [x + w - fold, y + fold],
             ], { roughness: 0.4, seed: hashStr$1(n.id + 'f'),
-                fill: palette.noteFold, fillStyle: 'solid', stroke: strk, strokeWidth: 0.8 });
-            // ── Note typography ─────────────────────────────────
-            // supports: font, font-size, letter-spacing, text-align,
-            //           vertical-align, line-height
+                fill: palette.noteFold, fillStyle: 'solid', stroke: strk,
+                strokeWidth: Math.min(nStrokeWidth, 0.8),
+            });
             const nFontSize = Number(gs.fontSize ?? 12);
+            const nFontWeight = gs.fontWeight ?? 400;
             const nFont = resolveStyleFont(gs, diagramFont);
             const nLetterSpacing = gs.letterSpacing;
             const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
             const nTextAlign = String(gs.textAlign ?? 'left');
             const nVertAlign = String(gs.verticalAlign ?? 'top');
             const nColor = String(gs.color ?? palette.noteText);
-            const nTextX = nTextAlign === 'right' ? x + w - fold - 6
+            const nPad = Number(gs.padding ?? 12);
+            const nTextX = nTextAlign === 'right' ? x + w - fold - nPad
                 : nTextAlign === 'center' ? x + (w - fold) / 2
-                    : x + 12;
-            // vertical-align inside note body (below fold)
-            const bodyTop = y + fold + 8;
-            const bodyBottom = y + h - 8;
+                    : x + nPad;
+            const nFoldPad = fold + nPad;
+            const bodyTop = y + nFoldPad;
+            const bodyBottom = y + h - nPad;
             const blockH = (n.lines.length - 1) * nLineHeight;
             const blockCY = nVertAlign === 'bottom' ? bodyBottom - blockH / 2
                 : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
-                    : bodyTop + blockH / 2; // top (default)
+                    : bodyTop + blockH / 2;
             if (n.lines.length > 1) {
-                drawMultilineText(ctx, n.lines, nTextX, blockCY, nFontSize, 400, nColor, nTextAlign, nLineHeight, nFont, nLetterSpacing);
+                drawMultilineText(ctx, n.lines, nTextX, blockCY, nFontSize, nFontWeight, nColor, nTextAlign, nLineHeight, nFont, nLetterSpacing);
             }
             else {
-                drawText(ctx, n.lines[0] ?? '', nTextX, blockCY, nFontSize, 400, nColor, nTextAlign, nFont, nLetterSpacing);
+                drawText(ctx, n.lines[0] ?? '', nTextX, blockCY, nFontSize, nFontWeight, nColor, nTextAlign, nFont, nLetterSpacing);
             }
+            if (gs.opacity != null)
+                ctx.globalAlpha = 1;
         }
         // ── Markdown blocks ────────────────────────────────────────
         // Renders prose with Markdown headings and bold/italic inline spans.

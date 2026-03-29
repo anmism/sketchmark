@@ -577,8 +577,11 @@ export function renderToCanvas(
     const gs   = n.style ?? {};
     const fill = String(gs.fill   ?? palette.noteFill);
     const strk = String(gs.stroke ?? palette.noteStroke);
+    const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
     const fold = 14;
     const { x, y, w, h } = n;
+
+    if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);
 
     rc.polygon([
       [x,        y],
@@ -586,48 +589,53 @@ export function renderToCanvas(
       [x+w,      y+fold],
       [x+w,      y+h],
       [x,        y+h],
-    ], { ...R, seed: hashStr(n.id), fill, fillStyle: 'solid', stroke: strk, strokeWidth: 1.2 });
+    ], { ...R, seed: hashStr(n.id), fill, fillStyle: 'solid', stroke: strk,
+      strokeWidth: nStrokeWidth,
+      ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
+    });
 
     rc.polygon([
       [x+w-fold, y],
       [x+w,      y+fold],
       [x+w-fold, y+fold],
     ], { roughness: 0.4, seed: hashStr(n.id+'f'),
-      fill: palette.noteFold, fillStyle: 'solid', stroke: strk, strokeWidth: 0.8 });
+      fill: palette.noteFold, fillStyle: 'solid', stroke: strk,
+      strokeWidth: Math.min(nStrokeWidth, 0.8),
+    });
 
-    // ── Note typography ─────────────────────────────────
-    // supports: font, font-size, letter-spacing, text-align,
-    //           vertical-align, line-height
     const nFontSize      = Number(gs.fontSize      ?? 12);
+    const nFontWeight    = gs.fontWeight ?? 400;
     const nFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const nLetterSpacing = gs.letterSpacing as number | undefined;
     const nLineHeight    = Number(gs.lineHeight    ?? 1.4) * nFontSize;
     const nTextAlign     = String(gs.textAlign     ?? 'left') as 'left'|'center'|'right';
     const nVertAlign     = String(gs.verticalAlign ?? 'top');
     const nColor         = String(gs.color         ?? palette.noteText);
+    const nPad           = Number(gs.padding       ?? 12);
 
-    const nTextX = nTextAlign === 'right'  ? x + w - fold - 6
+    const nTextX = nTextAlign === 'right'  ? x + w - fold - nPad
                  : nTextAlign === 'center' ? x + (w - fold) / 2
-                 : x + 12;
+                 : x + nPad;
 
-    // vertical-align inside note body (below fold)
-    const bodyTop    = y + fold + 8;
-    const bodyBottom = y + h - 8;
+    const nFoldPad   = fold + nPad;
+    const bodyTop    = y + nFoldPad;
+    const bodyBottom = y + h - nPad;
     const blockH     = (n.lines.length - 1) * nLineHeight;
     const blockCY    =
       nVertAlign === 'bottom' ? bodyBottom - blockH / 2
       : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
-      : bodyTop + blockH / 2;   // top (default)
+      : bodyTop + blockH / 2;
 
     if (n.lines.length > 1) {
       drawMultilineText(ctx, n.lines, nTextX, blockCY,
-        nFontSize, 400, nColor,
+        nFontSize, nFontWeight, nColor,
         nTextAlign, nLineHeight, nFont, nLetterSpacing);
     } else {
       drawText(ctx, n.lines[0] ?? '', nTextX, blockCY,
-        nFontSize, 400, nColor,
+        nFontSize, nFontWeight, nColor,
         nTextAlign, nFont, nLetterSpacing);
     }
+    if (gs.opacity != null) ctx.globalAlpha = 1;
   }
 
   // ── Markdown blocks ────────────────────────────────────────

@@ -978,29 +978,34 @@ export function renderToSVG(
     const gs = n.style ?? {};
     const fill = String(gs.fill ?? palette.noteFill);
     const strk = String(gs.stroke ?? palette.noteStroke);
+    const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
     const fold = 14;
     const { x, y, w, h } = n;
 
+    if (gs.opacity != null) ng.setAttribute("opacity", String(gs.opacity));
+
     // ── Note typography ─────────────────────────────────
-    // supports: font, font-size, letter-spacing, text-align, line-height
     const nFontSize = Number(gs.fontSize ?? 12);
+    const nFontWeight = gs.fontWeight ?? 400;
     const nFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
     const nLetterSpacing = gs.letterSpacing as number | undefined;
     const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
     const nTextAlign = String(gs.textAlign ?? "left");
+    const nPad = Number(gs.padding ?? 12);
     const nAnchorMap: Record<string, "start" | "middle" | "end"> = {
       left: "start",
       center: "middle",
       right: "end",
     };
     const nAnchor = nAnchorMap[nTextAlign] ?? "start";
-    // x position for the text block (pad from left, with alignment)
     const nTextX =
       nTextAlign === "right"
-        ? x + w - fold - 6
+        ? x + w - fold - nPad
         : nTextAlign === "center"
           ? x + (w - fold) / 2
-          : x + 12;
+          : x + nPad;
+
+    const nFoldPad = fold + nPad; // text starts below fold + user padding
 
     ng.appendChild(
       rc.polygon(
@@ -1017,7 +1022,8 @@ export function renderToSVG(
           fill,
           fillStyle: "solid",
           stroke: strk,
-          strokeWidth: 1.2,
+          strokeWidth: nStrokeWidth,
+          ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
         },
       ),
     );
@@ -1035,33 +1041,31 @@ export function renderToSVG(
           fill: palette.noteFold,
           fillStyle: "solid",
           stroke: strk,
-          strokeWidth: 0.8,
+          strokeWidth: Math.min(nStrokeWidth, 0.8),
         },
       ),
     );
 
-     const nVerticalAlign = String(gs.verticalAlign ?? "top");
-      const bodyTop = y + fold + 8; // below the fold triangle
-      const bodyBottom = y + h - 8; // above bottom edge
-      const bodyMid = (bodyTop + bodyBottom) / 2;
-      const blockH = (n.lines.length - 1) * nLineHeight;
-      const blockCY =
-        nVerticalAlign === "bottom"
-          ? bodyBottom - blockH / 2
-          : nVerticalAlign === "middle"
-            ? bodyMid
-            : bodyTop + blockH / 2;
+    const nVerticalAlign = String(gs.verticalAlign ?? "top");
+    const bodyTop = y + nFoldPad;
+    const bodyBottom = y + h - nPad;
+    const bodyMid = (bodyTop + bodyBottom) / 2;
+    const blockH = (n.lines.length - 1) * nLineHeight;
+    const blockCY =
+      nVerticalAlign === "bottom"
+        ? bodyBottom - blockH / 2
+        : nVerticalAlign === "middle"
+          ? bodyMid
+          : bodyTop + blockH / 2;
 
-    // multiline: use mkMultilineText so line-height is respected
     if (n.lines.length > 1) {
-      // vertical centre of the text block inside the note
       ng.appendChild(
         mkMultilineText(
           n.lines,
           nTextX,
           blockCY,
           nFontSize,
-          400,
+          nFontWeight,
           String(gs.color ?? palette.noteText),
           nAnchor,
           nLineHeight,
@@ -1076,7 +1080,7 @@ export function renderToSVG(
           nTextX,
           blockCY,
           nFontSize,
-          400,
+          nFontWeight,
           String(gs.color ?? palette.noteText),
           nAnchor,
           nFont,
