@@ -73,8 +73,6 @@ function propsToStyle(p: Record<string, string>): StyleProps {
   if (p["stroke-width"]) s.strokeWidth = parseFloat(p["stroke-width"]);
   if (p.color) s.color = p.color;
   if (p.opacity) s.opacity = parseFloat(p.opacity);
-  if (p.radius) s.radius = parseFloat(p.radius);
-  if (p.shadow) s.shadow = p.shadow === "true";
   if (p["font-size"]) s.fontSize = parseFloat(p["font-size"]);
   if (p["font-weight"]) s.fontWeight = p["font-weight"];
   if (p["text-align"]) s.textAlign = p["text-align"] as StyleProps["textAlign"];
@@ -84,8 +82,9 @@ function propsToStyle(p: Record<string, string>): StyleProps {
   if (p["line-height"]) s.lineHeight = parseFloat(p["line-height"]);
   if (p["letter-spacing"]) s.letterSpacing = parseFloat(p["letter-spacing"]);
   if (p.font) s.font = p.font;
-  if (p["dash"]) {
-    const parts = p["dash"]
+  const dashVal = p["dash"] || p["stroke-dash"];
+  if (dashVal) {
+    const parts = dashVal
       .split(",")
       .map(Number)
       .filter((n) => !isNaN(n));

@@ -11,13 +11,9 @@ export interface StyleProps {
     strokeWidth?: number;
     color?: string;
     opacity?: number;
-    radius?: number;
-    shadow?: boolean;
     fontSize?: number;
     fontWeight?: number | string;
     font?: string;
-    labelColor?: string;
-    [key: string]: unknown;
     strokeDash?: number[];
     padding?: number;
     textAlign?: 'left' | 'center' | 'right';

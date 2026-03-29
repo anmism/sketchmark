@@ -218,6 +218,7 @@ function renderShape(
     ...R, seed: hashStr(n.id),
     fill, fillStyle: 'solid',
     stroke, strokeWidth: Number(s.strokeWidth ?? 1.9),
+    ...(s.strokeDash ? { strokeLineDash: s.strokeDash as number[] } : {}),
   };
   const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
   const hw = n.w / 2 - 2;
@@ -443,6 +444,7 @@ export function renderToCanvas(
 
   // ── Nodes ─────────────────────────────────────────────────
   for (const n of sg.nodes) {
+    if (n.style?.opacity != null) ctx.globalAlpha = Number(n.style.opacity);
     renderShape(rc, ctx, n, palette, R);
 
     // ── Node / text typography ─────────────────────────
@@ -459,20 +461,22 @@ export function renderToCanvas(
     const letterSpacing = n.style?.letterSpacing as number | undefined;
     const vertAlign     = String(n.style?.verticalAlign ?? 'middle');
 
+    const pad = Number(n.style?.padding ?? 8);
+
     // x shifts for left/right alignment
-    const textX = textAlign === 'left'  ? n.x + 8
-                : textAlign === 'right' ? n.x + n.w - 8
+    const textX = textAlign === 'left'  ? n.x + pad
+                : textAlign === 'right' ? n.x + n.w - pad
                 : n.x + n.w / 2;
 
     // word-wrap for text shape; explicit \n for all others
     const rawLines = n.label.split('\n');
     const lines    = n.shape === 'text' && rawLines.length === 1
-      ? wrapText(n.label, n.w - 16, fontSize)
+      ? wrapText(n.label, n.w - pad * 2, fontSize)
       : rawLines;
 
     // vertical-align: compute textCY from top/middle/bottom
-    const nodeBodyTop    = n.y + 6;
-    const nodeBodyBottom = n.y + n.h - 6;
+    const nodeBodyTop    = n.y + pad;
+    const nodeBodyBottom = n.y + n.h - pad;
     const blockH         = (lines.length - 1) * lineHeight;
     const textCY =
       vertAlign === 'top'    ? nodeBodyTop    + blockH / 2
@@ -488,6 +492,7 @@ export function renderToCanvas(
         fontSize, fontWeight, textColor,
         textAlign, nodeFont, letterSpacing);
     }
+    if (n.style?.opacity != null) ctx.globalAlpha = 1;
   }
 
   // ── Tables ────────────────────────────────────────────────

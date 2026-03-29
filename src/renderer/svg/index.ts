@@ -317,6 +317,7 @@ function renderShape(
     fillStyle: "solid",
     stroke,
     strokeWidth: Number(s.strokeWidth ?? 1.9),
+    ...(s.strokeDash ? { strokeLineDash: s.strokeDash as number[] } : {}),
   };
   const cx = n.x + n.w / 2,
     cy = n.y + n.h / 2;
@@ -728,6 +729,7 @@ export function renderToSVG(
   const NL = mkGroup("node-layer");
   for (const n of sg.nodes) {
     const ng = mkGroup(`node-${n.id}`, "ng");
+    if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
     renderShape(rc, n, palette).forEach((s) => ng.appendChild(s));
 
     // ── Node / text typography ─────────────────────────
@@ -757,22 +759,24 @@ export function renderToSVG(
     const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
     const letterSpacing = n.style?.letterSpacing as number | undefined;
 
+    const pad = Number(n.style?.padding ?? 8);
+
     // x shifts for left / right alignment
     const textX =
       textAlign === "left"
-        ? n.x + 8
+        ? n.x + pad
         : textAlign === "right"
-          ? n.x + n.w - 8
+          ? n.x + n.w - pad
           : n.x + n.w / 2;
 
     const lines = n.shape === 'text' && !n.label.includes('\n')
-  ? wrapText(n.label, n.w - 16, fontSize)
+  ? wrapText(n.label, n.w - pad * 2, fontSize)
   : n.label.split('\n');
 
     const verticalAlign = String(n.style?.verticalAlign ?? "middle");
 
-    const nodeBodyTop = n.y + 6;
-    const nodeBodyBottom = n.y + n.h - 6;
+    const nodeBodyTop = n.y + pad;
+    const nodeBodyBottom = n.y + n.h - pad;
     const nodeBodyMid = n.y + n.h / 2;
     const blockH = (lines.length - 1) * lineHeight;
 

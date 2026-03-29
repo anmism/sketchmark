@@ -17,16 +17,19 @@ export type AnimationAction  = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase
 export type AnimationTrigger = 'on-click'
 
 export interface StyleProps {
-  fill?: string; stroke?: string; strokeWidth?: number;
-  color?: string; opacity?: number; radius?: number;
-  shadow?: boolean; fontSize?: number; fontWeight?: number | string;
-  font?:        string;
-  labelColor?: string; [key: string]: unknown;
-  strokeDash?: number[]; 
-  padding?:     number;
-  textAlign?:     'left' | 'center' | 'right';  
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  color?: string;
+  opacity?: number;
+  fontSize?: number;
+  fontWeight?: number | string;
+  font?: string;
+  strokeDash?: number[];
+  padding?: number;
+  textAlign?: 'left' | 'center' | 'right';
   verticalAlign?: 'top' | 'middle' | 'bottom';
-  lineHeight?:    number;                          
+  lineHeight?: number;
   letterSpacing?: number;
 }
 

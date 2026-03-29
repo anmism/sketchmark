@@ -262,10 +262,6 @@ var AIDiagram = (function (exports) {
             s.color = p.color;
         if (p.opacity)
             s.opacity = parseFloat(p.opacity);
-        if (p.radius)
-            s.radius = parseFloat(p.radius);
-        if (p.shadow)
-            s.shadow = p.shadow === "true";
         if (p["font-size"])
             s.fontSize = parseFloat(p["font-size"]);
         if (p["font-weight"])
@@ -282,8 +278,9 @@ var AIDiagram = (function (exports) {
             s.letterSpacing = parseFloat(p["letter-spacing"]);
         if (p.font)
             s.font = p.font;
-        if (p["dash"]) {
-            const parts = p["dash"]
+        const dashVal = p["dash"] || p["stroke-dash"];
+        if (dashVal) {
+            const parts = dashVal
                 .split(",")
                 .map(Number)
                 .filter((n) => !isNaN(n));
@@ -5024,6 +5021,7 @@ var AIDiagram = (function (exports) {
             fillStyle: "solid",
             stroke,
             strokeWidth: Number(s.strokeWidth ?? 1.9),
+            ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
         };
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
         const hw = n.w / 2 - 2;
@@ -5295,6 +5293,8 @@ var AIDiagram = (function (exports) {
         const NL = mkGroup("node-layer");
         for (const n of sg.nodes) {
             const ng = mkGroup(`node-${n.id}`, "ng");
+            if (n.style?.opacity != null)
+                ng.setAttribute("opacity", String(n.style.opacity));
             renderShape$1(rc, n, palette).forEach((s) => ng.appendChild(s));
             // ── Node / text typography ─────────────────────────
             // supports: font, font-size, letter-spacing, text-align, line-height
@@ -5313,18 +5313,19 @@ var AIDiagram = (function (exports) {
             // line-height is a multiplier (e.g. 1.4 = 140% of font-size)
             const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
             const letterSpacing = n.style?.letterSpacing;
+            const pad = Number(n.style?.padding ?? 8);
             // x shifts for left / right alignment
             const textX = textAlign === "left"
-                ? n.x + 8
+                ? n.x + pad
                 : textAlign === "right"
-                    ? n.x + n.w - 8
+                    ? n.x + n.w - pad
                     : n.x + n.w / 2;
             const lines = n.shape === 'text' && !n.label.includes('\n')
-                ? wrapText$1(n.label, n.w - 16, fontSize)
+                ? wrapText$1(n.label, n.w - pad * 2, fontSize)
                 : n.label.split('\n');
             const verticalAlign = String(n.style?.verticalAlign ?? "middle");
-            const nodeBodyTop = n.y + 6;
-            const nodeBodyBottom = n.y + n.h - 6;
+            const nodeBodyTop = n.y + pad;
+            const nodeBodyBottom = n.y + n.h - pad;
             const nodeBodyMid = n.y + n.h / 2;
             const blockH = (lines.length - 1) * lineHeight;
             const textCY = verticalAlign === "top"
@@ -5956,6 +5957,7 @@ var AIDiagram = (function (exports) {
             ...R, seed: hashStr$1(n.id),
             fill, fillStyle: 'solid',
             stroke, strokeWidth: Number(s.strokeWidth ?? 1.9),
+            ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
         };
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
         const hw = n.w / 2 - 2;
@@ -6159,6 +6161,8 @@ var AIDiagram = (function (exports) {
         }
         // ── Nodes ─────────────────────────────────────────────────
         for (const n of sg.nodes) {
+            if (n.style?.opacity != null)
+                ctx.globalAlpha = Number(n.style.opacity);
             renderShape(rc, ctx, n, palette, R);
             // ── Node / text typography ─────────────────────────
             // supports: font, font-size, letter-spacing, text-align,
@@ -6172,18 +6176,19 @@ var AIDiagram = (function (exports) {
             const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
             const letterSpacing = n.style?.letterSpacing;
             const vertAlign = String(n.style?.verticalAlign ?? 'middle');
+            const pad = Number(n.style?.padding ?? 8);
             // x shifts for left/right alignment
-            const textX = textAlign === 'left' ? n.x + 8
-                : textAlign === 'right' ? n.x + n.w - 8
+            const textX = textAlign === 'left' ? n.x + pad
+                : textAlign === 'right' ? n.x + n.w - pad
                     : n.x + n.w / 2;
             // word-wrap for text shape; explicit \n for all others
             const rawLines = n.label.split('\n');
             const lines = n.shape === 'text' && rawLines.length === 1
-                ? wrapText(n.label, n.w - 16, fontSize)
+                ? wrapText(n.label, n.w - pad * 2, fontSize)
                 : rawLines;
             // vertical-align: compute textCY from top/middle/bottom
-            const nodeBodyTop = n.y + 6;
-            const nodeBodyBottom = n.y + n.h - 6;
+            const nodeBodyTop = n.y + pad;
+            const nodeBodyBottom = n.y + n.h - pad;
             const blockH = (lines.length - 1) * lineHeight;
             const textCY = vertAlign === 'top' ? nodeBodyTop + blockH / 2
                 : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
@@ -6194,6 +6199,8 @@ var AIDiagram = (function (exports) {
             else {
                 drawText(ctx, lines[0] ?? '', textX, textCY, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
             }
+            if (n.style?.opacity != null)
+                ctx.globalAlpha = 1;
         }
         // ── Tables ────────────────────────────────────────────────
         for (const t of sg.tables) {
