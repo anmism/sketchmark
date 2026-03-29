@@ -850,7 +850,7 @@ function parse(src) {
             kind: "chart",
             id,
             chartType: chartType.replace("-chart", ""),
-            title: props.title,
+            label: props.label ?? props.title,
             data: { headers, rows },
             width: props.width ? parseFloat(props.width) : undefined,
             height: props.height ? parseFloat(props.height) : undefined,
@@ -1342,7 +1342,7 @@ function buildSceneGraph(ast) {
         return {
             id: c.id,
             chartType: c.chartType,
-            title: c.title,
+            label: c.label,
             data: c.data,
             style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
             x: 0,
@@ -2077,7 +2077,7 @@ const CHART_COLORS = [
     '#7F77DD', '#D4537E', '#639922', '#E24B4A',
 ];
 function chartLayout(c) {
-    const titleH = c.title ? 24 : 8;
+    const titleH = c.label ? 24 : 8;
     const padL = 44, padR = 12, padB = 28, padT = 6;
     const pw = c.w - padL - padR;
     const ph = c.h - titleH - padT - padB;
@@ -2265,17 +2265,17 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
         ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
     }));
     // Title
-    if (c.title) {
-        cg.appendChild(mkT(c.title, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
+    if (c.label) {
+        cg.appendChild(mkT(c.label, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
     }
     const { px, py, pw, ph, cx, cy } = chartLayout(c);
     // ── Pie / Donut ──────────────────────────────────────────
     if (c.chartType === 'pie' || c.chartType === 'donut') {
         const { segments, total } = parsePie(c.data);
-        const r = Math.min(c.w * 0.38, (c.h - (c.title ? 24 : 8)) * 0.44);
+        const r = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
         const ir = c.chartType === 'donut' ? r * 0.48 : 0;
         const legendX = c.x + 8;
-        const legendY = c.y + (c.title ? 28 : 12);
+        const legendY = c.y + (c.label ? 28 : 12);
         let angle = -Math.PI / 2;
         for (const seg of segments) {
             const sweep = (seg.value / total) * Math.PI * 2;
@@ -2313,7 +2313,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
                 strokeWidth: 1.2,
             }));
         });
-        legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
+        legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
         return cg;
     }
     // ── Bar / Line / Area ─────────────────────────────────────
@@ -5760,23 +5760,23 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
         ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
     });
     // Title
-    if (c.title) {
+    if (c.label) {
         ctx.save();
         ctx.font = `${cFontWeight} ${cFontSize}px ${cFont}`;
         ctx.fillStyle = lc;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(c.title, c.x + c.w / 2, c.y + 14);
+        ctx.fillText(c.label, c.x + c.w / 2, c.y + 14);
         ctx.restore();
     }
     const { px, py, pw, ph, cx, cy } = chartLayout(c);
     // ── Pie / Donut ──────────────────────────────────────────
     if (c.chartType === 'pie' || c.chartType === 'donut') {
         const { segments, total } = parsePie(c.data);
-        const r = Math.min(c.w * 0.38, (c.h - (c.title ? 24 : 8)) * 0.44);
+        const r = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
         const ir = c.chartType === 'donut' ? r * 0.48 : 0;
         const legendX = c.x + 8;
-        const legendY = c.y + (c.title ? 28 : 12);
+        const legendY = c.y + (c.label ? 28 : 12);
         let angle = -Math.PI / 2;
         segments.forEach((seg, i) => {
             const sweep = (seg.value / total) * Math.PI * 2;
@@ -5804,7 +5804,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
                 strokeWidth: 1.2,
             });
         });
-        drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
+        drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
         ctx.globalAlpha = 1;
         return;
     }

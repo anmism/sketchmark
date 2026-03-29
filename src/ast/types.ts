@@ -97,7 +97,7 @@ export interface ASTChartData { headers: string[]; rows: (string | number)[][]; 
 export interface ASTChart {
   kind: 'chart'; id: string;
   chartType: 'bar' | 'line' | 'pie' | 'donut' | 'scatter' | 'area';
-  title?: string; data: ASTChartData; width?: number; height?: number;
+  label?: string; data: ASTChartData; width?: number; height?: number;
   theme?: string;
   style?: StyleProps;
 }

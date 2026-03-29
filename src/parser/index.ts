@@ -692,7 +692,7 @@ export function parse(src: string): DiagramAST {
       kind: "chart",
       id,
       chartType: chartType.replace("-chart", "") as ASTChart["chartType"],
-      title: props.title,
+      label: props.label ?? props.title,
       data: { headers, rows },
       width: props.width ? parseFloat(props.width) : undefined,
       height: props.height ? parseFloat(props.height) : undefined,

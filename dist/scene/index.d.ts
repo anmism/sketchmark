@@ -84,7 +84,7 @@ export interface SceneNote {
 export interface SceneChart {
     id: string;
     chartType: string;
-    title?: string;
+    label?: string;
     data: {
         headers: string[];
         rows: (string | number)[][];

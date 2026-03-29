@@ -121,7 +121,7 @@ export interface ASTChart {
     kind: 'chart';
     id: string;
     chartType: 'bar' | 'line' | 'pie' | 'donut' | 'scatter' | 'area';
-    title?: string;
+    label?: string;
     data: ASTChartData;
     width?: number;
     height?: number;

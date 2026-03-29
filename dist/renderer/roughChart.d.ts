@@ -13,7 +13,7 @@ export declare function chartLayout(c: {
     y: number;
     w: number;
     h: number;
-    title?: string;
+    label?: string;
 }): ChartLayout;
 export interface BarLineSeries {
     name: string;

@@ -21,9 +21,9 @@ export interface ChartLayout {
 }
 
 export function chartLayout(c: {
-  x: number; y: number; w: number; h: number; title?: string;
+  x: number; y: number; w: number; h: number; label?: string;
 }): ChartLayout {
-  const titleH = c.title ? 24 : 8;
+  const titleH = c.label ? 24 : 8;
   const padL = 44, padR = 12, padB = 28, padT = 6;
   const pw = c.w - padL - padR;
   const ph = c.h - titleH - padT - padB;

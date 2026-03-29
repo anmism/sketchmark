@@ -375,7 +375,7 @@ note n3 label="Centered" text-align=center vertical-align=middle width=180 heigh
 ### Charts
 
 ```
-bar-chart     id [title="..."] [width=N] [height=N] [theme=X]
+bar-chart     id [label="..."] [width=N] [height=N] [theme=X]
 line-chart    id ...
 area-chart    id ...
 pie-chart     id ...
@@ -392,7 +392,7 @@ data
 
 **Pie / donut:**
 ```
-pie-chart revenue title="Revenue Split" width=280 height=240
+pie-chart revenue label="Revenue Split" width=280 height=240
 data
 [
   ["Product A", 42],
@@ -948,7 +948,7 @@ diagram
 layout row
 config gap=40
 
-bar-chart revenue title="Monthly Revenue" width=340 height=240
+bar-chart revenue label="Monthly Revenue" width=340 height=240
 data
 [
   ["Month", "2023", "2024"],
@@ -958,7 +958,7 @@ data
   ["Apr",   46000,  72000 ]
 ]
 
-pie-chart share title="Market Share" width=280 height=240
+pie-chart share label="Market Share" width=280 height=240
 data
 [
   ["Product A", 42],

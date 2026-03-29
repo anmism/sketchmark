@@ -110,7 +110,7 @@ export interface SceneNote {
 export interface SceneChart {
   id: string;
   chartType: string;
-  title?: string;
+  label?: string;
   data: { headers: string[]; rows: (string | number)[][] };
   style: StyleProps;
   x: number;
@@ -230,7 +230,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     return {
       id: c.id,
       chartType: c.chartType,
-      title: c.title,
+      label: c.label,
       data: c.data,
       style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
       x: 0,
