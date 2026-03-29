@@ -29,6 +29,7 @@ end
 - [DSL Reference](#dsl-reference)
   - [Diagram Header](#diagram-header)
   - [Node Shapes](#node-shapes)
+  - [Icons](#icon-shape)
   - [Edges](#edges)
   - [Groups](#groups)
   - [Bare Groups](#bare-groups)
@@ -37,6 +38,7 @@ end
   - [Charts](#charts)
   - [Markdown Blocks](#markdown-blocks)
   - [Themes](#themes)
+  - [Style Directive](#style-directive)
   - [Typography](#typography)
   - [Animation Steps](#animation-steps)
 - [Layout System](#layout-system)
@@ -127,11 +129,15 @@ end
 | Keyword | Example | Description |
 |---|---|---|
 | `title` | `title label="My Diagram"` | Title shown above the diagram |
+| `description` | `description "A brief summary"` | Diagram description (metadata) |
 | `layout` | `layout row` | Root layout direction: `row`, `column`, `grid` |
 | `config gap` | `config gap=60` | Gap between root-level items (default: 80) |
 | `config margin` | `config margin=40` | Outer canvas margin (default: 60) |
 | `config theme` | `config theme=ocean` | Global palette (see [Theme Palettes](#theme-palettes)) |
 | `config font` | `config font=caveat` | Diagram-wide font (see [Font System](#font-system)) |
+| `config title-color` | `config title-color=#333` | Title text color |
+| `config title-size` | `config title-size=20` | Title font size in px |
+| `config title-weight` | `config title-weight=700` | Title font weight |
 
 ---
 
@@ -147,6 +153,7 @@ cylinder      id  label="..."
 parallelogram id  label="..."
 text          id  label="..."
 image         id  label="..." url="https://..."
+icon          id  label="..." name="prefix:name"
 ```
 
 **Common properties:**
@@ -159,6 +166,9 @@ image         id  label="..." url="https://..."
 | `height` | `height=55` | Override auto-height in px |
 | `fill` | `fill="#e8f4ff"` | Background fill color |
 | `stroke` | `stroke="#0044cc"` | Border color |
+| `stroke-width` | `stroke-width=2` | Border thickness in px |
+| `stroke-dash` | `stroke-dash=5,3` | Dashed border pattern (dash, gap) |
+| `opacity` | `opacity=0.5` | Element opacity (0 to 1) |
 | `color` | `color="#003399"` | Text color |
 | `font` | `font=caveat` | Font family or built-in name |
 | `font-size` | `font-size=12` | Label font size in px |
@@ -170,7 +180,9 @@ image         id  label="..." url="https://..."
 
 > **`text` shape:** No border or background. Long labels auto word-wrap. Use `width=` to control the wrap width.
 
-> **`image` shape:** Renders an image clipped to a rounded rect. Requires `url=` property.
+> **`image` shape:** Renders an image clipped to a rounded rect. Requires `url=` property. Label and border only shown when explicitly set.
+
+> **`icon` shape:** Renders an icon from [Iconify](https://iconify.design/) (200,000+ open source icons). Requires `name=` property in `prefix:name` format (e.g. `mdi:database`). Defaults to `mdi` prefix if omitted. Use `color=` to tint the icon. Label and border only shown when explicitly set. Default size: 48x48.
 
 **Example:**
 ```
@@ -178,7 +190,38 @@ box gateway label="API Gateway" theme=warning width=150 height=55
 circle user label="User" fill="#e8f4ff" stroke="#0044cc" color="#003399"
 cylinder db label="PostgreSQL" theme=success width=140 height=65
 image logo label="Logo" url="https://example.com/logo.png" width=80 height=80
+icon db label="Database" name="mdi:database" color="#1976D2"
+icon cloud name="mdi:cloud" width=64 height=64
 text caption label="This auto-wraps across multiple lines." width=300
+```
+
+---
+
+### Icon Shape
+
+Render any of 200,000+ open source vector icons from [Iconify](https://iconify.design/).
+
+```
+icon id [label="..."] name="prefix:name" [color="#hex"] [width=N] [height=N]
+```
+
+| Property | Example | Description |
+|---|---|---|
+| `name` | `name="mdi:database"` | Icon identifier in `prefix:name` format. Defaults to `mdi` prefix if omitted |
+| `color` | `color="#1976D2"` | Icon tint color |
+| `stroke` | `stroke="#333"` | Optional border (not shown by default) |
+| `label` | `label="DB"` | Optional label (not shown by default) |
+| `width` | `width=64` | Icon width (default: 48) |
+| `height` | `height=64` | Icon height (default: 48) |
+
+Browse available icons at [icon-sets.iconify.design](https://icon-sets.iconify.design/). Common prefixes: `mdi` (Material Design), `lucide`, `heroicons`, `tabler`, `ph` (Phosphor), `ri` (Remix), `carbon`.
+
+**Example:**
+```
+icon db    label="Database"  name="mdi:database"       color="#1976D2"
+icon cloud label="Cloud"     name="mdi:cloud-outline"  color="#FF9800" width=64 height=64
+icon lock  name="mdi:lock"   color="#E53935"
+icon user  name="lucide:user"
 ```
 
 ---
@@ -483,6 +526,19 @@ Apply to any element: `box a theme=primary`, `group g theme=muted`, `note n them
 
 ---
 
+### Style Directive
+
+Apply styles to any element after it's defined, by targeting its id:
+
+```
+box a label="Hello"
+style a fill="#ff0000" stroke="#cc0000" font-size=16
+```
+
+This merges with any existing styles on the element. Useful for separating layout from styling.
+
+---
+
 ### Typography
 
 Typography properties work on all text-bearing elements.
@@ -540,6 +596,7 @@ All actions work on **all element types** — nodes, groups, tables, notes, char
 | Option | Description |
 |---|---|
 | `duration=600` | Animation duration in ms |
+| `delay=100` | Delay before animation starts in ms |
 | `dx=100` | X offset for `move` |
 | `dy=-80` | Y offset for `move` |
 | `factor=1.5` | Scale multiplier |
