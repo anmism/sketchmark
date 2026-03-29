@@ -5566,13 +5566,27 @@ function renderToSVG(sg, container, options = {}) {
     const MDL = mkGroup('markdown-layer');
     for (const m of sg.markdowns) {
         const mg = mkGroup(`markdown-${m.id}`, 'mdg');
-        const mFont = resolveStyleFont$1(m.style, diagramFont);
-        const baseColor = String(m.style?.color ?? palette.nodeText);
-        const textAlign = String(m.style?.textAlign ?? 'left');
+        const gs = m.style ?? {};
+        const mFont = resolveStyleFont$1(gs, diagramFont);
+        const baseColor = String(gs.color ?? palette.nodeText);
+        const textAlign = String(gs.textAlign ?? 'left');
         const anchor = textAlign === 'right' ? 'end'
             : textAlign === 'center' ? 'middle'
                 : 'start';
-        const PAD = Number(m.style?.padding ?? 16);
+        const PAD = Number(gs.padding ?? 16);
+        const mLetterSpacing = gs.letterSpacing;
+        if (gs.opacity != null)
+            mg.setAttribute('opacity', String(gs.opacity));
+        // Background + border
+        if (gs.fill || gs.stroke) {
+            mg.appendChild(rc.rectangle(m.x, m.y, m.w, m.h, {
+                ...BASE_ROUGH, seed: hashStr$3(m.id),
+                fill: String(gs.fill ?? 'none'), fillStyle: 'solid',
+                stroke: String(gs.stroke ?? 'none'),
+                strokeWidth: Number(gs.strokeWidth ?? 1.2),
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
+            }));
+        }
         const textX = textAlign === 'right' ? m.x + m.w - PAD
             : textAlign === 'center' ? m.x + m.w / 2
                 : m.x + PAD;
@@ -5595,6 +5609,8 @@ function renderToSVG(sg, container, options = {}) {
             t.setAttribute('fill', baseColor);
             t.setAttribute('pointer-events', 'none');
             t.setAttribute('user-select', 'none');
+            if (mLetterSpacing != null)
+                t.setAttribute('letter-spacing', String(mLetterSpacing));
             for (const run of line.runs) {
                 const span = se('tspan');
                 span.textContent = run.text;
@@ -6399,10 +6415,24 @@ function renderToCanvas(sg, canvas, options = {}) {
     // Canvas has no native bold-within-a-run, so each run is drawn
     // individually with its own ctx.font setting.
     for (const m of (sg.markdowns ?? [])) {
-        const mFont = resolveStyleFont(m.style, diagramFont);
-        const baseColor = String(m.style?.color ?? palette.nodeText);
-        const textAlign = String(m.style?.textAlign ?? 'left');
-        const PAD = Number(m.style?.padding ?? 16);
+        const gs = m.style ?? {};
+        const mFont = resolveStyleFont(gs, diagramFont);
+        const baseColor = String(gs.color ?? palette.nodeText);
+        const textAlign = String(gs.textAlign ?? 'left');
+        const PAD = Number(gs.padding ?? 16);
+        const mLetterSpacing = gs.letterSpacing;
+        if (gs.opacity != null)
+            ctx.globalAlpha = Number(gs.opacity);
+        // Background + border
+        if (gs.fill || gs.stroke) {
+            rc.rectangle(m.x, m.y, m.w, m.h, {
+                ...R, seed: hashStr$1(m.id),
+                fill: String(gs.fill ?? 'none'), fillStyle: 'solid',
+                stroke: String(gs.stroke ?? 'none'),
+                strokeWidth: Number(gs.strokeWidth ?? 1.2),
+                ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
+            });
+        }
         const anchorX = textAlign === 'right' ? m.x + m.w - PAD
             : textAlign === 'center' ? m.x + m.w / 2
                 : m.x + PAD;
@@ -6420,14 +6450,29 @@ function renderToCanvas(sg, canvas, options = {}) {
             ctx.save();
             ctx.textBaseline = 'middle';
             ctx.fillStyle = baseColor;
+            const ls = mLetterSpacing ?? 0;
+            // measure run width including letter-spacing
+            const runW = (run) => {
+                return ctx.measureText(run.text).width + ls * run.text.length;
+            };
+            const drawRun = (run, rx) => {
+                if (ls) {
+                    for (const ch of run.text) {
+                        ctx.fillText(ch, rx, lineY);
+                        rx += ctx.measureText(ch).width + ls;
+                    }
+                }
+                else {
+                    ctx.fillText(run.text, rx, lineY);
+                }
+            };
             if (textAlign === 'center' || textAlign === 'right') {
-                // Measure full line width first
                 let totalW = 0;
                 for (const run of line.runs) {
                     const runStyle = run.italic ? 'italic ' : '';
                     const runWeight = run.bold ? 700 : fontWeight;
                     ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-                    totalW += ctx.measureText(run.text).width;
+                    totalW += runW(run);
                 }
                 let runX = textAlign === 'center' ? anchorX - totalW / 2 : anchorX - totalW;
                 ctx.textAlign = 'left';
@@ -6435,25 +6480,25 @@ function renderToCanvas(sg, canvas, options = {}) {
                     const runStyle = run.italic ? 'italic ' : '';
                     const runWeight = run.bold ? 700 : fontWeight;
                     ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-                    ctx.fillText(run.text, runX, lineY);
-                    runX += ctx.measureText(run.text).width;
+                    drawRun(run, runX);
+                    runX += runW(run);
                 }
             }
             else {
-                // left-aligned — draw runs left to right from anchorX
                 let runX = anchorX;
                 ctx.textAlign = 'left';
                 for (const run of line.runs) {
                     const runStyle = run.italic ? 'italic ' : '';
                     const runWeight = run.bold ? 700 : fontWeight;
                     ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-                    ctx.fillText(run.text, runX, lineY);
-                    runX += ctx.measureText(run.text).width;
+                    drawRun(run, runX);
+                    runX += runW(run);
                 }
             }
             ctx.restore();
             y += LINE_SPACING[line.kind];
         }
+        ctx.globalAlpha = 1;
     }
     // ── Charts ────────────────────────────────────────────────
     for (const c of sg.charts) {

@@ -670,10 +670,25 @@ export function renderToCanvas(
   // Canvas has no native bold-within-a-run, so each run is drawn
   // individually with its own ctx.font setting.
   for (const m of (sg.markdowns ?? [])) {
-    const mFont     = resolveStyleFont(m.style as Record<string,unknown>, diagramFont);
-    const baseColor = String(m.style?.color ?? palette.nodeText);
-    const textAlign = String(m.style?.textAlign ?? 'left') as 'left'|'center'|'right';
-    const PAD       = Number(m.style?.padding ?? 16);
+    const gs        = m.style ?? {};
+    const mFont     = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
+    const baseColor = String(gs.color ?? palette.nodeText);
+    const textAlign = String(gs.textAlign ?? 'left') as 'left'|'center'|'right';
+    const PAD       = Number(gs.padding ?? 16);
+    const mLetterSpacing = gs.letterSpacing as number | undefined;
+
+    if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);
+
+    // Background + border
+    if (gs.fill || gs.stroke) {
+      rc.rectangle(m.x, m.y, m.w, m.h, {
+        ...R, seed: hashStr(m.id),
+        fill: String(gs.fill ?? 'none'), fillStyle: 'solid',
+        stroke: String(gs.stroke ?? 'none'),
+        strokeWidth: Number(gs.strokeWidth ?? 1.2),
+        ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
+      });
+    }
 
     const anchorX = textAlign === 'right'  ? m.x + m.w - PAD
                   : textAlign === 'center' ? m.x + m.w / 2
@@ -694,14 +709,29 @@ export function renderToCanvas(
       ctx.textBaseline = 'middle';
       ctx.fillStyle    = baseColor;
 
+      const ls = mLetterSpacing ?? 0;
+      // measure run width including letter-spacing
+      const runW = (run: { text: string }) => {
+        return ctx.measureText(run.text).width + ls * run.text.length;
+      };
+      const drawRun = (run: { text: string }, rx: number) => {
+        if (ls) {
+          for (const ch of run.text) {
+            ctx.fillText(ch, rx, lineY);
+            rx += ctx.measureText(ch).width + ls;
+          }
+        } else {
+          ctx.fillText(run.text, rx, lineY);
+        }
+      };
+
       if (textAlign === 'center' || textAlign === 'right') {
-        // Measure full line width first
         let totalW = 0;
         for (const run of line.runs) {
           const runStyle  = run.italic ? 'italic ' : '';
           const runWeight = run.bold   ? 700 : fontWeight;
           ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-          totalW  += ctx.measureText(run.text).width;
+          totalW  += runW(run);
         }
         let runX = textAlign === 'center' ? anchorX - totalW / 2 : anchorX - totalW;
         ctx.textAlign = 'left';
@@ -709,25 +739,25 @@ export function renderToCanvas(
           const runStyle  = run.italic ? 'italic ' : '';
           const runWeight = run.bold   ? 700 : fontWeight;
           ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-          ctx.fillText(run.text, runX, lineY);
-          runX += ctx.measureText(run.text).width;
+          drawRun(run, runX);
+          runX += runW(run);
         }
       } else {
-        // left-aligned — draw runs left to right from anchorX
         let runX = anchorX;
         ctx.textAlign = 'left';
         for (const run of line.runs) {
           const runStyle  = run.italic ? 'italic ' : '';
           const runWeight = run.bold   ? 700 : fontWeight;
           ctx.font = `${runStyle}${runWeight} ${fontSize}px ${mFont}`;
-          ctx.fillText(run.text, runX, lineY);
-          runX += ctx.measureText(run.text).width;
+          drawRun(run, runX);
+          runX += runW(run);
         }
       }
 
       ctx.restore();
       y += LINE_SPACING[line.kind];
     }
+    ctx.globalAlpha = 1;
   }
 
   // ── Charts ────────────────────────────────────────────────

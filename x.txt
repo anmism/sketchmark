@@ -1,0 +1,81 @@
+diagram
+layout column
+config gap=20
+
+markdown m1 width=400
+"""
+# Default Markdown
+This is **bold** and *italic* text.
+## Subheading
+Normal body text here.
+"""
+
+markdown m2 fill="#e8f0fe" width=400
+"""
+# With Fill
+Background color applied.
+"""
+
+markdown m3 stroke="#e74c3c" width=400
+"""
+# With Stroke
+Red border only, no fill.
+"""
+
+markdown m4 fill="#fff3e0" stroke="#e65100" width=400
+"""
+# Fill + Stroke
+Orange theme markdown block.
+"""
+
+markdown m5 color="#1a73e8" width=400
+"""
+# Custom Color
+All text is blue.
+"""
+
+markdown m6 opacity="0.4" width=400
+"""
+# Opacity 0.4
+This block is semi-transparent.
+"""
+
+markdown m7 font="Georgia" width=400
+"""
+# Custom Font
+Georgia serif font applied.
+"""
+
+markdown m8 text-align="center" width=400
+"""
+# Centered Text
+This text is centered.
+"""
+
+markdown m9 text-align="right" width=400
+"""
+# Right Aligned
+This text is right-aligned.
+"""
+
+markdown m10 padding="40" width=400
+"""
+# Large Padding
+Padding set to 40px.
+"""
+
+markdown m11 letter-spacing="3" width=400
+"""
+# Letter Spacing
+Spaced out text here.
+"""
+
+markdown m12 fill="#f3e5f5" stroke="#7b1fa2" color="#4a148c" font="Georgia" text-align="center" letter-spacing="1" opacity="0.9" padding="24" width=400
+"""
+# All Styles Combined
+This has **fill**, **stroke**, **color**, **font**, **text-align**, **letter-spacing**, **opacity**, and **padding** applied.
+## Subheading
+Normal text below.
+"""
+
+end

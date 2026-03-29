@@ -1131,19 +1131,35 @@ export function renderToSVG(
  
   for (const m of sg.markdowns) {
     const mg         = mkGroup(`markdown-${m.id}`, 'mdg');
-    const mFont      = resolveStyleFont(m.style as Record<string,unknown>, diagramFont);
-    const baseColor  = String(m.style?.color ?? palette.nodeText);
-    const textAlign  = String(m.style?.textAlign ?? 'left');
+    const gs         = m.style ?? {};
+    const mFont      = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
+    const baseColor  = String(gs.color ?? palette.nodeText);
+    const textAlign  = String(gs.textAlign ?? 'left');
     const anchor     = textAlign === 'right'  ? 'end'
                      : textAlign === 'center' ? 'middle'
                      : 'start';
-    const PAD   = Number(m.style?.padding ?? 16);
+    const PAD   = Number(gs.padding ?? 16);
+    const mLetterSpacing = gs.letterSpacing as number | undefined;
+
+    if (gs.opacity != null) mg.setAttribute('opacity', String(gs.opacity));
+
+    // Background + border
+    if (gs.fill || gs.stroke) {
+      mg.appendChild(rc.rectangle(m.x, m.y, m.w, m.h, {
+        ...BASE_ROUGH, seed: hashStr(m.id),
+        fill: String(gs.fill ?? 'none'), fillStyle: 'solid',
+        stroke: String(gs.stroke ?? 'none'),
+        strokeWidth: Number(gs.strokeWidth ?? 1.2),
+        ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
+      }));
+    }
+
     const textX      = textAlign === 'right'  ? m.x + m.w - PAD
                      : textAlign === 'center' ? m.x + m.w / 2
                      : m.x + PAD;
- 
+
     let y = m.y + PAD;
- 
+
     for (const line of m.lines) {
       if (line.kind === 'blank') { y += LINE_SPACING.blank; continue; }
  
@@ -1161,6 +1177,7 @@ export function renderToSVG(
       t.setAttribute('fill',              baseColor);
       t.setAttribute('pointer-events',    'none');
       t.setAttribute('user-select',       'none');
+      if (mLetterSpacing != null) t.setAttribute('letter-spacing', String(mLetterSpacing));
  
       for (const run of line.runs) {
         const span = se('tspan') as SVGTSpanElement;
