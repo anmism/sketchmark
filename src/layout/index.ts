@@ -139,9 +139,8 @@ function sizeTable(t: SceneTable): void {
   const nData = rows.filter((r) => r.kind === "data").length;
   t.h = labelH + nHeader * headerH + nData * rowH;
 }
-function sizeChart(c: SceneChart): void {
-  c.w = c.w || 320;
-  c.h = c.h || 240;
+function sizeChart(_c: SceneChart): void {
+  // defaults already applied in buildSceneGraph
 }
 
 function sizeMarkdown(m: SceneMarkdown): void {

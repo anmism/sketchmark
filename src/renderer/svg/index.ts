@@ -1126,7 +1126,6 @@ export function renderToSVG(
   }
   svg.appendChild(NoteL);
 
-  const mdm  = markdownMap(sg);
   const MDL  = mkGroup('markdown-layer');
  
   for (const m of sg.markdowns) {
