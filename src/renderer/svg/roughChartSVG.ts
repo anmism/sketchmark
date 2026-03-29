@@ -40,13 +40,14 @@ function mkT(
   txt: string, x: number, y: number,
   sz = 10, wt: number | string = 400,
   col = '#4a2e10', anchor = 'middle',
+  font = 'system-ui, sans-serif',
 ): SVGTextElement {
   const t = se('text') as SVGTextElement;
   t.setAttribute('x', String(x));
   t.setAttribute('y', String(y));
   t.setAttribute('text-anchor', anchor);
   t.setAttribute('dominant-baseline', 'middle');
-  t.setAttribute('font-family', 'system-ui, sans-serif');
+  t.setAttribute('font-family', font);
   t.setAttribute('font-size', String(sz));
   t.setAttribute('font-weight', String(wt));
   t.setAttribute('fill', col);
@@ -76,7 +77,7 @@ const BASE: any = { roughness: 1.2, bowing: 0.7 };
 function drawAxes(
   rc: RoughSVG, g: SVGGElement, c: SceneChart,
   px: number, py: number, pw: number, ph: number,
-  allY: number[], labelCol: string,
+  allY: number[], labelCol: string, font = 'system-ui, sans-serif',
 ): void {
   // Y axis
   g.appendChild(rc.line(px, py, px, py + ph, {
@@ -95,7 +96,7 @@ function drawAxes(
     g.appendChild(rc.line(px - 3, ty, px, ty, {
       roughness: 0.2, seed: hashStr(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7,
     }));
-    g.appendChild(mkT(fmtNum(tick), px - 5, ty, 9, 400, labelCol, 'end'));
+    g.appendChild(mkT(fmtNum(tick), px - 5, ty, 9, 400, labelCol, 'end', font));
   }
 }
 
@@ -107,7 +108,7 @@ function fmtNum(v: number): string {
 // ── Legend row ─────────────────────────────────────────────
 function legend(
   g: SVGGElement, labels: string[], colors: string[],
-  x: number, y: number, labelCol: string,
+  x: number, y: number, labelCol: string, font = 'system-ui, sans-serif',
 ): void {
   labels.forEach((lbl, i) => {
     const dot = se('rect') as SVGRectElement;
@@ -118,7 +119,7 @@ function legend(
     dot.setAttribute('fill', colors[i % colors.length]);
     dot.setAttribute('rx', '1');
     g.appendChild(dot);
-    g.appendChild(mkT(lbl, x + 12, y + i * 14 + 4, 9, 400, labelCol, 'start'));
+    g.appendChild(mkT(lbl, x + 12, y + i * 14 + 4, 9, 400, labelCol, 'start', font));
   });
 }
 
@@ -136,6 +137,11 @@ export function renderRoughChartSVG(
   const bgFill  = String(s.fill   ?? palette.nodeFill);
   const bgStroke = String(s.stroke ?? (isDark ? '#5a4a30' : '#c8b898'));
   const lc      = String(s.color  ?? palette.titleText);
+  const cFont   = String(s.font ? `${s.font}, system-ui, sans-serif` : 'system-ui, sans-serif');
+  const cFontSize = Number(s.fontSize ?? 12);
+  const cFontWeight = s.fontWeight ?? 600;
+
+  if (s.opacity != null) cg.setAttribute('opacity', String(s.opacity));
 
   // Background box
 cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
@@ -147,7 +153,7 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
 
   // Title
   if (c.title) {
-    cg.appendChild(mkT(c.title, c.x + c.w / 2, c.y + 14, 12, 600, lc));
+    cg.appendChild(mkT(c.title, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
   }
 
   const { px, py, pw, ph, cx, cy } = chartLayout(c);
@@ -181,7 +187,7 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
       cg,
       segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`),
       segments.map(s => s.color),
-      legendX, legendY, lc,
+      legendX, legendY, lc, cFont,
     );
     return cg;
   }
@@ -207,7 +213,7 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
       }));
     });
 
-    legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc);
+    legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
     return cg;
   }
 
@@ -218,11 +224,11 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
   const baseline = toY(0);
   const n       = labels.length;
 
-  drawAxes(rc, cg, c, px, py, pw, ph, allY, lc);
+  drawAxes(rc, cg, c, px, py, pw, ph, allY, lc, cFont);
 
   // X labels
   labels.forEach((lbl, i) => {
-    cg.appendChild(mkT(lbl, px + (i + 0.5) * (pw / n), py + ph + 14, 9, 400, lc));
+    cg.appendChild(mkT(lbl, px + (i + 0.5) * (pw / n), py + ph + 14, 9, 400, lc, 'middle', cFont));
   });
 
   if (c.chartType === 'bar') {
@@ -304,7 +310,7 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
       cg,
       series.map(s => s.name),
       series.map(s => s.color),
-      px, py - 2, lc,
+      px, py - 2, lc, cFont,
     );
   }
 

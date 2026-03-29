@@ -86,7 +86,7 @@ function drawPieArc(
 function drawAxes(
   rc: RoughCanvas, ctx: CanvasRenderingContext2D, c: SceneChart,
   px: number, py: number, pw: number, ph: number,
-  allY: number[], labelCol: string, R: any,
+  allY: number[], labelCol: string, R: any, font = 'system-ui, sans-serif',
 ): void {
   const toY      = makeValueToY(allY, py, ph);
   const baseline = toY(0);
@@ -102,7 +102,7 @@ function drawAxes(
     if (ty < py - 2 || ty > py + ph + 2) continue;
     rc.line(px - 3, ty, px, ty, { roughness: 0.2, seed: hashStr(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7 });
     ctx.save();
-    ctx.font         = '400 9px system-ui, sans-serif';
+    ctx.font         = `400 9px ${font}`;
     ctx.fillStyle    = labelCol;
     ctx.textAlign    = 'right';
     ctx.textBaseline = 'middle';
@@ -115,10 +115,10 @@ function drawAxes(
 function drawLegend(
   ctx: CanvasRenderingContext2D,
   labels: string[], colors: string[],
-  x: number, y: number, labelCol: string,
+  x: number, y: number, labelCol: string, font = 'system-ui, sans-serif',
 ): void {
   ctx.save();
-  ctx.font         = '400 9px system-ui, sans-serif';
+  ctx.font         = `400 9px ${font}`;
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'middle';
   labels.forEach((lbl, i) => {
@@ -144,6 +144,11 @@ export function drawRoughChartCanvas(
  const bgFill   = String(s.fill   ?? pal.nodeFill);
   const bgStroke = String(s.stroke ?? (pal.nodeStroke === 'none' ? '#c8b898' : pal.nodeStroke));
   const lc       = String(s.color  ?? pal.labelText);
+  const cFont    = String(s.font ? `${s.font}, system-ui, sans-serif` : 'system-ui, sans-serif');
+  const cFontSize = Number(s.fontSize ?? 12);
+  const cFontWeight = s.fontWeight ?? 600;
+
+  if (s.opacity != null) ctx.globalAlpha = Number(s.opacity);
 
   // Background
   rc.rectangle(c.x, c.y, c.w, c.h, {
@@ -158,7 +163,7 @@ export function drawRoughChartCanvas(
   // Title
   if (c.title) {
     ctx.save();
-    ctx.font         = '600 12px system-ui, sans-serif';
+    ctx.font         = `${cFontWeight} ${cFontSize}px ${cFont}`;
     ctx.fillStyle    = lc;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
@@ -187,8 +192,9 @@ export function drawRoughChartCanvas(
       ctx,
       segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`),
       segments.map(s => s.color),
-      legendX, legendY, lc,
+      legendX, legendY, lc, cFont,
     );
+    ctx.globalAlpha = 1;
     return;
   }
 
@@ -212,7 +218,8 @@ export function drawRoughChartCanvas(
       });
     });
 
-    drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc);
+    drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
+    ctx.globalAlpha = 1;
     return;
   }
 
@@ -223,11 +230,11 @@ export function drawRoughChartCanvas(
   const baseline = toY(0);
   const n       = labels.length;
 
-  drawAxes(rc, ctx, c, px, py, pw, ph, allY, lc, R);
+  drawAxes(rc, ctx, c, px, py, pw, ph, allY, lc, R, cFont);
 
   // X labels
   ctx.save();
-  ctx.font         = '400 9px system-ui, sans-serif';
+  ctx.font         = `400 9px ${cFont}`;
   ctx.fillStyle    = lc;
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'top';
@@ -311,6 +318,7 @@ export function drawRoughChartCanvas(
 
   // Multi-series legend
   if (series.length > 1) {
-    drawLegend(ctx, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc);
+    drawLegend(ctx, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc, cFont);
   }
+  ctx.globalAlpha = 1;
 }

@@ -2182,13 +2182,13 @@ var AIDiagram = (function (exports) {
         g.setAttribute('class', cls);
         return g;
     }
-    function mkT(txt, x, y, sz = 10, wt = 400, col = '#4a2e10', anchor = 'middle') {
+    function mkT(txt, x, y, sz = 10, wt = 400, col = '#4a2e10', anchor = 'middle', font = 'system-ui, sans-serif') {
         const t = se$1('text');
         t.setAttribute('x', String(x));
         t.setAttribute('y', String(y));
         t.setAttribute('text-anchor', anchor);
         t.setAttribute('dominant-baseline', 'middle');
-        t.setAttribute('font-family', 'system-ui, sans-serif');
+        t.setAttribute('font-family', font);
         t.setAttribute('font-size', String(sz));
         t.setAttribute('font-weight', String(wt));
         t.setAttribute('fill', col);
@@ -2204,7 +2204,7 @@ var AIDiagram = (function (exports) {
     }
     const BASE = { roughness: 1.2, bowing: 0.7 };
     // ── Axes ───────────────────────────────────────────────────
-    function drawAxes$1(rc, g, c, px, py, pw, ph, allY, labelCol) {
+    function drawAxes$1(rc, g, c, px, py, pw, ph, allY, labelCol, font = 'system-ui, sans-serif') {
         // Y axis
         g.appendChild(rc.line(px, py, px, py + ph, {
             roughness: 0.4, seed: hashStr$4(c.id + 'ya'), stroke: labelCol, strokeWidth: 1,
@@ -2223,7 +2223,7 @@ var AIDiagram = (function (exports) {
             g.appendChild(rc.line(px - 3, ty, px, ty, {
                 roughness: 0.2, seed: hashStr$4(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7,
             }));
-            g.appendChild(mkT(fmtNum$1(tick), px - 5, ty, 9, 400, labelCol, 'end'));
+            g.appendChild(mkT(fmtNum$1(tick), px - 5, ty, 9, 400, labelCol, 'end', font));
         }
     }
     function fmtNum$1(v) {
@@ -2232,7 +2232,7 @@ var AIDiagram = (function (exports) {
         return String(v);
     }
     // ── Legend row ─────────────────────────────────────────────
-    function legend(g, labels, colors, x, y, labelCol) {
+    function legend(g, labels, colors, x, y, labelCol, font = 'system-ui, sans-serif') {
         labels.forEach((lbl, i) => {
             const dot = se$1('rect');
             dot.setAttribute('x', String(x));
@@ -2242,7 +2242,7 @@ var AIDiagram = (function (exports) {
             dot.setAttribute('fill', colors[i % colors.length]);
             dot.setAttribute('rx', '1');
             g.appendChild(dot);
-            g.appendChild(mkT(lbl, x + 12, y + i * 14 + 4, 9, 400, labelCol, 'start'));
+            g.appendChild(mkT(lbl, x + 12, y + i * 14 + 4, 9, 400, labelCol, 'start', font));
         });
     }
     // ── Public entry ───────────────────────────────────────────
@@ -2253,6 +2253,11 @@ var AIDiagram = (function (exports) {
         const bgFill = String(s.fill ?? palette.nodeFill);
         const bgStroke = String(s.stroke ?? (isDark ? '#5a4a30' : '#c8b898'));
         const lc = String(s.color ?? palette.titleText);
+        const cFont = String(s.font ? `${s.font}, system-ui, sans-serif` : 'system-ui, sans-serif');
+        const cFontSize = Number(s.fontSize ?? 12);
+        const cFontWeight = s.fontWeight ?? 600;
+        if (s.opacity != null)
+            cg.setAttribute('opacity', String(s.opacity));
         // Background box
         cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
             ...BASE, seed: hashStr$4(c.id),
@@ -2262,7 +2267,7 @@ var AIDiagram = (function (exports) {
         }));
         // Title
         if (c.title) {
-            cg.appendChild(mkT(c.title, c.x + c.w / 2, c.y + 14, 12, 600, lc));
+            cg.appendChild(mkT(c.title, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
         }
         const { px, py, pw, ph, cx, cy } = chartLayout(c);
         // ── Pie / Donut ──────────────────────────────────────────
@@ -2288,7 +2293,7 @@ var AIDiagram = (function (exports) {
                 angle += sweep;
             }
             // Mini legend on left
-            legend(cg, segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`), segments.map(s => s.color), legendX, legendY, lc);
+            legend(cg, segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`), segments.map(s => s.color), legendX, legendY, lc, cFont);
             return cg;
         }
         // ── Scatter ───────────────────────────────────────────────
@@ -2309,7 +2314,7 @@ var AIDiagram = (function (exports) {
                     strokeWidth: 1.2,
                 }));
             });
-            legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc);
+            legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
             return cg;
         }
         // ── Bar / Line / Area ─────────────────────────────────────
@@ -2318,10 +2323,10 @@ var AIDiagram = (function (exports) {
         const toY = makeValueToY(allY, py, ph);
         const baseline = toY(0);
         const n = labels.length;
-        drawAxes$1(rc, cg, c, px, py, pw, ph, allY, lc);
+        drawAxes$1(rc, cg, c, px, py, pw, ph, allY, lc, cFont);
         // X labels
         labels.forEach((lbl, i) => {
-            cg.appendChild(mkT(lbl, px + (i + 0.5) * (pw / n), py + ph + 14, 9, 400, lc));
+            cg.appendChild(mkT(lbl, px + (i + 0.5) * (pw / n), py + ph + 14, 9, 400, lc, 'middle', cFont));
         });
         if (c.chartType === 'bar') {
             const groupW = pw / n;
@@ -2392,7 +2397,7 @@ var AIDiagram = (function (exports) {
         }
         // Multi-series legend
         if (series.length > 1) {
-            legend(cg, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc);
+            legend(cg, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc, cFont);
         }
         return cg;
     }
@@ -5678,7 +5683,7 @@ var AIDiagram = (function (exports) {
         });
     }
     // ── Axes ───────────────────────────────────────────────────
-    function drawAxes(rc, ctx, c, px, py, pw, ph, allY, labelCol, R) {
+    function drawAxes(rc, ctx, c, px, py, pw, ph, allY, labelCol, R, font = 'system-ui, sans-serif') {
         const toY = makeValueToY(allY, py, ph);
         const baseline = toY(0);
         // Y axis
@@ -5692,7 +5697,7 @@ var AIDiagram = (function (exports) {
                 continue;
             rc.line(px - 3, ty, px, ty, { roughness: 0.2, seed: hashStr$2(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7 });
             ctx.save();
-            ctx.font = '400 9px system-ui, sans-serif';
+            ctx.font = `400 9px ${font}`;
             ctx.fillStyle = labelCol;
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
@@ -5701,9 +5706,9 @@ var AIDiagram = (function (exports) {
         }
     }
     // ── Legend ─────────────────────────────────────────────────
-    function drawLegend(ctx, labels, colors, x, y, labelCol) {
+    function drawLegend(ctx, labels, colors, x, y, labelCol, font = 'system-ui, sans-serif') {
         ctx.save();
-        ctx.font = '400 9px system-ui, sans-serif';
+        ctx.font = `400 9px ${font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         labels.forEach((lbl, i) => {
@@ -5721,6 +5726,11 @@ var AIDiagram = (function (exports) {
         const bgFill = String(s.fill ?? pal.nodeFill);
         const bgStroke = String(s.stroke ?? (pal.nodeStroke === 'none' ? '#c8b898' : pal.nodeStroke));
         const lc = String(s.color ?? pal.labelText);
+        const cFont = String(s.font ? `${s.font}, system-ui, sans-serif` : 'system-ui, sans-serif');
+        const cFontSize = Number(s.fontSize ?? 12);
+        const cFontWeight = s.fontWeight ?? 600;
+        if (s.opacity != null)
+            ctx.globalAlpha = Number(s.opacity);
         // Background
         rc.rectangle(c.x, c.y, c.w, c.h, {
             ...R, seed: hashStr$2(c.id),
@@ -5733,7 +5743,7 @@ var AIDiagram = (function (exports) {
         // Title
         if (c.title) {
             ctx.save();
-            ctx.font = '600 12px system-ui, sans-serif';
+            ctx.font = `${cFontWeight} ${cFontSize}px ${cFont}`;
             ctx.fillStyle = lc;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -5754,7 +5764,8 @@ var AIDiagram = (function (exports) {
                 drawPieArc(rc, ctx, cx, cy, r, ir, angle, angle + sweep, seg.color, hashStr$2(c.id + seg.label + i));
                 angle += sweep;
             });
-            drawLegend(ctx, segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`), segments.map(s => s.color), legendX, legendY, lc);
+            drawLegend(ctx, segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`), segments.map(s => s.color), legendX, legendY, lc, cFont);
+            ctx.globalAlpha = 1;
             return;
         }
         // ── Scatter ───────────────────────────────────────────────
@@ -5774,7 +5785,8 @@ var AIDiagram = (function (exports) {
                     strokeWidth: 1.2,
                 });
             });
-            drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc);
+            drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.title ? 28 : 12), lc, cFont);
+            ctx.globalAlpha = 1;
             return;
         }
         // ── Bar / Line / Area ─────────────────────────────────────
@@ -5783,10 +5795,10 @@ var AIDiagram = (function (exports) {
         const toY = makeValueToY(allY, py, ph);
         const baseline = toY(0);
         const n = labels.length;
-        drawAxes(rc, ctx, c, px, py, pw, ph, allY, lc, R);
+        drawAxes(rc, ctx, c, px, py, pw, ph, allY, lc, R, cFont);
         // X labels
         ctx.save();
-        ctx.font = '400 9px system-ui, sans-serif';
+        ctx.font = `400 9px ${cFont}`;
         ctx.fillStyle = lc;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -5863,8 +5875,9 @@ var AIDiagram = (function (exports) {
         }
         // Multi-series legend
         if (series.length > 1) {
-            drawLegend(ctx, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc);
+            drawLegend(ctx, series.map(s => s.name), series.map(s => s.color), px, py - 2, lc, cFont);
         }
+        ctx.globalAlpha = 1;
     }
 
     // ============================================================
