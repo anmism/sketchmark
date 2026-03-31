@@ -5696,6 +5696,8 @@ var AIDiagram = (function (exports) {
             ng.dataset.y = String(n.y);
             ng.dataset.w = String(n.w);
             ng.dataset.h = String(n.h);
+            if (n.pathData)
+                ng.dataset.pathData = n.pathData;
             if (n.style?.opacity != null)
                 ng.setAttribute("opacity", String(n.style.opacity));
             // ── Static transform (deg, dx, dy, factor) ──────────
@@ -6680,6 +6682,7 @@ var AIDiagram = (function (exports) {
         "triangle",
         "parallelogram",
         "line",
+        "path",
     ]);
     function polygonPath(points) {
         return points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z";
@@ -6764,6 +6767,8 @@ var AIDiagram = (function (exports) {
                 const lineY = y + (h - labelH) / 2;
                 return `M ${x} ${lineY} L ${x + w} ${lineY}`;
             }
+            case "path":
+                return el.dataset.pathData ?? null;
             default:
                 return null;
         }
@@ -6816,6 +6821,11 @@ var AIDiagram = (function (exports) {
         guide.setAttribute("stroke-linecap", "round");
         guide.setAttribute("stroke-linejoin", "round");
         guide.setAttribute(NODE_DRAW_GUIDE_ATTR, "true");
+        if (el.dataset.nodeShape === "path") {
+            const pathX = nodeMetric(el, "x") ?? 0;
+            const pathY = nodeMetric(el, "y") ?? 0;
+            guide.setAttribute("transform", `translate(${pathX},${pathY})`);
+        }
         guide.style.pointerEvents = "none";
         const len = pathLength(guide);
         guide.style.strokeDasharray = `${len}`;

@@ -79,6 +79,7 @@ const GUIDED_NODE_SHAPES = new Set([
   "triangle",
   "parallelogram",
   "line",
+  "path",
 ]);
 
 function polygonPath(points: Array<[number, number]>): string {
@@ -168,6 +169,8 @@ function buildNodeGuidePath(el: SVGGElement): string | null {
       const lineY = y + (h - labelH) / 2;
       return `M ${x} ${lineY} L ${x + w} ${lineY}`;
     }
+    case "path":
+      return el.dataset.pathData ?? null;
     default:
       return null;
   }
@@ -233,6 +236,11 @@ function prepareNodeForDraw(el: SVGGElement): void {
   guide.setAttribute("stroke-linecap", "round");
   guide.setAttribute("stroke-linejoin", "round");
   guide.setAttribute(NODE_DRAW_GUIDE_ATTR, "true");
+  if (el.dataset.nodeShape === "path") {
+    const pathX = nodeMetric(el, "x") ?? 0;
+    const pathY = nodeMetric(el, "y") ?? 0;
+    guide.setAttribute("transform", `translate(${pathX},${pathY})`);
+  }
   guide.style.pointerEvents = "none";
 
   const len = pathLength(guide);

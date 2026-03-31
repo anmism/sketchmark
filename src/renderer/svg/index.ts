@@ -510,6 +510,7 @@ export function renderToSVG(
     ng.dataset.y = String(n.y);
     ng.dataset.w = String(n.w);
     ng.dataset.h = String(n.h);
+    if (n.pathData) ng.dataset.pathData = n.pathData;
     if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
 
     // ── Static transform (deg, dx, dy, factor) ──────────
