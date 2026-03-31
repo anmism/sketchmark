@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { ASTStep } from "../ast/types";
-import { ANIMATION } from "../config";
+import { ANIMATION, SHAPES, SVG_NS } from "../config";
 
 export type AnimationEventType =
   | "step-change"
@@ -68,6 +68,232 @@ function clearDashOverridesAfter(el: SVGGElement, delayMs: number): void {
       p.style.transition       = '';
     });
   }, delayMs);
+}
+
+const NODE_DRAW_GUIDE_ATTR = "data-node-draw-guide";
+const GUIDED_NODE_SHAPES = new Set([
+  "box",
+  "circle",
+  "diamond",
+  "hexagon",
+  "triangle",
+  "parallelogram",
+  "line",
+]);
+
+function polygonPath(points: Array<[number, number]>): string {
+  return points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z";
+}
+
+function rectPath(x: number, y: number, w: number, h: number): string {
+  return polygonPath([
+    [x, y],
+    [x + w, y],
+    [x + w, y + h],
+    [x, y + h],
+  ]);
+}
+
+function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
+  return [
+    `M ${cx - rx} ${cy}`,
+    `A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy}`,
+    `A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy}`,
+  ].join(" ");
+}
+
+function nodeMetric(el: SVGGElement, key: "x" | "y" | "w" | "h"): number | null {
+  const raw = el.dataset[key];
+  const n = raw == null ? Number.NaN : Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildNodeGuidePath(el: SVGGElement): string | null {
+  const shape = el.dataset.nodeShape;
+  if (!shape || !GUIDED_NODE_SHAPES.has(shape)) return null;
+
+  const x = nodeMetric(el, "x");
+  const y = nodeMetric(el, "y");
+  const w = nodeMetric(el, "w");
+  const h = nodeMetric(el, "h");
+  if (x == null || y == null || w == null || h == null) return null;
+
+  switch (shape) {
+    case "box":
+      return rectPath(x + 1, y + 1, w - 2, h - 2);
+    case "circle":
+      return ellipsePath(x + w / 2, y + h / 2, (w * 0.88) / 2, (h * 0.88) / 2);
+    case "diamond": {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const hw = w / 2 - 2;
+      return polygonPath([
+        [cx, y + 2],
+        [cx + hw, cy],
+        [cx, y + h - 2],
+        [cx - hw, cy],
+      ]);
+    }
+    case "hexagon": {
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const hw = w / 2 - 2;
+      const hw2 = hw * SHAPES.hexagon.inset;
+      return polygonPath([
+        [cx - hw2, y + 3],
+        [cx + hw2, y + 3],
+        [cx + hw, cy],
+        [cx + hw2, y + h - 3],
+        [cx - hw2, y + h - 3],
+        [cx - hw, cy],
+      ]);
+    }
+    case "triangle": {
+      const cx = x + w / 2;
+      return polygonPath([
+        [cx, y + 3],
+        [x + w - 3, y + h - 3],
+        [x + 3, y + h - 3],
+      ]);
+    }
+    case "parallelogram":
+      return polygonPath([
+        [x + SHAPES.parallelogram.skew, y + 1],
+        [x + w - 1, y + 1],
+        [x + w - SHAPES.parallelogram.skew, y + h - 1],
+        [x + 1, y + h - 1],
+      ]);
+    case "line": {
+      const labelH = el.querySelector("text") ? 20 : 0;
+      const lineY = y + (h - labelH) / 2;
+      return `M ${x} ${lineY} L ${x + w} ${lineY}`;
+    }
+    default:
+      return null;
+  }
+}
+
+function nodeGuidePathEl(el: SVGGElement): SVGPathElement | null {
+  return el.querySelector<SVGPathElement>(`path[${NODE_DRAW_GUIDE_ATTR}="true"]`);
+}
+
+function removeNodeGuide(el: SVGGElement): void {
+  nodeGuidePathEl(el)?.remove();
+}
+
+function nodePaths(el: SVGGElement): SVGGeometryElement[] {
+  return Array.from(el.querySelectorAll<SVGGeometryElement>("path")).filter(
+    (p) => p.getAttribute(NODE_DRAW_GUIDE_ATTR) !== "true",
+  );
+}
+
+function nodeText(el: SVGGElement): SVGElement | null {
+  return el.querySelector<SVGElement>("text");
+}
+
+function nodeStrokeTemplate(el: SVGGElement): SVGGeometryElement | null {
+  return (
+    nodePaths(el).find((p) => (p.getAttribute("stroke") ?? "") !== "none") ??
+    nodePaths(el)[0] ??
+    null
+  );
+}
+
+function clearNodeDrawStyles(el: SVGGElement): void {
+  removeNodeGuide(el);
+  nodePaths(el).forEach((p) => {
+    p.style.strokeDasharray =
+      p.style.strokeDashoffset =
+      p.style.fillOpacity =
+      p.style.transition =
+      p.style.opacity =
+        "";
+  });
+  const text = nodeText(el);
+  if (text) {
+    text.style.opacity = text.style.transition = "";
+  }
+}
+
+function prepareNodeForDraw(el: SVGGElement): void {
+  clearNodeDrawStyles(el);
+
+  const d = buildNodeGuidePath(el);
+  const source = nodeStrokeTemplate(el);
+  if (!d || !source) {
+    prepareForDraw(el);
+    return;
+  }
+
+  const guide = document.createElementNS(SVG_NS, "path");
+  guide.setAttribute("d", d);
+  guide.setAttribute("fill", "none");
+  guide.setAttribute("stroke", source.getAttribute("stroke") ?? "#000");
+  guide.setAttribute("stroke-width", source.getAttribute("stroke-width") ?? "1.8");
+  guide.setAttribute("stroke-linecap", "round");
+  guide.setAttribute("stroke-linejoin", "round");
+  guide.setAttribute(NODE_DRAW_GUIDE_ATTR, "true");
+  guide.style.pointerEvents = "none";
+
+  const len = pathLength(guide);
+  guide.style.strokeDasharray = `${len}`;
+  guide.style.strokeDashoffset = `${len}`;
+  guide.style.transition = "none";
+
+  nodePaths(el).forEach((p) => {
+    p.style.opacity = "0";
+    p.style.transition = "none";
+  });
+
+  const text = nodeText(el);
+  if (text) {
+    text.style.opacity = "0";
+    text.style.transition = "none";
+  }
+
+  el.appendChild(guide);
+}
+
+function revealNodeInstant(el: SVGGElement): void {
+  clearNodeDrawStyles(el);
+}
+
+function animateNodeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStrokeDur): void {
+  const guide = nodeGuidePathEl(el);
+  if (!guide) {
+    const firstPath = el.querySelector("path");
+    if (!firstPath?.style.strokeDasharray) prepareForDraw(el);
+    animateShapeDraw(el, strokeDur, ANIMATION.nodeStagger);
+    const nodePathCount = el.querySelectorAll("path").length;
+    clearDashOverridesAfter(el, nodePathCount * ANIMATION.nodeStagger + strokeDur + 120);
+    return;
+  }
+
+  const roughPaths = nodePaths(el);
+  const text = nodeText(el);
+  const revealDelay = strokeDur + 30;
+  const textDelay = revealDelay + ANIMATION.textDelay;
+
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      guide.style.transition = `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1)`;
+      guide.style.strokeDashoffset = "0";
+
+      roughPaths.forEach((p) => {
+        p.style.transition = `opacity 140ms ease ${revealDelay}ms`;
+        p.style.opacity = "1";
+      });
+
+      if (text) {
+        text.style.transition = `opacity ${ANIMATION.textFade}ms ease ${textDelay}ms`;
+        text.style.opacity = "1";
+      }
+
+      setTimeout(() => {
+        clearNodeDrawStyles(el);
+      }, textDelay + ANIMATION.textFade + 40);
+    }),
+  );
 }
 
 // ── Arrow connector parser ────────────────────────────────
@@ -205,55 +431,95 @@ function animateShapeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStr
 }
 
 // ── Edge draw helpers ─────────────────────────────────────
-function clearEdgeDrawStyles(el: SVGGElement): void {
-  el.querySelectorAll<SVGGeometryElement>("path").forEach((p) => {
-    p.style.strokeDasharray =
-      p.style.strokeDashoffset =
-      p.style.opacity =
-      p.style.transition =
-        "";
+const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path';
+const EDGE_DECOR_SELECTOR =
+  '[data-edge-role="head"], [data-edge-role="label"], [data-edge-role="label-bg"]';
+
+function edgeShaftPaths(el: SVGGElement): SVGGeometryElement[] {
+  return Array.from(el.querySelectorAll<SVGGeometryElement>(EDGE_SHAFT_SELECTOR));
+}
+
+function edgeDecorEls(el: SVGGElement): SVGElement[] {
+  return Array.from(el.querySelectorAll<SVGElement>(EDGE_DECOR_SELECTOR));
+}
+
+function prepareEdgeForDraw(el: SVGGElement): void {
+  edgeShaftPaths(el).forEach((p) => {
+    const len = pathLength(p);
+    p.style.strokeDasharray = `${len}`;
+    p.style.strokeDashoffset = `${len}`;
+    p.style.transition = "none";
+  });
+  edgeDecorEls(el).forEach((part) => {
+    part.style.opacity = "0";
+    part.style.transition = "none";
   });
 }
 
-function animateEdgeDraw(el: SVGGElement, conn: string): void {
-  const paths = Array.from(el.querySelectorAll<SVGGeometryElement>('path'));
-  if (!paths.length) return;
-  const linePath  = paths[0];
-  const headPaths = paths.slice(1);
-  const len = pathLength(linePath);
+function revealEdgeInstant(el: SVGGElement): void {
+  edgeShaftPaths(el).forEach((p) => {
+    p.style.transition = "none";
+    p.style.strokeDashoffset = "0";
+    p.style.strokeDasharray = "";
+  });
+  edgeDecorEls(el).forEach((part) => {
+    part.style.transition = "none";
+    part.style.opacity = "1";
+  });
+}
+
+function clearEdgeDrawStyles(el: SVGGElement): void {
+  edgeShaftPaths(el).forEach((p) => {
+    p.style.strokeDasharray =
+      p.style.strokeDashoffset =
+      p.style.transition =
+        "";
+  });
+  edgeDecorEls(el).forEach((part) => {
+    part.style.opacity = part.style.transition = "";
+  });
+}
+
+function animateEdgeDraw(
+  el: SVGGElement,
+  conn: string,
+  strokeDur: number = ANIMATION.strokeDur,
+): void {
+  const shaftPaths = edgeShaftPaths(el);
+  const decorEls = edgeDecorEls(el);
+  if (!shaftPaths.length) return;
   const reversed = conn.startsWith('<') && !conn.includes('>');
 
-  linePath.style.strokeDasharray  = `${len}`;
-  linePath.style.strokeDashoffset = reversed ? `${-len}` : `${len}`;
-  linePath.style.transition = 'none';
-  headPaths.forEach(p => {
-    p.style.opacity    = '0';
-    p.style.transition = 'none';
+  shaftPaths.forEach((p) => {
+    const len = pathLength(p);
+    p.style.strokeDasharray = `${len}`;
+    p.style.strokeDashoffset = reversed ? `${-len}` : `${len}`;
+    p.style.transition = "none";
   });
-
-  el.classList.remove('draw-hidden');
-  el.classList.add('draw-reveal');
-  el.style.opacity = '1';
+  decorEls.forEach((part) => {
+    part.style.opacity = "0";
+    part.style.transition = "none";
+  });
 
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
-      linePath.style.transition       = `stroke-dashoffset ${ANIMATION.strokeDur}ms cubic-bezier(.4,0,.2,1)`;
-      linePath.style.strokeDashoffset = '0';
+      shaftPaths.forEach((p) => {
+        p.style.transition = `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1)`;
+        p.style.strokeDashoffset = "0";
+      });
       setTimeout(() => {
-        headPaths.forEach(p => {
-          p.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
-          p.style.opacity    = '1';
+        decorEls.forEach((part) => {
+          part.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
+          part.style.opacity = "1";
         });
 
         // ── ADD: clear inline dash overrides so SVG attribute
         //    (stroke-dasharray="6,5" for dashed arrows) takes over again
         setTimeout(() => {
-          linePath.style.strokeDasharray  = '';
-          linePath.style.strokeDashoffset = '';
-          linePath.style.transition       = '';
+          clearEdgeDrawStyles(el);
         }, ANIMATION.dashClear);
 
-      }, ANIMATION.strokeDur - 40);
+      }, Math.max(0, strokeDur - 40));
     }),
   );
 }
@@ -261,6 +527,7 @@ function animateEdgeDraw(el: SVGGElement, conn: string): void {
 // ── AnimationController ───────────────────────────────────
 export class AnimationController {
   private _step = -1;
+  private _pendingStepTimers = new Set<number>();
   private _transforms = new Map<
     string,
     {
@@ -386,8 +653,11 @@ export class AnimationController {
   async play(msPerStep = 900): Promise<void> {
     this.emit("animation-start");
     while (this.canNext) {
+      const nextStep = this.steps[this._step + 1];
       this.next();
-      await new Promise<void>((r) => setTimeout(r, msPerStep));
+      await new Promise<void>((r) =>
+        setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)),
+      );
     }
   }
 
@@ -405,7 +675,32 @@ export class AnimationController {
     this.emit("step-change");
   }
 
+  private _clearPendingStepTimers(): void {
+    this._pendingStepTimers.forEach((id) => window.clearTimeout(id));
+    this._pendingStepTimers.clear();
+  }
+
+  private _scheduleStep(fn: () => void, delayMs: number): void {
+    if (delayMs <= 0) {
+      fn();
+      return;
+    }
+    const id = window.setTimeout(() => {
+      this._pendingStepTimers.delete(id);
+      fn();
+    }, delayMs);
+    this._pendingStepTimers.add(id);
+  }
+
+  private _playbackWaitMs(step: ASTStep | undefined, fallbackMs: number): number {
+    if (!step) return fallbackMs;
+    const delay = Math.max(0, step.delay ?? 0);
+    const duration = Math.max(0, step.duration ?? 0);
+    return delay + Math.max(fallbackMs, duration);
+  }
+
   private _clearAll(): void {
+    this._clearPendingStepTimers();
     this._transforms.clear();
 
     // Nodes
@@ -415,9 +710,10 @@ export class AnimationController {
       el.classList.remove("hl", "faded", "hidden");
       el.style.opacity = el.style.filter = "";
       if (this.drawTargetNodes.has(el.id)) {
-        clearDrawStyles(el);
-        prepareForDraw(el);
-      } else clearDrawStyles(el);
+        prepareNodeForDraw(el);
+      } else {
+        clearNodeDrawStyles(el);
+      }
     });
 
     // Groups — hide draw-target groups, show the rest
@@ -438,15 +734,12 @@ export class AnimationController {
 
     // Edges
     this.svg.querySelectorAll<SVGGElement>(".eg").forEach((el) => {
-      el.classList.remove("draw-reveal");
       clearEdgeDrawStyles(el);
       el.style.transition = "none";
+      el.style.opacity = "";
       if (this.drawTargetEdges.has(el.id)) {
-        el.style.opacity = "";
-        el.classList.add("draw-hidden");
+        prepareEdgeForDraw(el);
       } else {
-        el.style.opacity = "";
-        el.classList.remove("draw-hidden");
         requestAnimationFrame(() => {
           el.style.transition = "";
         });
@@ -523,6 +816,15 @@ export class AnimationController {
   private _applyStep(i: number, silent: boolean): void {
     const s = this.steps[i];
     if (!s) return;
+    const run = () => this._runStep(s, silent);
+    if (silent) {
+      run();
+      return;
+    }
+    this._scheduleStep(run, Math.max(0, s.delay ?? 0));
+  }
+
+  private _runStep(s: ASTStep, silent: boolean): void {
     switch (s.action) {
       case "highlight":
         this._doHighlight(s.target);
@@ -534,19 +836,19 @@ export class AnimationController {
         this._doFade(s.target, false);
         break;
       case "draw":
-        this._doDraw(s.target, silent);
+        this._doDraw(s, silent);
         break;
       case "erase":
-        this._doErase(s.target);
+        this._doErase(s.target, s.duration);
         break;
       case "show":
-        this._doShowHide(s.target, true, silent);
+        this._doShowHide(s.target, true, silent, s.duration);
         break;
       case "hide":
-        this._doShowHide(s.target, false, silent);
+        this._doShowHide(s.target, false, silent, s.duration);
         break;
       case "pulse":
-        if (!silent) this._doPulse(s.target);
+        if (!silent) this._doPulse(s.target, s.duration);
         break;
       case "color":
         this._doColor(s.target, s.value);
@@ -658,7 +960,8 @@ export class AnimationController {
     });
     this._writeTransform(el, target, silent, step.duration ?? 400);
   }
-  private _doDraw(target: string, silent: boolean): void {
+  private _doDraw(step: ASTStep, silent: boolean): void {
+    const { target } = step;
     const edge = parseEdgeTarget(target);
 
     if (edge) {
@@ -666,18 +969,14 @@ export class AnimationController {
       const el = getEdgeEl(this.svg, edge.from, edge.to);
       if (!el) return;
       if (silent) {
-        clearEdgeDrawStyles(el);
-        el.style.transition = "none";
-        el.classList.remove("draw-hidden");
-        el.classList.add("draw-reveal");
-        el.style.opacity = "1";
+        revealEdgeInstant(el);
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
-            el.style.transition = "";
+            clearEdgeDrawStyles(el);
           }),
         );
       } else {
-        animateEdgeDraw(el, edge.conn);
+        animateEdgeDraw(el, edge.conn, step.duration ?? ANIMATION.strokeDur);
       }
       return;
     }
@@ -702,10 +1001,11 @@ export class AnimationController {
         // Groups use slightly longer stroke-draw (bigger box, dashed border = more paths)
         const firstPath = groupEl.querySelector("path");
         if (!firstPath?.style.strokeDasharray) prepareForDraw(groupEl);
-        animateShapeDraw(groupEl, ANIMATION.groupStrokeDur, ANIMATION.groupStagger);
+        const groupStrokeDur = step.duration ?? ANIMATION.groupStrokeDur;
+        animateShapeDraw(groupEl, groupStrokeDur, ANIMATION.groupStagger);
 
         const pathCount = groupEl.querySelectorAll('path').length;
-        const totalMs   = pathCount * ANIMATION.groupStagger + ANIMATION.groupStrokeDur + 120;
+        const totalMs   = pathCount * ANIMATION.groupStagger + groupStrokeDur + 120;
         clearDashOverridesAfter(groupEl, totalMs);
       }
       return;
@@ -728,9 +1028,10 @@ export class AnimationController {
       } else {
         tableEl.classList.remove("gg-hidden");
         prepareForDraw(tableEl);
-        animateShapeDraw(tableEl, ANIMATION.tableStrokeDur, ANIMATION.tableStagger);
+        const tableStrokeDur = step.duration ?? ANIMATION.tableStrokeDur;
+        animateShapeDraw(tableEl, tableStrokeDur, ANIMATION.tableStagger);
         const tablePathCount = tableEl.querySelectorAll('path').length;
-        clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + ANIMATION.tableStrokeDur + 120);
+        clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + tableStrokeDur + 120);
       }
       return;
     }
@@ -752,9 +1053,10 @@ export class AnimationController {
       } else {
         noteEl.classList.remove("gg-hidden");
         prepareForDraw(noteEl);
-        animateShapeDraw(noteEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
+        const noteStrokeDur = step.duration ?? ANIMATION.nodeStrokeDur;
+        animateShapeDraw(noteEl, noteStrokeDur, ANIMATION.nodeStagger);
         const notePathCount = noteEl.querySelectorAll('path').length;
-        clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
+        clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + noteStrokeDur + 120);
       }
       return;
     }
@@ -777,9 +1079,10 @@ export class AnimationController {
       } else {
         chartEl.style.opacity = "0"; // start from 0 explicitly
         chartEl.classList.remove("gg-hidden");
+        const chartFade = step.duration ?? ANIMATION.chartFade;
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
-            chartEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
+            chartEl.style.transition = `opacity ${chartFade}ms ease`;
             chartEl.style.opacity = "1";
           }),
         );
@@ -803,9 +1106,10 @@ export class AnimationController {
       } else {
         markdownEl.style.opacity = "0";
         markdownEl.classList.remove("gg-hidden");
+        const markdownFade = step.duration ?? ANIMATION.chartFade;
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
-            markdownEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
+            markdownEl.style.transition = `opacity ${markdownFade}ms ease`;
             markdownEl.style.opacity = "1";
           }),
         );
@@ -817,45 +1121,41 @@ export class AnimationController {
     const nodeEl = getNodeEl(this.svg, target);
     if (!nodeEl) return;
     if (silent) {
-      revealInstant(nodeEl);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => clearDrawStyles(nodeEl)),
-      );
+      revealNodeInstant(nodeEl);
     } else {
-      const firstPath = nodeEl.querySelector("path");
-      if (!firstPath?.style.strokeDasharray) prepareForDraw(nodeEl);
-      animateShapeDraw(nodeEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
-      const nodePathCount = nodeEl.querySelectorAll('path').length;
-      clearDashOverridesAfter(nodeEl, nodePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
+      if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
+        prepareNodeForDraw(nodeEl);
+      }
+      animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur);
     }
   }
 
   // ── erase ─────────────────────────────────────────────────
-  private _doErase(target: string): void {
+  private _doErase(target: string, duration: number = 400): void {
     const el = resolveEl(this.svg, target); // handles edges too now
     if (el) {
-      el.style.transition = "opacity 0.4s";
+      el.style.transition = `opacity ${duration}ms`;
       el.style.opacity = "0";
     }
   }
 
   // ── show / hide ───────────────────────────────────────────
-  private _doShowHide(target: string, show: boolean, silent: boolean): void {
+  private _doShowHide(target: string, show: boolean, silent: boolean, duration: number = 400): void {
     const el = resolveEl(this.svg, target);
     if (!el) return;
-    el.style.transition = silent ? "none" : "opacity 0.4s";
+    el.style.transition = silent ? "none" : `opacity ${duration}ms`;
     el.style.opacity = show ? "1" : "0";
   }
 
   // ── pulse ─────────────────────────────────────────────────
-  private _doPulse(target: string): void {
+  private _doPulse(target: string, duration: number = 500): void {
     resolveEl(this.svg, target)?.animate(
       [
         { filter: "brightness(1)" },
         { filter: "brightness(1.6)" },
         { filter: "brightness(1)" },
       ],
-      { duration: 500, iterations: 3 },
+      { duration, iterations: 3 },
     );
   }
 
@@ -924,8 +1224,6 @@ export const ANIMATION_CSS = `
 .cg.faded, .eg.faded, .mdg.faded { opacity: 0.22; }
 
 .ng.hidden { opacity: 0; pointer-events: none; }
-.eg.draw-hidden { opacity: 0; }
-.eg.draw-reveal { opacity: 1; }
 .gg.gg-hidden  { opacity: 0; }
 .tg.gg-hidden  { opacity: 0; }
 .ntg.gg-hidden { opacity: 0; }

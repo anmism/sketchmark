@@ -415,39 +415,41 @@ export function renderToSVG(
     const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
     const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
 
-    eg.appendChild(
-      rc.line(sx1, sy1, sx2, sy2, {
-        ...BASE_ROUGH,
-        roughness: 0.9,
-        seed: hashStr(e.from + e.to),
-        stroke: ecol,
-        strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
-        ...(dashed ? { strokeLineDash: EDGE.dashPattern as number[] } : {}),
-      }),
-    );
+    const shaft = rc.line(sx1, sy1, sx2, sy2, {
+      ...BASE_ROUGH,
+      roughness: 0.9,
+      seed: hashStr(e.from + e.to),
+      stroke: ecol,
+      strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
+      ...(dashed ? { strokeLineDash: EDGE.dashPattern as number[] } : {}),
+    });
+    shaft.setAttribute("data-edge-role", "shaft");
+    eg.appendChild(shaft);
 
-    if (arrowAt === "end" || arrowAt === "both")
-      eg.appendChild(
-        arrowHead(
-          rc,
-          x2,
-          y2,
-          Math.atan2(y2 - y1, x2 - x1),
-          ecol,
-          hashStr(e.to),
-        ),
+    if (arrowAt === "end" || arrowAt === "both") {
+      const endHead = arrowHead(
+        rc,
+        x2,
+        y2,
+        Math.atan2(y2 - y1, x2 - x1),
+        ecol,
+        hashStr(e.to),
       );
-    if (arrowAt === "start" || arrowAt === "both")
-      eg.appendChild(
-        arrowHead(
-          rc,
-          x1,
-          y1,
-          Math.atan2(y1 - y2, x1 - x2),
-          ecol,
-          hashStr(e.from + "back"),
-        ),
+      endHead.setAttribute("data-edge-role", "head");
+      eg.appendChild(endHead);
+    }
+    if (arrowAt === "start" || arrowAt === "both") {
+      const startHead = arrowHead(
+        rc,
+        x1,
+        y1,
+        Math.atan2(y1 - y2, x1 - x2),
+        ecol,
+        hashStr(e.from + "back"),
       );
+      startHead.setAttribute("data-edge-role", "head");
+      eg.appendChild(startHead);
+    }
 
     if (e.label) {
       const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
@@ -462,6 +464,7 @@ export function renderToSVG(
       bg.setAttribute("fill", palette.edgeLabelBg);
       bg.setAttribute("rx", "3");
       bg.setAttribute("opacity", "0.9");
+      bg.setAttribute("data-edge-role", "label-bg");
       eg.appendChild(bg);
 
       // ── Edge label typography ───────────────────────
@@ -477,19 +480,19 @@ export function renderToSVG(
       const eFontWeight = e.style?.fontWeight ?? EDGE.labelFontWeight;
       const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
 
-      eg.appendChild(
-        mkText(
-          e.label,
-          mx,
-          my,
-          eFontSize,
-          eFontWeight,
-          eLabelColor,
-          "middle",
-          eFont,
-          eLetterSpacing,
-        ),
+      const label = mkText(
+        e.label,
+        mx,
+        my,
+        eFontSize,
+        eFontWeight,
+        eLabelColor,
+        "middle",
+        eFont,
+        eLetterSpacing,
       );
+      label.setAttribute("data-edge-role", "label");
+      eg.appendChild(label);
     }
     EL.appendChild(eg);
   }
@@ -502,6 +505,11 @@ export function renderToSVG(
     const idPrefix = shapeDef?.idPrefix ?? "node";
     const cssClass = shapeDef?.cssClass ?? "ng";
     const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
+    ng.dataset.nodeShape = n.shape;
+    ng.dataset.x = String(n.x);
+    ng.dataset.y = String(n.y);
+    ng.dataset.w = String(n.w);
+    ng.dataset.h = String(n.h);
     if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
 
     // ── Static transform (deg, dx, dy, factor) ──────────

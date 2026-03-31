@@ -5635,18 +5635,26 @@ var AIDiagram = (function (exports) {
             const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
             const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
             const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
-            eg.appendChild(rc.line(sx1, sy1, sx2, sy2, {
+            const shaft = rc.line(sx1, sy1, sx2, sy2, {
                 ...BASE_ROUGH,
                 roughness: 0.9,
                 seed: hashStr$3(e.from + e.to),
                 stroke: ecol,
                 strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
                 ...(dashed ? { strokeLineDash: EDGE.dashPattern } : {}),
-            }));
-            if (arrowAt === "end" || arrowAt === "both")
-                eg.appendChild(arrowHead(rc, x2, y2, Math.atan2(y2 - y1, x2 - x1), ecol, hashStr$3(e.to)));
-            if (arrowAt === "start" || arrowAt === "both")
-                eg.appendChild(arrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + "back")));
+            });
+            shaft.setAttribute("data-edge-role", "shaft");
+            eg.appendChild(shaft);
+            if (arrowAt === "end" || arrowAt === "both") {
+                const endHead = arrowHead(rc, x2, y2, Math.atan2(y2 - y1, x2 - x1), ecol, hashStr$3(e.to));
+                endHead.setAttribute("data-edge-role", "head");
+                eg.appendChild(endHead);
+            }
+            if (arrowAt === "start" || arrowAt === "both") {
+                const startHead = arrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + "back"));
+                startHead.setAttribute("data-edge-role", "head");
+                eg.appendChild(startHead);
+            }
             if (e.label) {
                 const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
                 const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
@@ -5659,6 +5667,7 @@ var AIDiagram = (function (exports) {
                 bg.setAttribute("fill", palette.edgeLabelBg);
                 bg.setAttribute("rx", "3");
                 bg.setAttribute("opacity", "0.9");
+                bg.setAttribute("data-edge-role", "label-bg");
                 eg.appendChild(bg);
                 // ── Edge label typography ───────────────────────
                 // supports: font, font-size, letter-spacing
@@ -5668,7 +5677,9 @@ var AIDiagram = (function (exports) {
                 const eLetterSpacing = e.style?.letterSpacing;
                 const eFontWeight = e.style?.fontWeight ?? EDGE.labelFontWeight;
                 const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
-                eg.appendChild(mkText(e.label, mx, my, eFontSize, eFontWeight, eLabelColor, "middle", eFont, eLetterSpacing));
+                const label = mkText(e.label, mx, my, eFontSize, eFontWeight, eLabelColor, "middle", eFont, eLetterSpacing);
+                label.setAttribute("data-edge-role", "label");
+                eg.appendChild(label);
             }
             EL.appendChild(eg);
         }
@@ -5680,6 +5691,11 @@ var AIDiagram = (function (exports) {
             const idPrefix = shapeDef?.idPrefix ?? "node";
             const cssClass = shapeDef?.cssClass ?? "ng";
             const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
+            ng.dataset.nodeShape = n.shape;
+            ng.dataset.x = String(n.x);
+            ng.dataset.y = String(n.y);
+            ng.dataset.w = String(n.w);
+            ng.dataset.h = String(n.h);
             if (n.style?.opacity != null)
                 ng.setAttribute("opacity", String(n.style.opacity));
             // ── Static transform (deg, dx, dy, factor) ──────────
@@ -6655,6 +6671,201 @@ var AIDiagram = (function (exports) {
             });
         }, delayMs);
     }
+    const NODE_DRAW_GUIDE_ATTR = "data-node-draw-guide";
+    const GUIDED_NODE_SHAPES = new Set([
+        "box",
+        "circle",
+        "diamond",
+        "hexagon",
+        "triangle",
+        "parallelogram",
+        "line",
+    ]);
+    function polygonPath(points) {
+        return points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z";
+    }
+    function rectPath(x, y, w, h) {
+        return polygonPath([
+            [x, y],
+            [x + w, y],
+            [x + w, y + h],
+            [x, y + h],
+        ]);
+    }
+    function ellipsePath(cx, cy, rx, ry) {
+        return [
+            `M ${cx - rx} ${cy}`,
+            `A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy}`,
+            `A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy}`,
+        ].join(" ");
+    }
+    function nodeMetric(el, key) {
+        const raw = el.dataset[key];
+        const n = raw == null ? Number.NaN : Number(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+    function buildNodeGuidePath(el) {
+        const shape = el.dataset.nodeShape;
+        if (!shape || !GUIDED_NODE_SHAPES.has(shape))
+            return null;
+        const x = nodeMetric(el, "x");
+        const y = nodeMetric(el, "y");
+        const w = nodeMetric(el, "w");
+        const h = nodeMetric(el, "h");
+        if (x == null || y == null || w == null || h == null)
+            return null;
+        switch (shape) {
+            case "box":
+                return rectPath(x + 1, y + 1, w - 2, h - 2);
+            case "circle":
+                return ellipsePath(x + w / 2, y + h / 2, (w * 0.88) / 2, (h * 0.88) / 2);
+            case "diamond": {
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                const hw = w / 2 - 2;
+                return polygonPath([
+                    [cx, y + 2],
+                    [cx + hw, cy],
+                    [cx, y + h - 2],
+                    [cx - hw, cy],
+                ]);
+            }
+            case "hexagon": {
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                const hw = w / 2 - 2;
+                const hw2 = hw * SHAPES.hexagon.inset;
+                return polygonPath([
+                    [cx - hw2, y + 3],
+                    [cx + hw2, y + 3],
+                    [cx + hw, cy],
+                    [cx + hw2, y + h - 3],
+                    [cx - hw2, y + h - 3],
+                    [cx - hw, cy],
+                ]);
+            }
+            case "triangle": {
+                const cx = x + w / 2;
+                return polygonPath([
+                    [cx, y + 3],
+                    [x + w - 3, y + h - 3],
+                    [x + 3, y + h - 3],
+                ]);
+            }
+            case "parallelogram":
+                return polygonPath([
+                    [x + SHAPES.parallelogram.skew, y + 1],
+                    [x + w - 1, y + 1],
+                    [x + w - SHAPES.parallelogram.skew, y + h - 1],
+                    [x + 1, y + h - 1],
+                ]);
+            case "line": {
+                const labelH = el.querySelector("text") ? 20 : 0;
+                const lineY = y + (h - labelH) / 2;
+                return `M ${x} ${lineY} L ${x + w} ${lineY}`;
+            }
+            default:
+                return null;
+        }
+    }
+    function nodeGuidePathEl(el) {
+        return el.querySelector(`path[${NODE_DRAW_GUIDE_ATTR}="true"]`);
+    }
+    function removeNodeGuide(el) {
+        nodeGuidePathEl(el)?.remove();
+    }
+    function nodePaths(el) {
+        return Array.from(el.querySelectorAll("path")).filter((p) => p.getAttribute(NODE_DRAW_GUIDE_ATTR) !== "true");
+    }
+    function nodeText(el) {
+        return el.querySelector("text");
+    }
+    function nodeStrokeTemplate(el) {
+        return (nodePaths(el).find((p) => (p.getAttribute("stroke") ?? "") !== "none") ??
+            nodePaths(el)[0] ??
+            null);
+    }
+    function clearNodeDrawStyles(el) {
+        removeNodeGuide(el);
+        nodePaths(el).forEach((p) => {
+            p.style.strokeDasharray =
+                p.style.strokeDashoffset =
+                    p.style.fillOpacity =
+                        p.style.transition =
+                            p.style.opacity =
+                                "";
+        });
+        const text = nodeText(el);
+        if (text) {
+            text.style.opacity = text.style.transition = "";
+        }
+    }
+    function prepareNodeForDraw(el) {
+        clearNodeDrawStyles(el);
+        const d = buildNodeGuidePath(el);
+        const source = nodeStrokeTemplate(el);
+        if (!d || !source) {
+            prepareForDraw(el);
+            return;
+        }
+        const guide = document.createElementNS(SVG_NS$1, "path");
+        guide.setAttribute("d", d);
+        guide.setAttribute("fill", "none");
+        guide.setAttribute("stroke", source.getAttribute("stroke") ?? "#000");
+        guide.setAttribute("stroke-width", source.getAttribute("stroke-width") ?? "1.8");
+        guide.setAttribute("stroke-linecap", "round");
+        guide.setAttribute("stroke-linejoin", "round");
+        guide.setAttribute(NODE_DRAW_GUIDE_ATTR, "true");
+        guide.style.pointerEvents = "none";
+        const len = pathLength(guide);
+        guide.style.strokeDasharray = `${len}`;
+        guide.style.strokeDashoffset = `${len}`;
+        guide.style.transition = "none";
+        nodePaths(el).forEach((p) => {
+            p.style.opacity = "0";
+            p.style.transition = "none";
+        });
+        const text = nodeText(el);
+        if (text) {
+            text.style.opacity = "0";
+            text.style.transition = "none";
+        }
+        el.appendChild(guide);
+    }
+    function revealNodeInstant(el) {
+        clearNodeDrawStyles(el);
+    }
+    function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur) {
+        const guide = nodeGuidePathEl(el);
+        if (!guide) {
+            const firstPath = el.querySelector("path");
+            if (!firstPath?.style.strokeDasharray)
+                prepareForDraw(el);
+            animateShapeDraw(el, strokeDur, ANIMATION.nodeStagger);
+            const nodePathCount = el.querySelectorAll("path").length;
+            clearDashOverridesAfter(el, nodePathCount * ANIMATION.nodeStagger + strokeDur + 120);
+            return;
+        }
+        const roughPaths = nodePaths(el);
+        const text = nodeText(el);
+        const revealDelay = strokeDur + 30;
+        const textDelay = revealDelay + ANIMATION.textDelay;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            guide.style.transition = `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1)`;
+            guide.style.strokeDashoffset = "0";
+            roughPaths.forEach((p) => {
+                p.style.transition = `opacity 140ms ease ${revealDelay}ms`;
+                p.style.opacity = "1";
+            });
+            if (text) {
+                text.style.transition = `opacity ${ANIMATION.textFade}ms ease ${textDelay}ms`;
+                text.style.opacity = "1";
+            }
+            setTimeout(() => {
+                clearNodeDrawStyles(el);
+            }, textDelay + ANIMATION.textFade + 40);
+        }));
+    }
     // ── Arrow connector parser ────────────────────────────────
     const ARROW_CONNECTORS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];
     function parseEdgeTarget(target) {
@@ -6705,19 +6916,6 @@ var AIDiagram = (function (exports) {
             text.style.transition = "none";
         }
     }
-    function revealInstant(el) {
-        el.querySelectorAll("path").forEach((p) => {
-            p.style.transition = "none";
-            p.style.strokeDashoffset = "0";
-            p.style.fillOpacity = "";
-            p.style.strokeDasharray = "";
-        });
-        const text = el.querySelector("text");
-        if (text) {
-            text.style.transition = "none";
-            text.style.opacity = "";
-        }
-    }
     function clearDrawStyles(el) {
         el.querySelectorAll("path").forEach((p) => {
             p.style.strokeDasharray =
@@ -6752,49 +6950,80 @@ var AIDiagram = (function (exports) {
         }));
     }
     // ── Edge draw helpers ─────────────────────────────────────
-    function clearEdgeDrawStyles(el) {
-        el.querySelectorAll("path").forEach((p) => {
-            p.style.strokeDasharray =
-                p.style.strokeDashoffset =
-                    p.style.opacity =
-                        p.style.transition =
-                            "";
+    const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path';
+    const EDGE_DECOR_SELECTOR = '[data-edge-role="head"], [data-edge-role="label"], [data-edge-role="label-bg"]';
+    function edgeShaftPaths(el) {
+        return Array.from(el.querySelectorAll(EDGE_SHAFT_SELECTOR));
+    }
+    function edgeDecorEls(el) {
+        return Array.from(el.querySelectorAll(EDGE_DECOR_SELECTOR));
+    }
+    function prepareEdgeForDraw(el) {
+        edgeShaftPaths(el).forEach((p) => {
+            const len = pathLength(p);
+            p.style.strokeDasharray = `${len}`;
+            p.style.strokeDashoffset = `${len}`;
+            p.style.transition = "none";
+        });
+        edgeDecorEls(el).forEach((part) => {
+            part.style.opacity = "0";
+            part.style.transition = "none";
         });
     }
-    function animateEdgeDraw(el, conn) {
-        const paths = Array.from(el.querySelectorAll('path'));
-        if (!paths.length)
-            return;
-        const linePath = paths[0];
-        const headPaths = paths.slice(1);
-        const len = pathLength(linePath);
-        const reversed = conn.startsWith('<') && !conn.includes('>');
-        linePath.style.strokeDasharray = `${len}`;
-        linePath.style.strokeDashoffset = reversed ? `${-len}` : `${len}`;
-        linePath.style.transition = 'none';
-        headPaths.forEach(p => {
-            p.style.opacity = '0';
-            p.style.transition = 'none';
+    function revealEdgeInstant(el) {
+        edgeShaftPaths(el).forEach((p) => {
+            p.style.transition = "none";
+            p.style.strokeDashoffset = "0";
+            p.style.strokeDasharray = "";
         });
-        el.classList.remove('draw-hidden');
-        el.classList.add('draw-reveal');
-        el.style.opacity = '1';
+        edgeDecorEls(el).forEach((part) => {
+            part.style.transition = "none";
+            part.style.opacity = "1";
+        });
+    }
+    function clearEdgeDrawStyles(el) {
+        edgeShaftPaths(el).forEach((p) => {
+            p.style.strokeDasharray =
+                p.style.strokeDashoffset =
+                    p.style.transition =
+                        "";
+        });
+        edgeDecorEls(el).forEach((part) => {
+            part.style.opacity = part.style.transition = "";
+        });
+    }
+    function animateEdgeDraw(el, conn, strokeDur = ANIMATION.strokeDur) {
+        const shaftPaths = edgeShaftPaths(el);
+        const decorEls = edgeDecorEls(el);
+        if (!shaftPaths.length)
+            return;
+        const reversed = conn.startsWith('<') && !conn.includes('>');
+        shaftPaths.forEach((p) => {
+            const len = pathLength(p);
+            p.style.strokeDasharray = `${len}`;
+            p.style.strokeDashoffset = reversed ? `${-len}` : `${len}`;
+            p.style.transition = "none";
+        });
+        decorEls.forEach((part) => {
+            part.style.opacity = "0";
+            part.style.transition = "none";
+        });
         requestAnimationFrame(() => requestAnimationFrame(() => {
-            linePath.style.transition = `stroke-dashoffset ${ANIMATION.strokeDur}ms cubic-bezier(.4,0,.2,1)`;
-            linePath.style.strokeDashoffset = '0';
+            shaftPaths.forEach((p) => {
+                p.style.transition = `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1)`;
+                p.style.strokeDashoffset = "0";
+            });
             setTimeout(() => {
-                headPaths.forEach(p => {
-                    p.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
-                    p.style.opacity = '1';
+                decorEls.forEach((part) => {
+                    part.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
+                    part.style.opacity = "1";
                 });
                 // ── ADD: clear inline dash overrides so SVG attribute
                 //    (stroke-dasharray="6,5" for dashed arrows) takes over again
                 setTimeout(() => {
-                    linePath.style.strokeDasharray = '';
-                    linePath.style.strokeDashoffset = '';
-                    linePath.style.transition = '';
+                    clearEdgeDrawStyles(el);
                 }, ANIMATION.dashClear);
-            }, ANIMATION.strokeDur - 40);
+            }, Math.max(0, strokeDur - 40));
         }));
     }
     // ── AnimationController ───────────────────────────────────
@@ -6806,6 +7035,7 @@ var AIDiagram = (function (exports) {
             this.svg = svg;
             this.steps = steps;
             this._step = -1;
+            this._pendingStepTimers = new Set();
             this._transforms = new Map();
             this._listeners = [];
             this.drawTargetEdges = getDrawTargetEdgeIds(steps);
@@ -6904,8 +7134,9 @@ var AIDiagram = (function (exports) {
         async play(msPerStep = 900) {
             this.emit("animation-start");
             while (this.canNext) {
+                const nextStep = this.steps[this._step + 1];
                 this.next();
-                await new Promise((r) => setTimeout(r, msPerStep));
+                await new Promise((r) => setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)));
             }
         }
         goTo(index) {
@@ -6922,7 +7153,30 @@ var AIDiagram = (function (exports) {
             }
             this.emit("step-change");
         }
+        _clearPendingStepTimers() {
+            this._pendingStepTimers.forEach((id) => window.clearTimeout(id));
+            this._pendingStepTimers.clear();
+        }
+        _scheduleStep(fn, delayMs) {
+            if (delayMs <= 0) {
+                fn();
+                return;
+            }
+            const id = window.setTimeout(() => {
+                this._pendingStepTimers.delete(id);
+                fn();
+            }, delayMs);
+            this._pendingStepTimers.add(id);
+        }
+        _playbackWaitMs(step, fallbackMs) {
+            if (!step)
+                return fallbackMs;
+            const delay = Math.max(0, step.delay ?? 0);
+            const duration = Math.max(0, step.duration ?? 0);
+            return delay + Math.max(fallbackMs, duration);
+        }
         _clearAll() {
+            this._clearPendingStepTimers();
             this._transforms.clear();
             // Nodes
             this.svg.querySelectorAll(".ng").forEach((el) => {
@@ -6931,11 +7185,11 @@ var AIDiagram = (function (exports) {
                 el.classList.remove("hl", "faded", "hidden");
                 el.style.opacity = el.style.filter = "";
                 if (this.drawTargetNodes.has(el.id)) {
-                    clearDrawStyles(el);
-                    prepareForDraw(el);
+                    prepareNodeForDraw(el);
                 }
-                else
-                    clearDrawStyles(el);
+                else {
+                    clearNodeDrawStyles(el);
+                }
             });
             // Groups — hide draw-target groups, show the rest
             this.svg.querySelectorAll(".gg").forEach((el) => {
@@ -6955,16 +7209,13 @@ var AIDiagram = (function (exports) {
             });
             // Edges
             this.svg.querySelectorAll(".eg").forEach((el) => {
-                el.classList.remove("draw-reveal");
                 clearEdgeDrawStyles(el);
                 el.style.transition = "none";
+                el.style.opacity = "";
                 if (this.drawTargetEdges.has(el.id)) {
-                    el.style.opacity = "";
-                    el.classList.add("draw-hidden");
+                    prepareEdgeForDraw(el);
                 }
                 else {
-                    el.style.opacity = "";
-                    el.classList.remove("draw-hidden");
                     requestAnimationFrame(() => {
                         el.style.transition = "";
                     });
@@ -7041,6 +7292,14 @@ var AIDiagram = (function (exports) {
             const s = this.steps[i];
             if (!s)
                 return;
+            const run = () => this._runStep(s, silent);
+            if (silent) {
+                run();
+                return;
+            }
+            this._scheduleStep(run, Math.max(0, s.delay ?? 0));
+        }
+        _runStep(s, silent) {
             switch (s.action) {
                 case "highlight":
                     this._doHighlight(s.target);
@@ -7052,20 +7311,20 @@ var AIDiagram = (function (exports) {
                     this._doFade(s.target, false);
                     break;
                 case "draw":
-                    this._doDraw(s.target, silent);
+                    this._doDraw(s, silent);
                     break;
                 case "erase":
-                    this._doErase(s.target);
+                    this._doErase(s.target, s.duration);
                     break;
                 case "show":
-                    this._doShowHide(s.target, true, silent);
+                    this._doShowHide(s.target, true, silent, s.duration);
                     break;
                 case "hide":
-                    this._doShowHide(s.target, false, silent);
+                    this._doShowHide(s.target, false, silent, s.duration);
                     break;
                 case "pulse":
                     if (!silent)
-                        this._doPulse(s.target);
+                        this._doPulse(s.target, s.duration);
                     break;
                 case "color":
                     this._doColor(s.target, s.value);
@@ -7167,7 +7426,8 @@ var AIDiagram = (function (exports) {
             });
             this._writeTransform(el, target, silent, step.duration ?? 400);
         }
-        _doDraw(target, silent) {
+        _doDraw(step, silent) {
+            const { target } = step;
             const edge = parseEdgeTarget(target);
             if (edge) {
                 // ── Edge draw ──────────────────────────────────────
@@ -7175,17 +7435,13 @@ var AIDiagram = (function (exports) {
                 if (!el)
                     return;
                 if (silent) {
-                    clearEdgeDrawStyles(el);
-                    el.style.transition = "none";
-                    el.classList.remove("draw-hidden");
-                    el.classList.add("draw-reveal");
-                    el.style.opacity = "1";
+                    revealEdgeInstant(el);
                     requestAnimationFrame(() => requestAnimationFrame(() => {
-                        el.style.transition = "";
+                        clearEdgeDrawStyles(el);
                     }));
                 }
                 else {
-                    animateEdgeDraw(el, edge.conn);
+                    animateEdgeDraw(el, edge.conn, step.duration ?? ANIMATION.strokeDur);
                 }
                 return;
             }
@@ -7209,9 +7465,10 @@ var AIDiagram = (function (exports) {
                     const firstPath = groupEl.querySelector("path");
                     if (!firstPath?.style.strokeDasharray)
                         prepareForDraw(groupEl);
-                    animateShapeDraw(groupEl, ANIMATION.groupStrokeDur, ANIMATION.groupStagger);
+                    const groupStrokeDur = step.duration ?? ANIMATION.groupStrokeDur;
+                    animateShapeDraw(groupEl, groupStrokeDur, ANIMATION.groupStagger);
                     const pathCount = groupEl.querySelectorAll('path').length;
-                    const totalMs = pathCount * ANIMATION.groupStagger + ANIMATION.groupStrokeDur + 120;
+                    const totalMs = pathCount * ANIMATION.groupStagger + groupStrokeDur + 120;
                     clearDashOverridesAfter(groupEl, totalMs);
                 }
                 return;
@@ -7232,9 +7489,10 @@ var AIDiagram = (function (exports) {
                 else {
                     tableEl.classList.remove("gg-hidden");
                     prepareForDraw(tableEl);
-                    animateShapeDraw(tableEl, ANIMATION.tableStrokeDur, ANIMATION.tableStagger);
+                    const tableStrokeDur = step.duration ?? ANIMATION.tableStrokeDur;
+                    animateShapeDraw(tableEl, tableStrokeDur, ANIMATION.tableStagger);
                     const tablePathCount = tableEl.querySelectorAll('path').length;
-                    clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + ANIMATION.tableStrokeDur + 120);
+                    clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + tableStrokeDur + 120);
                 }
                 return;
             }
@@ -7254,9 +7512,10 @@ var AIDiagram = (function (exports) {
                 else {
                     noteEl.classList.remove("gg-hidden");
                     prepareForDraw(noteEl);
-                    animateShapeDraw(noteEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
+                    const noteStrokeDur = step.duration ?? ANIMATION.nodeStrokeDur;
+                    animateShapeDraw(noteEl, noteStrokeDur, ANIMATION.nodeStagger);
                     const notePathCount = noteEl.querySelectorAll('path').length;
-                    clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
+                    clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + noteStrokeDur + 120);
                 }
                 return;
             }
@@ -7277,8 +7536,9 @@ var AIDiagram = (function (exports) {
                 else {
                     chartEl.style.opacity = "0"; // start from 0 explicitly
                     chartEl.classList.remove("gg-hidden");
+                    const chartFade = step.duration ?? ANIMATION.chartFade;
                     requestAnimationFrame(() => requestAnimationFrame(() => {
-                        chartEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
+                        chartEl.style.transition = `opacity ${chartFade}ms ease`;
                         chartEl.style.opacity = "1";
                     }));
                 }
@@ -7299,8 +7559,9 @@ var AIDiagram = (function (exports) {
                 else {
                     markdownEl.style.opacity = "0";
                     markdownEl.classList.remove("gg-hidden");
+                    const markdownFade = step.duration ?? ANIMATION.chartFade;
                     requestAnimationFrame(() => requestAnimationFrame(() => {
-                        markdownEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
+                        markdownEl.style.transition = `opacity ${markdownFade}ms ease`;
                         markdownEl.style.opacity = "1";
                     }));
                 }
@@ -7311,41 +7572,38 @@ var AIDiagram = (function (exports) {
             if (!nodeEl)
                 return;
             if (silent) {
-                revealInstant(nodeEl);
-                requestAnimationFrame(() => requestAnimationFrame(() => clearDrawStyles(nodeEl)));
+                revealNodeInstant(nodeEl);
             }
             else {
-                const firstPath = nodeEl.querySelector("path");
-                if (!firstPath?.style.strokeDasharray)
-                    prepareForDraw(nodeEl);
-                animateShapeDraw(nodeEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
-                const nodePathCount = nodeEl.querySelectorAll('path').length;
-                clearDashOverridesAfter(nodeEl, nodePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
+                if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
+                    prepareNodeForDraw(nodeEl);
+                }
+                animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur);
             }
         }
         // ── erase ─────────────────────────────────────────────────
-        _doErase(target) {
+        _doErase(target, duration = 400) {
             const el = resolveEl(this.svg, target); // handles edges too now
             if (el) {
-                el.style.transition = "opacity 0.4s";
+                el.style.transition = `opacity ${duration}ms`;
                 el.style.opacity = "0";
             }
         }
         // ── show / hide ───────────────────────────────────────────
-        _doShowHide(target, show, silent) {
+        _doShowHide(target, show, silent, duration = 400) {
             const el = resolveEl(this.svg, target);
             if (!el)
                 return;
-            el.style.transition = silent ? "none" : "opacity 0.4s";
+            el.style.transition = silent ? "none" : `opacity ${duration}ms`;
             el.style.opacity = show ? "1" : "0";
         }
         // ── pulse ─────────────────────────────────────────────────
-        _doPulse(target) {
+        _doPulse(target, duration = 500) {
             resolveEl(this.svg, target)?.animate([
                 { filter: "brightness(1)" },
                 { filter: "brightness(1.6)" },
                 { filter: "brightness(1)" },
-            ], { duration: 500, iterations: 3 });
+            ], { duration, iterations: 3 });
         }
         // ── color ─────────────────────────────────────────────────
         _doColor(target, color) {
@@ -7411,8 +7669,6 @@ var AIDiagram = (function (exports) {
 .cg.faded, .eg.faded, .mdg.faded { opacity: 0.22; }
 
 .ng.hidden { opacity: 0; pointer-events: none; }
-.eg.draw-hidden { opacity: 0; }
-.eg.draw-reveal { opacity: 1; }
 .gg.gg-hidden  { opacity: 0; }
 .tg.gg-hidden  { opacity: 0; }
 .ntg.gg-hidden { opacity: 0; }
