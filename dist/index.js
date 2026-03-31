@@ -424,7 +424,7 @@ function parse(src) {
             kind: "node",
             id,
             shape,
-            label: props.label || id,
+            label: props.label || "",
             ...(groupId ? { groupId } : {}),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -897,7 +897,7 @@ function parse(src) {
         const table = {
             kind: "table",
             id,
-            label: props.label ?? id,
+            label: props.label ?? "",
             rows: [],
             theme: props.theme,
             style: propsToStyle(props),

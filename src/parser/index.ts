@@ -227,7 +227,7 @@ export function parse(src: string): DiagramAST {
       kind: "node",
       id,
       shape,
-      label: props.label || id,
+      label: props.label || "",
       ...(groupId ? { groupId } : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -737,7 +737,7 @@ export function parse(src: string): DiagramAST {
     const table: ASTTable = {
       kind: "table",
       id,
-      label: props.label ?? id,
+      label: props.label ?? "",
       rows: [],
       theme: props.theme,
       style: propsToStyle(props),

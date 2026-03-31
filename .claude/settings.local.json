@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"c:\\\\Users\\\\anmis\\\\Downloads\\\\ai-diagram-dsl \\(7\\)\\\\ai-diagram-dsl\" -maxdepth 2 -type f \\\\\\( -name \"README*\" -o -name \"*.md\" \\\\\\))",
+      "Bash(find \"c:\\\\Users\\\\anmis\\\\Downloads\\\\ai-diagram-dsl \\(7\\)\\\\ai-diagram-dsl\" -name \"*.json\" -type f)"
+    ]
+  }
+}
