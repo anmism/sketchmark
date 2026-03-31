@@ -18,35 +18,19 @@ import type {
   SceneNode,
   SceneGroup,
   SceneTable,
-  SceneNote,
   SceneChart,
 } from "../scene";
 import type { GroupChildRef } from "../ast/types";
-import { nodeMap, groupMap, tableMap, noteMap, chartMap } from "../scene";
+import { nodeMap, groupMap, tableMap, chartMap } from "../scene";
 
 import { markdownMap } from "../scene";
-import { calcMarkdownHeight, LINE_SPACING } from "../markdown/parser";
+import { calcMarkdownHeight } from "../markdown/parser";
 import type { SceneMarkdown } from "../scene";
+import { buildEntityMap } from "./entity-rect";
+import type { EntityRect } from "./entity-rect";
+import { getShape } from "../renderer/shapes";
+import { LAYOUT, NODE, TABLE } from "../config";
 
-// ── Constants ─────────────────────────────────────────────
-const FONT_PX_PER_CHAR = 8.6;
-const MIN_W = 90;
-const MAX_W = 180;
-const BASE_PAD = 26;
-const GROUP_LABEL_H = 22;
-
-const DEFAULT_MARGIN = 60;
-const DEFAULT_GAP_MAIN = 80;
-
-// Table sizing
-const CELL_PAD = 20; // total horizontal padding per cell (left + right)
-const MIN_COL_W = 50; // minimum column width
-const TBL_FONT = 7.5; // px per char at 12px sans-serif
-
-const NOTE_LINE_H = 20;
-const NOTE_PAD_X = 16;
-const NOTE_PAD_Y = 12;
-const NOTE_FONT = 7.5;
 
 // ── Node auto-sizing ──────────────────────────────────────
 function sizeNode(n: SceneNode): void {
@@ -54,71 +38,15 @@ function sizeNode(n: SceneNode): void {
   if (n.width && n.width > 0) n.w = n.width;
   if (n.height && n.height > 0) n.h = n.height;
 
-  const labelW = Math.round(n.label.length * FONT_PX_PER_CHAR + BASE_PAD);
-  switch (n.shape) {
-    case "circle":
-      n.w = n.w || Math.max(84, Math.min(MAX_W, labelW));
-      n.h = n.h || n.w;
-      break;
-    case "diamond":
-      n.w = n.w || Math.max(130, Math.min(MAX_W, labelW + 30));
-      n.h = n.h || Math.max(62, n.w * 0.46);
-      break;
-    case "hexagon":
-      n.w = n.w || Math.max(126, Math.min(MAX_W, labelW + 20));
-      n.h = n.h || Math.max(54, n.w * 0.44);
-      break;
-    case "triangle":
-      n.w = n.w || Math.max(108, Math.min(MAX_W, labelW + 10));
-      n.h = n.h || Math.max(64, n.w * 0.6);
-      break;
-    case "cylinder":
-      n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-      n.h = n.h || 66;
-      break;
-    case "parallelogram":
-      n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + 28));
-      n.h = n.h || 50;
-      break;
-    case "text": {
-      const fontSize = Number(n.style?.fontSize ?? 13);
-      const charWidth = fontSize * 0.55;
-      const pad = Number(n.style?.padding ?? 8) * 2;
-
-      if (n.width) {
-        // User set width → word-wrap within it
-        const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
-        n.w = n.width;
-        n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
-      } else {
-        // Auto-size to content
-        const lines = n.label.split("\\n");
-        const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
-        n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
-        n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
-      }
-      break;
-    }
-    case "icon": {
-      const iconBase = 48;
-      const labelH = n.label ? 20 : 0;
-      n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
-      n.h = n.h || (iconBase + labelH);
-      break;
-    }
-    default:
-      n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-      n.h = n.h || 52;
-      break;
+  const labelW = Math.round(n.label.length * NODE.fontPxPerChar + NODE.basePad);
+  const shape = getShape(n.shape);
+  if (shape) {
+    shape.size(n, labelW);
+  } else {
+    // fallback for unknown shapes — box-like default
+    n.w = n.w || Math.max(90, Math.min(180, labelW));
+    n.h = n.h || 52;
   }
-}
-
-function sizeNote(n: SceneNote): void {
-  const maxChars = Math.max(...n.lines.map((l) => l.length));
-  n.w = Math.max(120, Math.ceil(maxChars * NOTE_FONT) + NOTE_PAD_X * 2);
-  n.h = n.lines.length * NOTE_LINE_H + NOTE_PAD_Y * 2;
-  if (n.width && n.w < n.width) n.w = n.width; // ← add
-  if (n.height && n.h < n.height) n.h = n.height; // ← add
 }
 
 // ── Table auto-sizing ─────────────────────────────────────
@@ -131,11 +59,11 @@ function sizeTable(t: SceneTable): void {
   }
 
   const numCols = Math.max(...rows.map((r) => r.cells.length));
-  const colW = Array(numCols).fill(MIN_COL_W) as number[];
+  const colW = Array(numCols).fill(TABLE.minColW) as number[];
 
   for (const row of rows) {
     row.cells.forEach((cell, i) => {
-      colW[i] = Math.max(colW[i], Math.ceil(cell.length * TBL_FONT) + CELL_PAD);
+      colW[i] = Math.max(colW[i], Math.ceil(cell.length * TABLE.fontPxPerChar) + TABLE.cellPad);
     });
   }
 
@@ -156,110 +84,42 @@ function sizeMarkdown(m: SceneMarkdown): void {
   m.h = m.height ?? calcMarkdownHeight(m.lines, pad);
 }
 
-// ── Item size helpers ─────────────────────────────────────
-function iW(
-  r: GroupChildRef,
-  nm: Map<string, SceneNode>,
-  gm: Map<string, SceneGroup>,
-  tm: Map<string, SceneTable>,
-  ntm: Map<string, SceneNote>,
-  cm: Map<string, SceneChart>,
-  mdm: Map<string, SceneMarkdown>,
-): number {
-  if (r.kind === "node") return nm.get(r.id)!.w;
-  if (r.kind === "table") return tm.get(r.id)!.w;
-  if (r.kind === "note") return ntm.get(r.id)!.w;
-  if (r.kind === "chart") return cm.get(r.id)!.w;
-  if (r.kind === "markdown") return mdm.get(r.id)!.w;
-  return gm.get(r.id)!.w;
+// ── Item size helpers (entity-map based) ─────────────────
+function iW(r: GroupChildRef, em: Map<string, EntityRect>): number {
+  return em.get(r.id)!.w;
 }
 
-function iH(
-  r: GroupChildRef,
-  nm: Map<string, SceneNode>,
-  gm: Map<string, SceneGroup>,
-  tm: Map<string, SceneTable>,
-  ntm: Map<string, SceneNote>,
-  cm: Map<string, SceneChart>,
-  mdm: Map<string, SceneMarkdown>,
-): number {
-  if (r.kind === "node") return nm.get(r.id)!.h;
-  if (r.kind === "table") return tm.get(r.id)!.h;
-  if (r.kind === "note") return ntm.get(r.id)!.h;
-  if (r.kind === "chart") return cm.get(r.id)!.h;
-  if (r.kind === "markdown") return mdm.get(r.id)!.h;
-  return gm.get(r.id)!.h;
+function iH(r: GroupChildRef, em: Map<string, EntityRect>): number {
+  return em.get(r.id)!.h;
 }
 
-function setPos(
-  r: GroupChildRef,
-  x: number,
-  y: number,
-  nm: Map<string, SceneNode>,
-  gm: Map<string, SceneGroup>,
-  tm: Map<string, SceneTable>,
-  ntm: Map<string, SceneNote>,
-  cm: Map<string, SceneChart>,
-  mdm: Map<string, SceneMarkdown>,
-): void {
-  if (r.kind === "node") {
-    const n = nm.get(r.id)!;
-    n.x = Math.round(x);
-    n.y = Math.round(y);
-    return;
-  }
-  if (r.kind === "table") {
-    const t = tm.get(r.id)!;
-    t.x = Math.round(x);
-    t.y = Math.round(y);
-    return;
-  }
-  if (r.kind === "note") {
-    const nt = ntm.get(r.id)!;
-    nt.x = Math.round(x);
-    nt.y = Math.round(y);
-    return;
-  }
-  if (r.kind === "chart") {
-    const c = cm.get(r.id)!;
-    c.x = Math.round(x);
-    c.y = Math.round(y);
-    return;
-  }
-  if (r.kind === "markdown") {
-    const md = mdm.get(r.id)!;
-    md.x = Math.round(x);
-    md.y = Math.round(y);
-    return;
-  }
-  const g = gm.get(r.id)!;
-  g.x = Math.round(x);
-  g.y = Math.round(y);
+function setPos(r: GroupChildRef, x: number, y: number, em: Map<string, EntityRect>): void {
+  const e = em.get(r.id)!;
+  e.x = Math.round(x);
+  e.y = Math.round(y);
 }
 
 // ── Pass 1: Measure (bottom-up) ───────────────────────────
 // Recursively computes w, h for a group from its children's sizes.
 function measure(
   g: SceneGroup,
-  nm: Map<string, SceneNode>,
   gm: Map<string, SceneGroup>,
   tm: Map<string, SceneTable>,
-  ntm: Map<string, SceneNote>,
   cm: Map<string, SceneChart>,
   mdm: Map<string, SceneMarkdown>,
+  em: Map<string, EntityRect>,
 ): void {
   // Recurse into nested groups first; size tables before reading their dims
   for (const r of g.children) {
-    if (r.kind === "group") measure(gm.get(r.id)!, nm, gm, tm, ntm, cm, mdm);
+    if (r.kind === "group") measure(gm.get(r.id)!, gm, tm, cm, mdm, em);
     if (r.kind === "table") sizeTable(tm.get(r.id)!);
-    if (r.kind === "note") sizeNote(ntm.get(r.id)!);
     if (r.kind === "chart") sizeChart(cm.get(r.id)!);
     if (r.kind === "markdown") sizeMarkdown(mdm.get(r.id)!);
   }
 
   const { padding: pad, gap, columns, layout } = g;
   const kids = g.children;
-  const labelH = g.label ? GROUP_LABEL_H : 0;
+  const labelH = g.label ? LAYOUT.groupLabelH : 0;
 
   if (!kids.length) {
     g.w = pad * 2;
@@ -269,8 +129,8 @@ function measure(
     return;
   }
 
-  const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-  const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+  const ws = kids.map((r) => iW(r, em));
+  const hs = kids.map((r) => iH(r, em));
   const n = kids.length;
 
   if (layout === "row") {
@@ -344,15 +204,11 @@ function distribute(
 // Assigns x, y to each child. Assumes g.x / g.y already set by parent.
 function place(
   g: SceneGroup,
-  nm: Map<string, SceneNode>,
   gm: Map<string, SceneGroup>,
-  tm: Map<string, SceneTable>,
-  ntm: Map<string, SceneNote>,
-  cm: Map<string, SceneChart>,
-  mdm: Map<string, SceneMarkdown>,
+  em: Map<string, EntityRect>,
 ): void {
   const { padding: pad, gap, columns, layout, align, justify } = g;
-  const labelH = g.label ? GROUP_LABEL_H : 0;
+  const labelH = g.label ? LAYOUT.groupLabelH : 0;
 
   const contentX = g.x + pad;
   const contentY = g.y + labelH + pad;
@@ -362,8 +218,8 @@ function place(
   if (!kids.length) return;
 
   if (layout === "row") {
-    const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-    const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+    const ws = kids.map((r) => iW(r, em));
+    const hs = kids.map((r) => iH(r, em));
     const { start, gaps } = distribute(ws, contentW, gap, justify);
 
     let x = contentX + start;
@@ -379,30 +235,25 @@ function place(
         default:
           y = contentY;
       }
-      setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
+      setPos(kids[i], x, y, em);
       x += ws[i] + (i < gaps.length ? gaps[i] : 0);
     }
   } else if (layout === "grid") {
     const cols = Math.max(1, columns);
-    const cellW = Math.max(...kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm)));
-    const cellH = Math.max(...kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm)));
+    const cellW = Math.max(...kids.map((r) => iW(r, em)));
+    const cellH = Math.max(...kids.map((r) => iH(r, em)));
     kids.forEach((ref, i) => {
       setPos(
         ref,
         contentX + (i % cols) * (cellW + gap),
         contentY + Math.floor(i / cols) * (cellH + gap),
-        nm,
-        gm,
-        tm,
-        ntm,
-        cm,
-        mdm,
+        em,
       );
     });
   } else {
     // column (default)
-    const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-    const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+    const ws = kids.map((r) => iW(r, em));
+    const hs = kids.map((r) => iH(r, em));
 
     const { start, gaps } = distribute(hs, contentH, gap, justify);
 
@@ -419,14 +270,14 @@ function place(
         default:
           x = contentX;
       }
-      setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
+      setPos(kids[i], x, y, em);
       y += hs[i] + (i < gaps.length ? gaps[i] : 0);
     }
   }
 
   // Recurse into nested groups
   for (const r of kids) {
-    if (r.kind === "group") place(gm.get(r.id)!, nm, gm, tm, ntm, cm, mdm);
+    if (r.kind === "group") place(gm.get(r.id)!, gm, em);
   }
 }
 
@@ -472,23 +323,16 @@ function tableConnPoint(
 }
 
 function rectConnPoint(
-  rx: number,
-  ry: number,
-  rw: number,
-  rh: number,
-  ox: number,
-  oy: number,
+  rx: number, ry: number, rw: number, rh: number,
+  ox: number, oy: number,
 ): [number, number] {
-  const cx = rx + rw / 2,
-    cy = ry + rh / 2;
-  const dx = ox - cx,
-    dy = oy - cy;
+  const cx = rx + rw / 2, cy = ry + rh / 2;
+  const dx = ox - cx,     dy = oy - cy;
   if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return [cx, cy];
-  const hw = rw / 2 - 2,
-    hh = rh / 2 - 2;
+  const hw = rw / 2 - 2, hh = rh / 2 - 2;
   const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
   const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-  const t = Math.min(tx, ty);
+  const t  = Math.min(tx, ty);
   return [cx + t * dx, cy + t * dy];
 }
 
@@ -497,9 +341,9 @@ function routeEdges(sg: SceneGraph): void {
   const tm = tableMap(sg);
   const gm = groupMap(sg);
   const cm = chartMap(sg);
-  const ntm = noteMap(sg);
 
   // Resolve any endpoint id → a simple {x,y,w,h} rect + shape hint
+  // Notes are now nodes (shape='note'), so nodeMap covers them.
   type Resolved = {
     x: number;
     y: number;
@@ -516,8 +360,6 @@ function routeEdges(sg: SceneGraph): void {
     if (g) return g;
     const c = cm.get(id);
     if (c) return c;
-    const nt = ntm.get(id);
-    if (nt) return nt;
     return null;
   }
 
@@ -564,7 +406,6 @@ function computeBounds(sg: SceneGraph, margin: number): void {
     ...sg.nodes.map((n) => n.x + n.w),
     ...sg.groups.filter((g) => g.w).map((g) => g.x + g.w),
     ...sg.tables.map((t) => t.x + t.w),
-    ...sg.notes.map((n) => n.x + n.w),
     ...sg.charts.map((c) => c.x + c.w),
     ...sg.markdowns.map((m) => m.x + m.w),
   ];
@@ -573,7 +414,6 @@ function computeBounds(sg: SceneGraph, margin: number): void {
     ...sg.nodes.map((n) => n.y + n.h),
     ...sg.groups.filter((g) => g.h).map((g) => g.y + g.h),
     ...sg.tables.map((t) => t.y + t.h),
-    ...sg.notes.map((n) => n.y + n.h),
     ...sg.charts.map((c) => c.y + c.h),
     ...sg.markdowns.map((m) => m.y + m.h),
   ];
@@ -583,24 +423,23 @@ function computeBounds(sg: SceneGraph, margin: number): void {
 
 // ── Public entry point ────────────────────────────────────
 export function layout(sg: SceneGraph): SceneGraph {
-  const GAP_MAIN = Number(sg.config["gap"] ?? DEFAULT_GAP_MAIN);
-  const MARGIN = Number(sg.config["margin"] ?? DEFAULT_MARGIN);
+  const GAP_MAIN = Number(sg.config["gap"] ?? LAYOUT.gap);
+  const MARGIN = Number(sg.config["margin"] ?? LAYOUT.margin);
 
-  const nm = nodeMap(sg);
   const gm = groupMap(sg);
   const tm = tableMap(sg);
-  const ntm = noteMap(sg);
   const cm = chartMap(sg);
   const mdm = markdownMap(sg);
 
   // 1. Size all nodes and tables
   sg.nodes.forEach(sizeNode);
   sg.tables.forEach(sizeTable);
-  sg.notes.forEach(sizeNote);
+
   sg.charts.forEach(sizeChart);
   sg.markdowns.forEach(sizeMarkdown);
 
-  // src/layout/index.ts — after sg.charts.forEach(sizeChart);
+  // Build unified entity map (all entities have x,y,w,h — map holds direct refs)
+  const em = buildEntityMap(sg);
 
   // 2. Identify root vs nested items
   const nestedGroupIds = new Set<string>(
@@ -618,11 +457,6 @@ export function layout(sg: SceneGraph): SceneGraph {
       g.children.filter((c) => c.kind === "table").map((c) => c.id),
     ),
   );
-  const groupedNoteIds = new Set<string>(
-    sg.groups.flatMap((g) =>
-      g.children.filter((c) => c.kind === "note").map((c) => c.id),
-    ),
-  );
   const groupedChartIds = new Set<string>(
     sg.groups.flatMap((g) =>
       g.children.filter((c) => c.kind === "chart").map((c) => c.id),
@@ -638,14 +472,13 @@ export function layout(sg: SceneGraph): SceneGraph {
   const rootGroups = sg.groups.filter((g) => !nestedGroupIds.has(g.id));
   const rootNodes = sg.nodes.filter((n) => !groupedNodeIds.has(n.id));
   const rootTables = sg.tables.filter((t) => !groupedTableIds.has(t.id));
-  const rootNotes = sg.notes.filter((n) => !groupedNoteIds.has(n.id));
   const rootCharts = sg.charts.filter((c) => !groupedChartIds.has(c.id));
   const rootMarkdowns = sg.markdowns.filter(
     (m) => !groupedMarkdownIds.has(m.id),
   );
 
   // 3. Measure root groups bottom-up
-  for (const g of rootGroups) measure(g, nm, gm, tm, ntm, cm, mdm);
+  for (const g of rootGroups) measure(g, gm, tm, cm, mdm, em);
 
   // 4. Build root order
   //    sg.rootOrder preserves DSL declaration order.
@@ -656,7 +489,6 @@ export function layout(sg: SceneGraph): SceneGraph {
         ...rootGroups.map((g) => ({ kind: "group" as const, id: g.id })),
         ...rootNodes.map((n) => ({ kind: "node" as const, id: n.id })),
         ...rootTables.map((t) => ({ kind: "table" as const, id: t.id })),
-        ...rootNotes.map((n) => ({ kind: "note" as const, id: n.id })),
         ...rootCharts.map((c) => ({ kind: "chart" as const, id: c.id })),
         ...rootMarkdowns.map((m) => ({ kind: "markdown" as const, id: m.id })),
       ];
@@ -682,29 +514,9 @@ export function layout(sg: SceneGraph): SceneGraph {
     rootOrder.forEach((ref, idx) => {
       const col = idx % cols;
       const row = Math.floor(idx / cols);
-      let w = 0,
-        h = 0;
-      if (ref.kind === "group") {
-        w = gm.get(ref.id)!.w;
-        h = gm.get(ref.id)!.h;
-      } else if (ref.kind === "table") {
-        w = tm.get(ref.id)!.w;
-        h = tm.get(ref.id)!.h;
-      } else if (ref.kind === "note") {
-        w = ntm.get(ref.id)!.w;
-        h = ntm.get(ref.id)!.h;
-      } else if (ref.kind === "chart") {
-        w = cm.get(ref.id)!.w;
-        h = cm.get(ref.id)!.h;
-      } else if (ref.kind === "markdown") {
-        w = mdm.get(ref.id)!.w;
-        h = mdm.get(ref.id)!.h;
-      } else {
-        w = nm.get(ref.id)!.w;
-        h = nm.get(ref.id)!.h;
-      }
-      colWidths[col] = Math.max(colWidths[col], w);
-      rowHeights[row] = Math.max(rowHeights[row], h);
+      const e = em.get(ref.id)!;
+      colWidths[col] = Math.max(colWidths[col], e.w);
+      rowHeights[row] = Math.max(rowHeights[row], e.h);
     });
 
     const colX: number[] = [];
@@ -722,83 +534,23 @@ export function layout(sg: SceneGraph): SceneGraph {
     }
 
     rootOrder.forEach((ref, idx) => {
-      const x = colX[idx % cols];
-      const y = rowY[Math.floor(idx / cols)];
-      if (ref.kind === "group") {
-        gm.get(ref.id)!.x = x;
-        gm.get(ref.id)!.y = y;
-      } else if (ref.kind === "table") {
-        tm.get(ref.id)!.x = x;
-        tm.get(ref.id)!.y = y;
-      } else if (ref.kind === "note") {
-        ntm.get(ref.id)!.x = x;
-        ntm.get(ref.id)!.y = y;
-      } else if (ref.kind === "chart") {
-        cm.get(ref.id)!.x = x;
-        cm.get(ref.id)!.y = y;
-      } else if (ref.kind === "markdown") {
-        mdm.get(ref.id)!.x = x;
-        mdm.get(ref.id)!.y = y;
-      } else {
-        nm.get(ref.id)!.x = x;
-        nm.get(ref.id)!.y = y;
-      }
+      const e = em.get(ref.id)!;
+      e.x = colX[idx % cols];
+      e.y = rowY[Math.floor(idx / cols)];
     });
   } else {
     // ── Row or Column linear flow ──────────────────────────
     let pos = MARGIN;
     for (const ref of rootOrder) {
-      let w = 0,
-        h = 0;
-      if (ref.kind === "group") {
-        w = gm.get(ref.id)!.w;
-        h = gm.get(ref.id)!.h;
-      } else if (ref.kind === "table") {
-        w = tm.get(ref.id)!.w;
-        h = tm.get(ref.id)!.h;
-      } else if (ref.kind === "note") {
-        w = ntm.get(ref.id)!.w;
-        h = ntm.get(ref.id)!.h;
-      } else if (ref.kind === "chart") {
-        w = cm.get(ref.id)!.w;
-        h = cm.get(ref.id)!.h;
-      } else if (ref.kind === "markdown") {
-        w = mdm.get(ref.id)!.w;
-        h = mdm.get(ref.id)!.h;
-      } else {
-        w = nm.get(ref.id)!.w;
-        h = nm.get(ref.id)!.h;
-      }
-
-      const x = useColumn ? MARGIN : pos;
-      const y = useColumn ? pos : MARGIN;
-
-      if (ref.kind === "group") {
-        gm.get(ref.id)!.x = x;
-        gm.get(ref.id)!.y = y;
-      } else if (ref.kind === "table") {
-        tm.get(ref.id)!.x = x;
-        tm.get(ref.id)!.y = y;
-      } else if (ref.kind === "note") {
-        ntm.get(ref.id)!.x = x;
-        ntm.get(ref.id)!.y = y;
-      } else if (ref.kind === "chart") {
-        cm.get(ref.id)!.x = x;
-        cm.get(ref.id)!.y = y;
-      } else if (ref.kind === "markdown") {
-        mdm.get(ref.id)!.x = x;
-        mdm.get(ref.id)!.y = y;
-      } else {
-        nm.get(ref.id)!.x = x;
-        nm.get(ref.id)!.y = y;
-      }
-
-      pos += (useColumn ? h : w) + GAP_MAIN;
+      const e = em.get(ref.id)!;
+      e.x = useColumn ? MARGIN : pos;
+      e.y = useColumn ? pos : MARGIN;
+      pos += (useColumn ? e.h : e.w) + GAP_MAIN;
     }
   }
 
   // 6. Place children within each root group (top-down, recursive)
-  for (const g of rootGroups) place(g, nm, gm, tm, ntm, cm, mdm);
+  for (const g of rootGroups) place(g, gm, em);
 
   // 7. Route edges and compute canvas size
   routeEdges(sg);

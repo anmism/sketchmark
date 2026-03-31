@@ -1,4 +1,4 @@
-export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon';
+export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon' | 'note' | 'line' | 'path';
 export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 export type LayoutType = 'row' | 'column' | 'grid';
 export type AlignItems = 'start' | 'center' | 'end';
@@ -31,9 +31,6 @@ export type GroupChildRef = {
     kind: 'table';
     id: string;
 } | {
-    kind: 'note';
-    id: string;
-} | {
     kind: 'chart';
     id: string;
 } | {
@@ -50,9 +47,6 @@ export type RootItemRef = {
     kind: 'table';
     id: string;
 } | {
-    kind: 'note';
-    id: string;
-} | {
     kind: 'chart';
     id: string;
 } | {
@@ -67,8 +61,13 @@ export interface ASTNode {
     groupId?: string;
     imageUrl?: string;
     iconName?: string;
+    pathData?: string;
     width?: number;
     height?: number;
+    deg?: number;
+    dx?: number;
+    dy?: number;
+    factor?: number;
     theme?: string;
     style?: StyleProps;
     meta?: Record<string, string>;
@@ -141,15 +140,6 @@ export interface ASTTable {
     theme?: string;
     style?: StyleProps;
 }
-export interface ASTNote {
-    kind: 'note';
-    id: string;
-    label: string;
-    theme?: string;
-    style?: StyleProps;
-    width?: number;
-    height?: number;
-}
 export interface ASTMarkdown {
     kind: 'markdown';
     id: string;
@@ -168,7 +158,6 @@ export interface DiagramAST {
     edges: ASTEdge[];
     groups: ASTGroup[];
     tables: ASTTable[];
-    notes: ASTNote[];
     steps: ASTStep[];
     charts: ASTChart[];
     markdowns: ASTMarkdown[];

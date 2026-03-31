@@ -5,8 +5,6 @@
 import type {
   DiagramAST,
   ASTNode,
-  ASTEdge,
-  ASTGroup,
   ASTStep,
   StyleProps,
   GroupChildRef,
@@ -15,6 +13,7 @@ import type {
 } from "../ast/types";
 import type { MarkdownLine } from '../markdown/parser';
 import { parseMarkdownContent } from '../markdown/parser';
+import { LAYOUT, TABLE, CHART } from '../config';
 
 export type { GroupChildRef, RootItemRef };
 
@@ -33,8 +32,13 @@ export interface SceneNode extends SceneRect {
   groupId?: string; // immediate parent group id
   width?: number; // user-specified size override
   height?: number;
+  deg?: number;    // static rotation (degrees)
+  dx?: number;     // static x translation
+  dy?: number;     // static y translation
+  factor?: number; // static scale factor
   imageUrl?: string;
   iconName?: string;
+  pathData?: string;
   meta?: Record<string, string>;
   x: number;
   y: number;
@@ -96,18 +100,6 @@ export interface SceneAnimation {
   currentStep: number;
 }
 
-export interface SceneNote {
-  id: string;
-  lines: string[]; // label split by \n
-  style: StyleProps;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  width?: number;
-  height?: number;
-}
-
 export interface SceneChart {
   id: string;
   chartType: string;
@@ -137,7 +129,6 @@ export interface SceneGraph {
   nodes: SceneNode[];
   edges: SceneEdge[];
   tables: SceneTable[];
-  notes: SceneNote[];
   charts: SceneChart[];
   markdowns: SceneMarkdown[];
   groups: SceneGroup[];
@@ -161,9 +152,14 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       groupId: n.groupId,
       width: n.width,
       height: n.height,
+      deg: n.deg,
+      dx: n.dx,
+      dy: n.dy,
+      factor: n.factor,
       meta: n.meta,
       imageUrl: n.imageUrl,
       iconName: n.iconName,
+      pathData: n.pathData,
       x: 0,
       y: 0,
       w: 0,
@@ -180,8 +176,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       children: g.children,
       layout: (g.layout ?? "column") as SceneGroup["layout"],
       columns: g.columns ?? 1,
-      padding: g.padding ?? 26,
-      gap: g.gap ?? 10,
+      padding: g.padding ?? LAYOUT.groupPad,
+      gap: g.gap ?? LAYOUT.groupGap,
       align: (g.align ?? "start") as SceneGroup["align"],
       justify: (g.justify ?? "start") as SceneGroup["justify"],
       style: { ...ast.styles[g.id], ...themeStyle, ...g.style },
@@ -201,29 +197,14 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       label: t.label,
       rows: t.rows,
       colWidths: [],
-      rowH: 30,
-      headerH: 34,
-      labelH: 22,
+      rowH: TABLE.rowH,
+      headerH: TABLE.headerH,
+      labelH: TABLE.labelH,
       style: { ...ast.styles[t.id], ...themeStyle, ...t.style },
       x: 0,
       y: 0,
       w: 0,
       h: 0,
-    };
-  });
-
-  const notes: SceneNote[] = ast.notes.map((n) => {
-    const themeStyle = n.theme ? (ast.themes[n.theme] ?? {}) : {};
-    return {
-      id: n.id,
-      lines: n.label.split("\n"),
-      style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
-      x: 0,
-      y: 0,
-      w: 0,
-      h: 0,
-      width: n.width,
-      height: n.height,
     };
   });
 
@@ -237,8 +218,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
       x: 0,
       y: 0,
-      w: c.width ?? 320,
-      h: c.height ?? 240,
+      w: c.width ?? CHART.defaultW,
+      h: c.height ?? CHART.defaultH,
     };
   });
 
@@ -285,7 +266,6 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     edges,
     groups,
     tables,
-    notes,
     charts,
     markdowns,
     animation: { steps: ast.steps, currentStep: -1 },
@@ -308,10 +288,6 @@ export function groupMap(sg: SceneGraph): Map<string, SceneGroup> {
 
 export function tableMap(sg: SceneGraph): Map<string, SceneTable> {
   return new Map(sg.tables.map((t) => [t.id, t]));
-}
-
-export function noteMap(sg: SceneGraph): Map<string, SceneNote> {
-  return new Map(sg.notes.map((n) => [n.id, n]));
 }
 
 export function chartMap(sg: SceneGraph): Map<string, SceneChart> {

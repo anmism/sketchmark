@@ -4,6 +4,8 @@
 // No rough.js dependency — pure geometry.
 // ============================================================
 
+import { CHART } from "../config";
+
 export const CHART_COLORS = [
   '#378ADD', '#1D9E75', '#D85A30', '#BA7517',
   '#7F77DD', '#D4537E', '#639922', '#E24B4A',
@@ -23,8 +25,8 @@ export interface ChartLayout {
 export function chartLayout(c: {
   x: number; y: number; w: number; h: number; label?: string;
 }): ChartLayout {
-  const titleH = c.label ? 24 : 8;
-  const padL = 44, padR = 12, padB = 28, padT = 6;
+  const titleH = c.label ? CHART.titleH : CHART.titleHEmpty;
+  const padL = CHART.padL, padR = CHART.padR, padB = CHART.padB, padT = CHART.padT;
   const pw = c.w - padL - padR;
   const ph = c.h - titleH - padT - padB;
   return {

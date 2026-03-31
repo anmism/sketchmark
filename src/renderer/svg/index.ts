@@ -6,13 +6,8 @@
 import type {
   SceneGraph,
   SceneNode,
-  SceneGroup,
-  SceneTable,
-  SceneNote,
-  SceneChart,
 } from "../../scene";
-import { connPoint } from "../../layout";
-import { nodeMap, groupMap, tableMap, noteMap, chartMap ,markdownMap} from "../../scene";
+import { nodeMap, tableMap, chartMap } from "../../scene";
 import { renderRoughChartSVG } from "./roughChartSVG";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
@@ -22,6 +17,13 @@ import rough from 'roughjs/bin/rough';
 import {
   LINE_FONT_SIZE, LINE_FONT_WEIGHT, LINE_SPACING,
 } from '../../markdown/parser';
+
+import {
+  hashStr, darkenHex, resolveStyleFont, wrapText,
+  connMeta, resolveEndpoint, getConnPoint, groupDepth,
+} from '../shared';
+import { getShape } from '../shapes';
+import { resolveTypography, computeTextX, computeTextCY } from '../typography';
 
 // declare const rough: { svg(el: SVGSVGElement): RoughSVG };
 
@@ -67,55 +69,12 @@ interface RoughOpts {
   hachureGap?: number;
 }
 
-const NS = "http://www.w3.org/2000/svg";
+import { SVG_NS, ROUGH, EDGE, NOTE as NOTE_CFG, TITLE, GROUP_LABEL } from "../../config";
+
+const NS = SVG_NS;
 const se = (tag: string) => document.createElementNS(NS, tag);
 
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
-  return h;
-}
-
-const BASE_ROUGH: RoughOpts = { roughness: 1.3, bowing: 0.7 };
-
-/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
-function darkenHex(hex: string, amount = 0.12): string {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-  if (!m) return hex;
-  const d = (v: string) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
-  return `#${d(m[1]).toString(16).padStart(2,"0")}${d(m[2]).toString(16).padStart(2,"0")}${d(m[3]).toString(16).padStart(2,"0")}`;
-}
-
-// ── Small helper: load + resolve font from style or fall back ─────────────
-function resolveStyleFont(
-  style: Record<string, unknown>,
-  fallback: string,
-): string {
-  const raw = String(style["font"] ?? "");
-  if (!raw) return fallback;
-  loadFont(raw);
-  return resolveFont(raw);
-}
-
-function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const words      = text.split(' ');
-  const charsPerPx = fontSize * 0.55;   // approximate
-  const maxChars   = Math.floor(maxWidth / charsPerPx);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (test.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
+const BASE_ROUGH: RoughOpts = { roughness: ROUGH.roughness, bowing: ROUGH.bowing };
 
 // ── SVG text helpers ──────────────────────────────────────────────────────
 
@@ -228,86 +187,6 @@ function mkGroup(id?: string, cls?: string): SVGGElement {
   return g;
 }
 
-// ── Arrow direction from connector ────────────────────────────────────────
-function connMeta(connector: string): {
-  arrowAt: "end" | "start" | "both" | "none";
-  dashed: boolean;
-} {
-  if (connector === "--") return { arrowAt: "none", dashed: false };
-  if (connector === "---") return { arrowAt: "none", dashed: true };
-  const bidir = connector.includes("<") && connector.includes(">");
-  if (bidir) return { arrowAt: "both", dashed: connector.includes("--") };
-  const back = connector.startsWith("<");
-  const dashed = connector.includes("--");
-  if (back) return { arrowAt: "start", dashed };
-  return { arrowAt: "end", dashed };
-}
-
-// ── Generic rect connection point ─────────────────────────────────────────
-function rectConnPoint(
-  rx: number,
-  ry: number,
-  rw: number,
-  rh: number,
-  ox: number,
-  oy: number,
-): [number, number] {
-  const cx = rx + rw / 2,
-    cy = ry + rh / 2;
-  const dx = ox - cx,
-    dy = oy - cy;
-  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return [cx, cy];
-  const hw = rw / 2 - 2,
-    hh = rh / 2 - 2;
-  const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
-  const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-  const t = Math.min(tx, ty);
-  return [cx + t * dx, cy + t * dy];
-}
-
-function resolveEndpoint(
-  id: string,
-  nm: Map<string, SceneNode>,
-  tm: Map<string, SceneTable>,
-  gm: Map<string, SceneGroup>,
-  cm: Map<string, SceneChart>,
-  ntm: Map<string, SceneNote>,
-): { x: number; y: number; w: number; h: number; shape?: string } | null {
-  return (
-    nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null
-  );
-}
-
-function getConnPoint(
-  src: { x: number; y: number; w: number; h: number; shape?: string },
-  dstCX: number,
-  dstCY: number,
-): [number, number] {
-  if ("shape" in src && (src as SceneNode).shape) {
-    return connPoint(
-      src as SceneNode,
-      {
-        x: dstCX - 1,
-        y: dstCY - 1,
-        w: 2,
-        h: 2,
-        shape: "box",
-      } as SceneNode,
-    );
-  }
-  return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
-}
-
-// ── Group depth (for paint order) ─────────────────────────────────────────
-function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number {
-  let d = 0;
-  let cur: SceneGroup | undefined = g;
-  while (cur?.parentId) {
-    d++;
-    cur = gm.get(cur.parentId);
-  }
-  return d;
-}
 
 // ── Node shapes ───────────────────────────────────────────────────────────
 function renderShape(
@@ -327,195 +206,11 @@ function renderShape(
     strokeWidth: Number(s.strokeWidth ?? 1.9),
     ...(s.strokeDash ? { strokeLineDash: s.strokeDash as number[] } : {}),
   };
-  const cx = n.x + n.w / 2,
-    cy = n.y + n.h / 2;
-  const hw = n.w / 2 - 2;
 
-  switch (n.shape) {
-    case "circle":
-      return [rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts)];
-
-    case "diamond":
-      return [
-        rc.polygon(
-          [
-            [cx, n.y + 2],
-            [cx + hw, cy],
-            [cx, n.y + n.h - 2],
-            [cx - hw, cy],
-          ],
-          opts,
-        ),
-      ];
-
-    case "hexagon": {
-      const hw2 = hw * 0.56;
-      return [
-        rc.polygon(
-          [
-            [cx - hw2, n.y + 3],
-            [cx + hw2, n.y + 3],
-            [cx + hw, cy],
-            [cx + hw2, n.y + n.h - 3],
-            [cx - hw2, n.y + n.h - 3],
-            [cx - hw, cy],
-          ],
-          opts,
-        ),
-      ];
-    }
-
-    case "triangle":
-      return [
-        rc.polygon(
-          [
-            [cx, n.y + 3],
-            [n.x + n.w - 3, n.y + n.h - 3],
-            [n.x + 3, n.y + n.h - 3],
-          ],
-          opts,
-        ),
-      ];
-
-    case "parallelogram":
-      return [
-        rc.polygon(
-          [
-            [n.x + 18, n.y + 1],
-            [n.x + n.w - 1, n.y + 1],
-            [n.x + n.w - 18, n.y + n.h - 1],
-            [n.x + 1, n.y + n.h - 1],
-          ],
-          opts,
-        ),
-      ];
-
-    case "cylinder": {
-      const eH = 18;
-      return [
-        rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts),
-        rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 }),
-        rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, {
-          ...opts,
-          roughness: 0.6,
-          fill: "none",
-        }),
-      ];
-    }
-
-    case "text":
-      return [];
-
-    case "icon": {
-      if (n.iconName) {
-        const [prefix, name] = n.iconName.includes(":")
-          ? n.iconName.split(":", 2)
-          : ["mdi", n.iconName];
-        const iconColor = s.color
-          ? encodeURIComponent(String(s.color))
-          : encodeURIComponent(String(palette.nodeStroke));
-        // reserve bottom 20px for label when present
-        const labelSpace = n.label ? 20 : 0;
-        const iconAreaH = n.h - labelSpace;
-        const iconSize = Math.min(n.w, iconAreaH) - 4;
-        const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
-
-        const img = document.createElementNS(NS, "image") as SVGImageElement;
-        img.setAttribute("href", iconUrl);
-        const iconX = n.x + (n.w - iconSize) / 2;
-        const iconY = n.y + (iconAreaH - iconSize) / 2;
-        img.setAttribute("x", String(iconX));
-        img.setAttribute("y", String(iconY));
-        img.setAttribute("width", String(iconSize));
-        img.setAttribute("height", String(iconSize));
-        img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-        if (s.opacity != null) img.setAttribute("opacity", String(s.opacity));
-
-        // clip-path for rounded corners
-        const clipId = `clip-${n.id}`;
-        const defs = document.createElementNS(NS, "defs");
-        const clip = document.createElementNS(NS, "clipPath");
-        clip.setAttribute("id", clipId);
-        const rect = document.createElementNS(NS, "rect") as SVGRectElement;
-        rect.setAttribute("x", String(iconX));
-        rect.setAttribute("y", String(iconY));
-        rect.setAttribute("width", String(iconSize));
-        rect.setAttribute("height", String(iconSize));
-        rect.setAttribute("rx", "6");
-        clip.appendChild(rect);
-        defs.appendChild(clip);
-        img.setAttribute("clip-path", `url(#${clipId})`);
-
-        // only draw border when stroke is explicitly set
-        const els: SVGElement[] = [defs as unknown as SVGElement, img];
-        if (s.stroke) {
-          els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-            ...opts,
-            fill: "none",
-          }));
-        }
-        return els;
-      }
-      // fallback: placeholder square
-      return [
-        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-          ...opts,
-          fill: "#e0e0e0",
-          stroke: "#999999",
-        }),
-      ];
-    }
-
-    case "image": {
-      if (n.imageUrl) {
-        // reserve bottom 20px for label when present
-        const imgLabelSpace = n.label ? 20 : 0;
-        const imgAreaH = n.h - imgLabelSpace;
-
-        const img = document.createElementNS(NS, "image") as SVGImageElement;
-        img.setAttribute("href", n.imageUrl);
-        img.setAttribute("x", String(n.x + 1));
-        img.setAttribute("y", String(n.y + 1));
-        img.setAttribute("width", String(n.w - 2));
-        img.setAttribute("height", String(imgAreaH - 2));
-        img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-        const clipId = `clip-${n.id}`;
-        const defs = document.createElementNS(NS, "defs");
-        const clip = document.createElementNS(NS, "clipPath");
-        clip.setAttribute("id", clipId);
-        const rect = document.createElementNS(NS, "rect") as SVGRectElement;
-        rect.setAttribute("x", String(n.x + 1));
-        rect.setAttribute("y", String(n.y + 1));
-        rect.setAttribute("width", String(n.w - 2));
-        rect.setAttribute("height", String(imgAreaH - 2));
-        rect.setAttribute("rx", "6");
-        clip.appendChild(rect);
-        defs.appendChild(clip);
-        img.setAttribute("clip-path", `url(#${clipId})`);
-
-        // only draw border when stroke is explicitly set
-        const els: SVGElement[] = [defs as unknown as SVGElement, img];
-        if (s.stroke) {
-          els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-            ...opts,
-            fill: "none",
-          }));
-        }
-        return els;
-      }
-      return [
-        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-          ...opts,
-          fill: "#e0e0e0",
-          stroke: "#999999",
-        }),
-      ];
-    }
-
-    default:
-      return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
-  }
+  const shape = getShape(n.shape);
+  if (shape) return shape.renderSVG(rc as any, n, palette, opts);
+  // fallback: box
+  return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
 }
 
 // ── Arrowhead ─────────────────────────────────────────────────────────────
@@ -527,7 +222,7 @@ function arrowHead(
   col: string,
   seed: number,
 ): SVGElement {
-  const as = 12;
+  const as = EDGE.arrowSize;
   return rc.polygon(
     [
       [x, y],
@@ -624,13 +319,13 @@ export function renderToSVG(
   // ── Title ────────────────────────────────────────────────
   if (options.showTitle && sg.title) {
     const titleColor = String(sg.config["title-color"] ?? palette.titleText);
-    const titleSize = Number(sg.config["title-size"] ?? 18);
-    const titleWeight = Number(sg.config["title-weight"] ?? 600);
+    const titleSize = Number(sg.config["title-size"] ?? TITLE.fontSize);
+    const titleWeight = Number(sg.config["title-weight"] ?? TITLE.fontWeight);
     svg.appendChild(
       mkText(
         sg.title,
         sg.width / 2,
-        26,
+        TITLE.y,
         titleSize,
         titleWeight,
         titleColor,
@@ -669,41 +364,22 @@ export function renderToSVG(
     );
 
     // ── Group label typography ──────────────────────────
-    const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
-    const gFontSize = Number(gs.fontSize ?? 12);
-    const gFontWeight = gs.fontWeight ?? 500;
-    const gFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
-    const gLetterSpacing = gs.letterSpacing as number | undefined;
-    const gPad = Number(gs.padding ?? 14);
-    const gTextAlign = String(gs.textAlign ?? "left");
-    const gAnchorMap: Record<string, "start" | "middle" | "end"> = {
-      left: "start",
-      center: "middle",
-      right: "end",
-    };
-    const gAnchor = gAnchorMap[gTextAlign] ?? "start";
-    const gTextX =
-      gTextAlign === "right"
-        ? g.x + g.w - gPad
-        : gTextAlign === "center"
-          ? g.x + g.w / 2
-          : g.x + gPad;
+    const gTypo = resolveTypography(
+      gs as Record<string, unknown>,
+      { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding },
+      diagramFont, palette.groupLabel,
+    );
+    const gTextX = computeTextX(gTypo, g.x, g.w);
 
-   if(g.label){
-     gg.appendChild(
-       mkText(
-         g.label,
-         gTextX,
-         g.y + gPad,
-         gFontSize,
-         gFontWeight,
-         gLabelColor,
-         gAnchor,
-         gFont,
-         gLetterSpacing,
-       ),
-     );
-   }
+    if (g.label) {
+      gg.appendChild(
+        mkText(
+          g.label, gTextX, g.y + gTypo.padding,
+          gTypo.fontSize, gTypo.fontWeight, gTypo.textColor,
+          gTypo.textAnchor, gTypo.font, gTypo.letterSpacing,
+        ),
+      );
+    }
     GL.appendChild(gg);
   }
   svg.appendChild(GL);
@@ -712,12 +388,10 @@ export function renderToSVG(
   const nm = nodeMap(sg);
   const tm = tableMap(sg);
   const cm = chartMap(sg);
-  const ntm = noteMap(sg);
-
   const EL = mkGroup("edge-layer");
   for (const e of sg.edges) {
-    const src = resolveEndpoint(e.from, nm, tm, gmMap, cm, ntm);
-    const dst = resolveEndpoint(e.to, nm, tm, gmMap, cm, ntm);
+    const src = resolveEndpoint(e.from, nm, tm, gmMap, cm);
+    const dst = resolveEndpoint(e.to, nm, tm, gmMap, cm);
     if (!src || !dst) continue;
 
     const dstCX = dst.x + dst.w / 2,
@@ -735,7 +409,7 @@ export function renderToSVG(
     const ecol = String(e.style?.stroke ?? palette.edgeStroke);
     const { arrowAt, dashed } = connMeta(e.connector);
 
-    const HEAD = 13;
+    const HEAD = EDGE.headInset;
     const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
     const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
     const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
@@ -748,7 +422,7 @@ export function renderToSVG(
         seed: hashStr(e.from + e.to),
         stroke: ecol,
         strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
-        ...(dashed ? { strokeLineDash: [6, 5] } : {}),
+        ...(dashed ? { strokeLineDash: EDGE.dashPattern as number[] } : {}),
       }),
     );
 
@@ -776,8 +450,8 @@ export function renderToSVG(
       );
 
     if (e.label) {
-      const mx = (x1 + x2) / 2 - ny * 14;
-      const my = (y1 + y2) / 2 + nx * 14;
+      const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
+      const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
       const tw = Math.max(e.label.length * 7 + 12, 36);
 
       const bg = se("rect") as SVGRectElement;
@@ -793,14 +467,14 @@ export function renderToSVG(
       // ── Edge label typography ───────────────────────
       // supports: font, font-size, letter-spacing
       // always center-anchored (single line floating on edge)
-      const eFontSize = Number(e.style?.fontSize ?? 11);
+      const eFontSize = Number(e.style?.fontSize ?? EDGE.labelFontSize);
       const eFont = resolveStyleFont(
         (e.style as Record<string, unknown>) ?? {},
         diagramFont,
       );
       const eLetterSpacing = e.style?.letterSpacing as number | undefined;
 
-      const eFontWeight = e.style?.fontWeight ?? 400;
+      const eFontWeight = e.style?.fontWeight ?? EDGE.labelFontWeight;
       const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
 
       eg.appendChild(
@@ -824,92 +498,79 @@ export function renderToSVG(
   // ── Nodes ─────────────────────────────────────────────────
   const NL = mkGroup("node-layer");
   for (const n of sg.nodes) {
-    const ng = mkGroup(`node-${n.id}`, "ng");
+    const shapeDef = getShape(n.shape);
+    const idPrefix = shapeDef?.idPrefix ?? "node";
+    const cssClass = shapeDef?.cssClass ?? "ng";
+    const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
     if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
+
+    // ── Static transform (deg, dx, dy, factor) ──────────
+    // Uses CSS style.transform so that transform-box:fill-box +
+    // transform-origin:center on .ng gives correct center-anchored transforms.
+    // The base transform is stored in data-base-transform so the animation
+    // controller can restore it after _clearAll() instead of wiping to "".
+    const hasTx = n.dx || n.dy || n.deg || (n.factor && n.factor !== 1);
+    if (hasTx) {
+      const parts: string[] = [];
+      if (n.dx || n.dy) parts.push(`translate(${n.dx ?? 0}px,${n.dy ?? 0}px)`);
+      if (n.deg) parts.push(`rotate(${n.deg}deg)`);
+      if (n.factor && n.factor !== 1) parts.push(`scale(${n.factor})`);
+      const tx = parts.join(" ");
+      ng.style.transform = tx;
+      ng.dataset.baseTransform = tx;
+    }
+
     renderShape(rc, n, palette).forEach((s) => ng.appendChild(s));
 
     // ── Node / text typography ─────────────────────────
-    // supports: font, font-size, letter-spacing, text-align, line-height
-    const fontSize = Number(
-      n.style?.fontSize ?? (n.shape === "text" ? 13 : 14),
-    );
-    const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
-    const textColor = String(
-      n.style?.color ??
-        (n.shape === "text" ? palette.edgeLabelText : palette.nodeText),
-    );
-    const nodeFont = resolveStyleFont(
-      (n.style as Record<string, unknown>) ?? {},
+    const isText = n.shape === "text";
+    const isNote = n.shape === "note";
+    const isMediaShape = n.shape === "icon" || n.shape === "image" || n.shape === "line";
+    const typo = resolveTypography(
+      n.style as Record<string, unknown>,
+      {
+        fontSize: isText ? 13 : isNote ? 12 : 14,
+        fontWeight: isText || isNote ? 400 : 500,
+        textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
+        textAlign: isNote ? "left" : undefined,
+        lineHeight: isNote ? 1.4 : undefined,
+        padding: isNote ? 12 : undefined,
+        verticalAlign: isNote ? "top" : undefined,
+      },
       diagramFont,
+      palette.nodeText,
     );
 
-    const textAlign = String(n.style?.textAlign ?? "center");
-    const anchorMap: Record<string, "start" | "middle" | "end"> = {
-      left: "start",
-      center: "middle",
-      right: "end",
-    };
-    const textAnchor = anchorMap[textAlign] ?? "middle";
-
-    // line-height is a multiplier (e.g. 1.4 = 140% of font-size)
-    const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
-    const letterSpacing = n.style?.letterSpacing as number | undefined;
-
-    const pad = Number(n.style?.padding ?? 8);
-
-    // x shifts for left / right alignment
-    const textX =
-      textAlign === "left"
-        ? n.x + pad
-        : textAlign === "right"
-          ? n.x + n.w - pad
-          : n.x + n.w / 2;
+    // Note textX accounts for fold corner
+    const FOLD = NOTE_CFG.fold;
+    const textX = isNote
+      ? (typo.textAlign === "right"  ? n.x + n.w - FOLD - typo.padding
+       : typo.textAlign === "center" ? n.x + (n.w - FOLD) / 2
+       : n.x + typo.padding)
+      : computeTextX(typo, n.x, n.w);
 
     const lines = n.shape === 'text' && !n.label.includes('\n')
-  ? wrapText(n.label, n.w - pad * 2, fontSize)
-  : n.label.split('\n');
+      ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
+      : n.label.split('\n');
 
-    const verticalAlign = String(n.style?.verticalAlign ?? "middle");
-
-    const nodeBodyTop = n.y + pad;
-    const nodeBodyBottom = n.y + n.h - pad;
-    const nodeBodyMid = n.y + n.h / 2;
-    const blockH = (lines.length - 1) * lineHeight;
-
-    const isMediaShape = n.shape === "icon" || n.shape === "image";
     const textCY = isMediaShape
-      ? n.y + n.h - 10  // label below the icon/image
-      : verticalAlign === "top"
-        ? nodeBodyTop + blockH / 2
-        : verticalAlign === "bottom"
-          ? nodeBodyBottom - blockH / 2
-          : nodeBodyMid;
+      ? n.y + n.h - 10
+      : isNote
+        ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
+        : computeTextCY(typo, n.y, n.h, lines.length);
 
     if (n.label) {
       ng.appendChild(
         lines.length > 1
           ? mkMultilineText(
-              lines,
-              textX,
-              textCY,
-              fontSize,
-              fontWeight,
-              textColor,
-              textAnchor,
-              lineHeight,
-              nodeFont,
-              letterSpacing,
+              lines, textX, textCY,
+              typo.fontSize, typo.fontWeight, typo.textColor,
+              typo.textAnchor, typo.lineHeight, typo.font, typo.letterSpacing,
             )
           : mkText(
-              n.label,
-              textX,
-              textCY,
-              fontSize,
-              fontWeight,
-              textColor,
-              textAnchor,
-              nodeFont,
-              letterSpacing,
+              n.label, textX, textCY,
+              typo.fontSize, typo.fontWeight, typo.textColor,
+              typo.textAnchor, typo.font, typo.letterSpacing,
             ),
       );
     }
@@ -1076,127 +737,7 @@ export function renderToSVG(
   }
   svg.appendChild(TL);
 
-  // ── Notes ─────────────────────────────────────────────────
-  const NoteL = mkGroup("note-layer");
-  for (const n of sg.notes) {
-    const ng = mkGroup(`note-${n.id}`, "ntg");
-    const gs = n.style ?? {};
-    const fill = String(gs.fill ?? palette.noteFill);
-    const strk = String(gs.stroke ?? palette.noteStroke);
-    const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
-    const fold = 14;
-    const { x, y, w, h } = n;
-
-    if (gs.opacity != null) ng.setAttribute("opacity", String(gs.opacity));
-
-    // ── Note typography ─────────────────────────────────
-    const nFontSize = Number(gs.fontSize ?? 12);
-    const nFontWeight = gs.fontWeight ?? 400;
-    const nFont = resolveStyleFont(gs as Record<string, unknown>, diagramFont);
-    const nLetterSpacing = gs.letterSpacing as number | undefined;
-    const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
-    const nTextAlign = String(gs.textAlign ?? "left");
-    const nPad = Number(gs.padding ?? 12);
-    const nAnchorMap: Record<string, "start" | "middle" | "end"> = {
-      left: "start",
-      center: "middle",
-      right: "end",
-    };
-    const nAnchor = nAnchorMap[nTextAlign] ?? "start";
-    const nTextX =
-      nTextAlign === "right"
-        ? x + w - fold - nPad
-        : nTextAlign === "center"
-          ? x + (w - fold) / 2
-          : x + nPad;
-
-    const nFoldPad = fold + nPad; // text starts below fold + user padding
-
-    ng.appendChild(
-      rc.polygon(
-        [
-          [x, y],
-          [x + w - fold, y],
-          [x + w, y + fold],
-          [x + w, y + h],
-          [x, y + h],
-        ],
-        {
-          ...BASE_ROUGH,
-          seed: hashStr(n.id),
-          fill,
-          fillStyle: "solid",
-          stroke: strk,
-          strokeWidth: nStrokeWidth,
-          ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
-        },
-      ),
-    );
-
-    ng.appendChild(
-      rc.polygon(
-        [
-          [x + w - fold, y],
-          [x + w, y + fold],
-          [x + w - fold, y + fold],
-        ],
-        {
-          roughness: 0.4,
-          seed: hashStr(n.id + "f"),
-          fill: palette.noteFold,
-          fillStyle: "solid",
-          stroke: strk,
-          strokeWidth: Math.min(nStrokeWidth, 0.8),
-        },
-      ),
-    );
-
-    const nVerticalAlign = String(gs.verticalAlign ?? "top");
-    const bodyTop = y + nFoldPad;
-    const bodyBottom = y + h - nPad;
-    const bodyMid = (bodyTop + bodyBottom) / 2;
-    const blockH = (n.lines.length - 1) * nLineHeight;
-    const blockCY =
-      nVerticalAlign === "bottom"
-        ? bodyBottom - blockH / 2
-        : nVerticalAlign === "middle"
-          ? bodyMid
-          : bodyTop + blockH / 2;
-
-    if (n.lines.length > 1) {
-      ng.appendChild(
-        mkMultilineText(
-          n.lines,
-          nTextX,
-          blockCY,
-          nFontSize,
-          nFontWeight,
-          String(gs.color ?? palette.noteText),
-          nAnchor,
-          nLineHeight,
-          nFont,
-          nLetterSpacing,
-        ),
-      );
-    } else {
-      ng.appendChild(
-        mkText(
-          n.lines[0] ?? "",
-          nTextX,
-          blockCY,
-          nFontSize,
-          nFontWeight,
-          String(gs.color ?? palette.noteText),
-          nAnchor,
-          nFont,
-          nLetterSpacing,
-        ),
-      );
-    }
-
-    NoteL.appendChild(ng);
-  }
-  svg.appendChild(NoteL);
+  // ── Notes are now rendered as nodes via the shape registry ──
 
   const MDL  = mkGroup('markdown-layer');
  

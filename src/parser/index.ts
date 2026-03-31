@@ -2,7 +2,7 @@
 // sketchmark — Parser  (Tokens → DiagramAST)
 // ============================================================
 
-import { tokenize, Token, KEYWORDS } from "./tokenizer";
+import { tokenize, Token } from "./tokenizer";
 import type {
   DiagramAST,
   ASTNode,
@@ -11,7 +11,6 @@ import type {
   ASTStep,
   ASTChart,
   ASTTable,
-  ASTNote,
   NodeShape,
   EdgeConnector,
   LayoutType,
@@ -20,8 +19,6 @@ import type {
   AnimationTrigger,
   AlignItems,
   JustifyContent,
-  GroupChildRef,
-  RootItemRef,
   ASTMarkdown,
 } from "../ast/types";
 
@@ -46,6 +43,8 @@ const SHAPES: NodeShape[] = [
   "text",
   "image",
   "icon",
+  "line",
+  "path",
 ];
 const CHART_TYPES = [
   "bar-chart",
@@ -120,7 +119,6 @@ export function parse(src: string): DiagramAST {
     edges: [],
     groups: [],
     steps: [],
-    notes: [],
     charts: [],
     tables: [],
     markdowns: [],
@@ -132,7 +130,6 @@ export function parse(src: string): DiagramAST {
 
   const nodeIds = new Set<string>();
   const tableIds = new Set<string>();
-  const noteIds = new Set<string>();
   const chartIds = new Set<string>();
   const groupIds = new Set<string>();
   const markdownIds = new Set<string>();
@@ -234,11 +231,16 @@ export function parse(src: string): DiagramAST {
       ...(groupId ? { groupId } : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
+      ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
+      ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
+      ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
+      ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
       ...(props.theme ? { theme: props.theme } : {}),
       style: propsToStyle(props),
     };
     if (props.url) node.imageUrl = props.url;
     if (props.name) node.iconName = props.name;
+    if (props.value) node.pathData = props.value;
     return node;
   }
 
@@ -285,8 +287,8 @@ export function parse(src: string): DiagramAST {
     };
   }
 
-  // ── parseNote ────────────────────────────────────────────
-  function parseNote(groupId?: string): ASTNote {
+  // ── parseNote → returns ASTNode with shape='note' ────────
+  function parseNote(groupId?: string): ASTNode {
     skip(); // 'note'
     const toks = lineTokens();
 
@@ -320,9 +322,11 @@ export function parse(src: string): DiagramAST {
     const rawLabel = props.label ?? "";
 
     return {
-      kind: "note",
+      kind: "node",
       id,
+      shape: "note",
       label: rawLabel.replace(/\\n/g, "\n"),
+      groupId,
       theme: props.theme,
       style: propsToStyle(props),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
@@ -425,12 +429,12 @@ export function parse(src: string): DiagramAST {
         continue;
       }
 
-      // ── Note ──────────────────────────────────────────
+      // ── Note (parsed as node with shape='note') ──────
       if (v === "note") {
         const note = parseNote(id);
-        ast.notes.push(note);
-        noteIds.add(note.id);
-        group.children.push({ kind: "note", id: note.id });
+        ast.nodes.push(note);
+        nodeIds.add(note.id);
+        group.children.push({ kind: "node", id: note.id });
         continue;
       }
       // ── Markdown ───────────────────────────────────────
@@ -958,12 +962,12 @@ export function parse(src: string): DiagramAST {
       continue;
     }
 
-    // note
+    // note (parsed as node with shape='note')
     if (v === "note") {
       const note = parseNote();
-      ast.notes.push(note);
-      noteIds.add(note.id);
-      ast.rootOrder.push({ kind: "note", id: note.id });
+      ast.nodes.push(note);
+      nodeIds.add(note.id);
+      ast.rootOrder.push({ kind: "node", id: note.id });
       continue;
     }
 
@@ -1005,7 +1009,6 @@ export function parse(src: string): DiagramAST {
             if (
               !nodeIds.has(nid) &&
               !tableIds.has(nid) &&
-              !noteIds.has(nid) &&
               !chartIds.has(nid) &&
               !groupIds.has(nid)
             ) {

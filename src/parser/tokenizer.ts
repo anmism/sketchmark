@@ -49,6 +49,8 @@ export const KEYWORDS = new Set([
   "text",
   "image",
   "icon",
+  "line",
+  "path",
   "group",
   "style",
   "step",

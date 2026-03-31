@@ -6,14 +6,8 @@
 import type {
   SceneGraph,
   SceneNode,
-  SceneEdge,
-  SceneGroup,
-  SceneTable,
-  SceneNote,
-  SceneChart,
 } from "../../scene";
-import { nodeMap, groupMap, tableMap, noteMap, chartMap, markdownMap } from "../../scene";
-import { connPoint } from "../../layout";
+import { nodeMap, groupMap, tableMap, chartMap } from "../../scene";
 import { resolvePalette, THEME_CONFIG_KEY } from "../../theme";
 import type { DiagramPalette } from "../../theme";
 import { resolveFont, loadFont, DEFAULT_FONT } from "../../fonts";
@@ -25,6 +19,14 @@ import {
 } from "../../markdown/parser";
 import rough from 'roughjs/bin/rough';
 
+import {
+  hashStr, darkenHex, resolveStyleFont, wrapText,
+  connMeta, resolveEndpoint, getConnPoint, groupDepth,
+} from '../shared';
+import { getShape } from '../shapes';
+import { resolveTypography, computeTextX, computeTextCY } from '../typography';
+import { ROUGH, EDGE, NOTE as NOTE_CFG, TITLE, GROUP_LABEL } from '../../config';
+
 
 interface RoughCanvas {
   rectangle(x: number, y: number, w: number, h: number, opts?: any): void;
@@ -35,19 +37,6 @@ interface RoughCanvas {
   path(d: string, opts?: any): void;
 }
 
-function hashStr(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
-  return h;
-}
-
-/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
-function darkenHex(hex: string, amount = 0.12): string {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-  if (!m) return hex;
-  const d = (v: string) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
-  return `#${d(m[1]).toString(16).padStart(2,"0")}${d(m[2]).toString(16).padStart(2,"0")}${d(m[3]).toString(16).padStart(2,"0")}`;
-}
 
 export interface CanvasRendererOptions {
   scale?:       number;
@@ -59,16 +48,6 @@ export interface CanvasRendererOptions {
   transparent?: boolean;
 }
 
-// ── Small helper: load + resolve font from a style map ────────────────────
-function resolveStyleFont(
-  style:    Record<string, unknown>,
-  fallback: string,
-): string {
-  const raw = String(style['font'] ?? '');
-  if (!raw) return fallback;
-  loadFont(raw);
-  return resolveFont(raw);
-}
 
 // ── Canvas text helpers ────────────────────────────────────────────────────
 
@@ -128,88 +107,6 @@ function drawMultilineText(
   });
 }
 
-// Soft word-wrap for `text` shape nodes
-function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const charWidth = fontSize * 0.55;
-  const maxChars  = Math.floor(maxWidth / charWidth);
-  const words     = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (test.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [text];
-}
-
-// ── Arrow direction ────────────────────────────────────────────────────────
-function connMeta(connector: string): {
-  arrowAt: 'end' | 'start' | 'both' | 'none';
-  dashed:  boolean;
-} {
-  if (connector === '--')  return { arrowAt: 'none', dashed: false };
-  if (connector === '---') return { arrowAt: 'none', dashed: true  };
-  const bidir = connector.includes('<') && connector.includes('>');
-  if (bidir) return { arrowAt: 'both', dashed: connector.includes('--') };
-  const back   = connector.startsWith('<');
-  const dashed = connector.includes('--');
-  if (back) return { arrowAt: 'start', dashed };
-  return { arrowAt: 'end', dashed };
-}
-
-// ── Rect connection point ──────────────────────────────────────────────────
-function rectConnPoint(
-  rx: number, ry: number, rw: number, rh: number,
-  ox: number, oy: number,
-): [number, number] {
-  const cx = rx + rw / 2, cy = ry + rh / 2;
-  const dx = ox - cx,     dy = oy - cy;
-  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return [cx, cy];
-  const hw = rw / 2 - 2, hh = rh / 2 - 2;
-  const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
-  const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-  const t  = Math.min(tx, ty);
-  return [cx + t * dx, cy + t * dy];
-}
-
-function resolveEndpoint(
-  id:  string,
-  nm:  Map<string, SceneNode>,
-  tm:  Map<string, SceneTable>,
-  gm:  Map<string, SceneGroup>,
-  cm:  Map<string, SceneChart>,
-  ntm: Map<string, SceneNote>,
-): { x: number; y: number; w: number; h: number; shape?: string } | null {
-  return nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null;
-}
-
-function getConnPoint(
-  src:   { x: number; y: number; w: number; h: number; shape?: string },
-  dstCX: number,
-  dstCY: number,
-): [number, number] {
-  if ('shape' in src && (src as SceneNode).shape) {
-    return connPoint(src as SceneNode, {
-      x: dstCX - 1, y: dstCY - 1, w: 2, h: 2, shape: 'box',
-    } as SceneNode);
-  }
-  return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
-}
-
-// ── Group depth ────────────────────────────────────────────────────────────
-function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number {
-  let d = 0;
-  let cur: SceneGroup | undefined = g;
-  while (cur?.parentId) { d++; cur = gm.get(cur.parentId); }
-  return d;
-}
 
 // ── Node shapes ────────────────────────────────────────────────────────────
 function renderShape(
@@ -228,122 +125,11 @@ function renderShape(
     stroke, strokeWidth: Number(s.strokeWidth ?? 1.9),
     ...(s.strokeDash ? { strokeLineDash: s.strokeDash as number[] } : {}),
   };
-  const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
-  const hw = n.w / 2 - 2;
 
-  switch (n.shape) {
-    case 'circle':
-      rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts); break;
-    case 'diamond':
-      rc.polygon([[cx,n.y+2],[cx+hw,cy],[cx,n.y+n.h-2],[cx-hw,cy]], opts); break;
-    case 'hexagon': {
-      const hw2 = hw * 0.56;
-      rc.polygon([
-        [cx-hw2,n.y+3],[cx+hw2,n.y+3],[cx+hw,cy],
-        [cx+hw2,n.y+n.h-3],[cx-hw2,n.y+n.h-3],[cx-hw,cy],
-      ], opts); break;
-    }
-    case 'triangle':
-      rc.polygon([[cx,n.y+3],[n.x+n.w-3,n.y+n.h-3],[n.x+3,n.y+n.h-3]], opts); break;
-    case 'cylinder': {
-      const eH = 18;
-      rc.rectangle(n.x+3, n.y+eH/2, n.w-6, n.h-eH, opts);
-      rc.ellipse(cx, n.y+eH/2,     n.w-8, eH, { ...opts, roughness: 0.6 });
-      rc.ellipse(cx, n.y+n.h-eH/2, n.w-8, eH, { ...opts, roughness: 0.6, fill: 'none' });
-      break;
-    }
-    case 'parallelogram':
-      rc.polygon([
-        [n.x+18,n.y+1],[n.x+n.w-1,n.y+1],
-        [n.x+n.w-18,n.y+n.h-1],[n.x+1,n.y+n.h-1],
-      ], opts); break;
-    case 'text':
-      break; // no shape drawn
-    case 'icon': {
-      if (n.iconName) {
-        const [prefix, name] = n.iconName.includes(':')
-          ? n.iconName.split(':', 2)
-          : ['mdi', n.iconName];
-        const iconColor = s.color
-          ? encodeURIComponent(String(s.color))
-          : encodeURIComponent(String(palette.nodeStroke));
-        // reserve bottom for label
-        const iconLabelSpace = n.label ? 20 : 0;
-        const iconAreaH = n.h - iconLabelSpace;
-        const iconSize = Math.min(n.w, iconAreaH) - 4;
-        const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          ctx.save();
-          if (s.opacity != null) ctx.globalAlpha = Number(s.opacity);
-          const iconX = n.x + (n.w - iconSize) / 2;
-          const iconY = n.y + (iconAreaH - iconSize) / 2;
-          ctx.beginPath();
-          const r = 6;
-          ctx.moveTo(iconX+r, iconY);
-          ctx.lineTo(iconX+iconSize-r, iconY);
-          ctx.quadraticCurveTo(iconX+iconSize, iconY, iconX+iconSize, iconY+r);
-          ctx.lineTo(iconX+iconSize, iconY+iconSize-r);
-          ctx.quadraticCurveTo(iconX+iconSize, iconY+iconSize, iconX+iconSize-r, iconY+iconSize);
-          ctx.lineTo(iconX+r, iconY+iconSize);
-          ctx.quadraticCurveTo(iconX, iconY+iconSize, iconX, iconY+iconSize-r);
-          ctx.lineTo(iconX, iconY+r);
-          ctx.quadraticCurveTo(iconX, iconY, iconX+r, iconY);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
-          ctx.restore();
-          if (s.stroke) {
-            rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
-          }
-        };
-        img.src = iconUrl;
-      } else {
-        rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2,
-          { ...opts, fill: '#e0e0e0', stroke: '#999999' });
-      }
-      return;
-    }
-    case 'image': {
-      if (n.imageUrl) {
-        // reserve bottom for label
-        const imgLblSpace = n.label ? 20 : 0;
-        const imgAreaH = n.h - imgLblSpace;
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          ctx.save();
-          ctx.beginPath();
-          const r = 6;
-          ctx.moveTo(n.x+r, n.y);
-          ctx.lineTo(n.x+n.w-r, n.y);
-          ctx.quadraticCurveTo(n.x+n.w, n.y,     n.x+n.w, n.y+r);
-          ctx.lineTo(n.x+n.w, n.y+imgAreaH-r);
-          ctx.quadraticCurveTo(n.x+n.w, n.y+imgAreaH, n.x+n.w-r, n.y+imgAreaH);
-          ctx.lineTo(n.x+r,   n.y+imgAreaH);
-          ctx.quadraticCurveTo(n.x, n.y+imgAreaH, n.x, n.y+imgAreaH-r);
-          ctx.lineTo(n.x, n.y+r);
-          ctx.quadraticCurveTo(n.x, n.y, n.x+r, n.y);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(img, n.x+1, n.y+1, n.w-2, imgAreaH-2);
-          ctx.restore();
-          // only draw border when stroke is explicitly set
-          if (s.stroke) {
-            rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, { ...opts, fill: 'none' });
-          }
-        };
-        img.src = n.imageUrl;
-      } else {
-        rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2,
-          { ...opts, fill: '#e0e0e0', stroke: '#999999' });
-      }
-      return;
-    }
-    default:
-      rc.rectangle(n.x+1, n.y+1, n.w-2, n.h-2, opts); break;
-  }
+  const shape = getShape(n.shape);
+  if (shape) { shape.renderCanvas(rc as any, ctx, n, palette, opts); return; }
+  // fallback: box
+  rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
 }
 
 // ── Arrowhead ─────────────────────────────────────────────────────────────
@@ -351,7 +137,7 @@ function drawArrowHead(
   rc: RoughCanvas, x: number, y: number,
   angle: number, col: string, seed: number, R: any,
 ): void {
-  const as = 12;
+  const as = EDGE.arrowSize;
   rc.polygon([
     [x, y],
     [x - as*Math.cos(angle - Math.PI/6.5), y - as*Math.sin(angle - Math.PI/6.5)],
@@ -401,20 +187,18 @@ export function renderToCanvas(
   }
 
   const rc = rough.canvas(canvas);
-  const R  = { roughness: options.roughness ?? 1.3, bowing: options.bowing ?? 0.7 };
+  const R  = { roughness: options.roughness ?? ROUGH.roughness, bowing: options.bowing ?? ROUGH.bowing };
 
   const nm  = nodeMap(sg);
   const tm  = tableMap(sg);
   const gm  = groupMap(sg);
   const cm  = chartMap(sg);
-  const ntm = noteMap(sg);
-
   // ── Title ────────────────────────────────────────────────
   if (sg.title) {
-    const titleSize   = Number(sg.config['title-size']   ?? 18);
-    const titleWeight = Number(sg.config['title-weight'] ?? 600);
+    const titleSize   = Number(sg.config['title-size']   ?? TITLE.fontSize);
+    const titleWeight = Number(sg.config['title-weight'] ?? TITLE.fontWeight);
     const titleColor  = String(sg.config['title-color']  ?? palette.titleText);
-    drawText(ctx, sg.title, sg.width / 2, 28,
+    drawText(ctx, sg.title, sg.width / 2, TITLE.y + 2,
       titleSize, titleWeight, titleColor, 'center', diagramFont);
   }
 
@@ -436,20 +220,14 @@ export function renderToCanvas(
     });
 
     if (g.label) {
-      const gFontSize      = Number(gs.fontSize      ?? 12);
-      const gFontWeight    = gs.fontWeight ?? 500;
-      const gFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
-      const gLetterSpacing = gs.letterSpacing as number | undefined;
-      const gLabelColor    = gs.color ? String(gs.color) : palette.groupLabel;
-      const gPad           = Number(gs.padding ?? 14);
-      const gTextAlign     = String(gs.textAlign ?? 'left') as 'left'|'center'|'right';
-      const gTextX =
-        gTextAlign === 'right'  ? g.x + g.w - gPad
-        : gTextAlign === 'center' ? g.x + g.w / 2
-        : g.x + gPad;
-
-      drawText(ctx, g.label, gTextX, g.y + gPad + 2,
-        gFontSize, gFontWeight, gLabelColor, gTextAlign, gFont, gLetterSpacing);
+      const gTypo = resolveTypography(
+        gs as Record<string, unknown>,
+        { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding },
+        diagramFont, palette.groupLabel,
+      );
+      const gTextX = computeTextX(gTypo, g.x, g.w);
+      drawText(ctx, g.label, gTextX, g.y + gTypo.padding + 2,
+        gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAlign, gTypo.font, gTypo.letterSpacing);
     }
 
     if (gs.opacity != null) ctx.globalAlpha = 1;
@@ -457,8 +235,8 @@ export function renderToCanvas(
 
   // ── Edges ─────────────────────────────────────────────────
   for (const e of sg.edges) {
-    const src = resolveEndpoint(e.from, nm, tm, gm, cm, ntm);
-    const dst = resolveEndpoint(e.to,   nm, tm, gm, cm, ntm);
+    const src = resolveEndpoint(e.from, nm, tm, gm, cm);
+    const dst = resolveEndpoint(e.to,   nm, tm, gm, cm);
     if (!src || !dst) continue;
 
     const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
@@ -472,7 +250,7 @@ export function renderToCanvas(
     const len    = Math.sqrt((x2-x1)**2 + (y2-y1)**2) || 1;
     const nx     = (x2-x1)/len, ny = (y2-y1)/len;
 
-    const HEAD = 13;
+    const HEAD = EDGE.headInset;
     const sx1 = arrowAt === 'start' || arrowAt === 'both' ? x1 + nx*HEAD : x1;
     const sy1 = arrowAt === 'start' || arrowAt === 'both' ? y1 + ny*HEAD : y1;
     const sx2 = arrowAt === 'end'   || arrowAt === 'both' ? x2 - nx*HEAD : x2;
@@ -482,7 +260,7 @@ export function renderToCanvas(
       ...R, roughness: 0.9, seed: hashStr(e.from + e.to),
       stroke:      ecol,
       strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
-      ...(dashed ? { strokeLineDash: [6, 5] } : {}),
+      ...(dashed ? { strokeLineDash: EDGE.dashPattern as number[] } : {}),
     });
 
     const ang = Math.atan2(y2-y1, x2-x1);
@@ -492,16 +270,16 @@ export function renderToCanvas(
       drawArrowHead(rc, x1, y1, Math.atan2(y1-y2, x1-x2), ecol, hashStr(e.from+'back'), R);
 
     if (e.label) {
-      const mx = (x1+x2)/2 - ny*14;
-      const my = (y1+y2)/2 + nx*14;
+      const mx = (x1+x2)/2 - ny*EDGE.labelOffset;
+      const my = (y1+y2)/2 + nx*EDGE.labelOffset;
 
       // ── Edge label: font, font-size, letter-spacing ──
       // always center-anchored (single line)
-      const eFontSize      = Number(e.style?.fontSize      ?? 11);
+      const eFontSize      = Number(e.style?.fontSize      ?? EDGE.labelFontSize);
       const eFont          = resolveStyleFont(e.style as Record<string,unknown> ?? {}, diagramFont);
       const eLetterSpacing = e.style?.letterSpacing as number | undefined;
 
-      const eFontWeight    = e.style?.fontWeight ?? 400;
+      const eFontWeight    = e.style?.fontWeight ?? EDGE.labelFontWeight;
       const eLabelColor    = String(e.style?.color ?? palette.edgeLabelText);
 
       ctx.save();
@@ -520,57 +298,71 @@ export function renderToCanvas(
   // ── Nodes ─────────────────────────────────────────────────
   for (const n of sg.nodes) {
     if (n.style?.opacity != null) ctx.globalAlpha = Number(n.style.opacity);
+
+    // ── Static transform (deg, dx, dy, factor) ──────────
+    // All transforms anchor around the node's visual center.
+    const hasTx = n.dx || n.dy || n.deg || (n.factor && n.factor !== 1);
+    if (hasTx) {
+      ctx.save();
+      const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+      // Move to center, apply rotate + scale there, move back
+      ctx.translate(cx + (n.dx ?? 0), cy + (n.dy ?? 0));
+      if (n.deg) ctx.rotate((n.deg * Math.PI) / 180);
+      if (n.factor && n.factor !== 1) ctx.scale(n.factor, n.factor);
+      ctx.translate(-cx, -cy);
+    }
+
     renderShape(rc, ctx, n, palette, R);
 
     // ── Node / text typography ─────────────────────────
-    // supports: font, font-size, letter-spacing, text-align,
-    //           vertical-align, line-height, word-wrap (text shape)
-    const fontSize      = Number(n.style?.fontSize ?? (n.shape === 'text' ? 13 : 14));
-    const fontWeight    = n.style?.fontWeight ?? (n.shape === 'text' ? 400 : 500);
-    const textColor     = String(n.style?.color ??
-      (n.shape === 'text' ? palette.edgeLabelText : palette.nodeText));
-    const nodeFont      = resolveStyleFont(n.style as Record<string,unknown> ?? {}, diagramFont);
+    const isText = n.shape === 'text';
+    const isNote = n.shape === 'note';
+    const isMediaShape = n.shape === 'icon' || n.shape === 'image' || n.shape === 'line';
+    const typo = resolveTypography(
+      n.style as Record<string, unknown>,
+      {
+        fontSize: isText ? 13 : isNote ? 12 : 14,
+        fontWeight: isText || isNote ? 400 : 500,
+        textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
+        textAlign: isNote ? "left" : undefined,
+        lineHeight: isNote ? 1.4 : undefined,
+        padding: isNote ? 12 : undefined,
+        verticalAlign: isNote ? "top" : undefined,
+      },
+      diagramFont, palette.nodeText,
+    );
 
-    const textAlign     = String(n.style?.textAlign    ?? 'center') as 'left'|'center'|'right';
-    const lineHeight    = Number(n.style?.lineHeight   ?? 1.3) * fontSize;
-    const letterSpacing = n.style?.letterSpacing as number | undefined;
-    const vertAlign     = String(n.style?.verticalAlign ?? 'middle');
+    // Note textX accounts for fold corner
+    const FOLD = NOTE_CFG.fold;
+    const textX = isNote
+      ? (typo.textAlign === 'right'  ? n.x + n.w - FOLD - typo.padding
+       : typo.textAlign === 'center' ? n.x + (n.w - FOLD) / 2
+       : n.x + typo.padding)
+      : computeTextX(typo, n.x, n.w);
 
-    const pad = Number(n.style?.padding ?? 8);
-
-    // x shifts for left/right alignment
-    const textX = textAlign === 'left'  ? n.x + pad
-                : textAlign === 'right' ? n.x + n.w - pad
-                : n.x + n.w / 2;
-
-    // word-wrap for text shape; explicit \n for all others
     const rawLines = n.label.split('\n');
-    const lines    = n.shape === 'text' && rawLines.length === 1
-      ? wrapText(n.label, n.w - pad * 2, fontSize)
+    const lines = n.shape === 'text' && rawLines.length === 1
+      ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
       : rawLines;
 
-    // vertical-align: compute textCY from top/middle/bottom
-    const nodeBodyTop    = n.y + pad;
-    const nodeBodyBottom = n.y + n.h - pad;
-    const blockH         = (lines.length - 1) * lineHeight;
-    const isMediaShape = n.shape === 'icon' || n.shape === 'image';
     const textCY = isMediaShape
-      ? n.y + n.h - 10  // label below the icon/image
-      : vertAlign === 'top'    ? nodeBodyTop    + blockH / 2
-      : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
-      : n.y + n.h / 2;   // middle (default)
+      ? n.y + n.h - 10
+      : isNote
+        ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
+        : computeTextCY(typo, n.y, n.h, lines.length);
 
     if (n.label) {
       if (lines.length > 1) {
         drawMultilineText(ctx, lines, textX, textCY,
-          fontSize, fontWeight, textColor,
-          textAlign, lineHeight, nodeFont, letterSpacing);
+          typo.fontSize, typo.fontWeight, typo.textColor,
+          typo.textAlign, typo.lineHeight, typo.font, typo.letterSpacing);
       } else {
         drawText(ctx, lines[0] ?? '', textX, textCY,
-          fontSize, fontWeight, textColor,
-          textAlign, nodeFont, letterSpacing);
+          typo.fontSize, typo.fontWeight, typo.textColor,
+          typo.textAlign, typo.font, typo.letterSpacing);
       }
     }
+    if (hasTx) ctx.restore();
     if (n.style?.opacity != null) ctx.globalAlpha = 1;
   }
 
@@ -655,71 +447,7 @@ export function renderToCanvas(
     ctx.globalAlpha = 1;
   }
 
-  // ── Notes ─────────────────────────────────────────────────
-  for (const n of sg.notes) {
-    const gs   = n.style ?? {};
-    const fill = String(gs.fill   ?? palette.noteFill);
-    const strk = String(gs.stroke ?? palette.noteStroke);
-    const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
-    const fold = 14;
-    const { x, y, w, h } = n;
-
-    if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);
-
-    rc.polygon([
-      [x,        y],
-      [x+w-fold, y],
-      [x+w,      y+fold],
-      [x+w,      y+h],
-      [x,        y+h],
-    ], { ...R, seed: hashStr(n.id), fill, fillStyle: 'solid', stroke: strk,
-      strokeWidth: nStrokeWidth,
-      ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash as number[] } : {}),
-    });
-
-    rc.polygon([
-      [x+w-fold, y],
-      [x+w,      y+fold],
-      [x+w-fold, y+fold],
-    ], { roughness: 0.4, seed: hashStr(n.id+'f'),
-      fill: palette.noteFold, fillStyle: 'solid', stroke: strk,
-      strokeWidth: Math.min(nStrokeWidth, 0.8),
-    });
-
-    const nFontSize      = Number(gs.fontSize      ?? 12);
-    const nFontWeight    = gs.fontWeight ?? 400;
-    const nFont          = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
-    const nLetterSpacing = gs.letterSpacing as number | undefined;
-    const nLineHeight    = Number(gs.lineHeight    ?? 1.4) * nFontSize;
-    const nTextAlign     = String(gs.textAlign     ?? 'left') as 'left'|'center'|'right';
-    const nVertAlign     = String(gs.verticalAlign ?? 'top');
-    const nColor         = String(gs.color         ?? palette.noteText);
-    const nPad           = Number(gs.padding       ?? 12);
-
-    const nTextX = nTextAlign === 'right'  ? x + w - fold - nPad
-                 : nTextAlign === 'center' ? x + (w - fold) / 2
-                 : x + nPad;
-
-    const nFoldPad   = fold + nPad;
-    const bodyTop    = y + nFoldPad;
-    const bodyBottom = y + h - nPad;
-    const blockH     = (n.lines.length - 1) * nLineHeight;
-    const blockCY    =
-      nVertAlign === 'bottom' ? bodyBottom - blockH / 2
-      : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
-      : bodyTop + blockH / 2;
-
-    if (n.lines.length > 1) {
-      drawMultilineText(ctx, n.lines, nTextX, blockCY,
-        nFontSize, nFontWeight, nColor,
-        nTextAlign, nLineHeight, nFont, nLetterSpacing);
-    } else {
-      drawText(ctx, n.lines[0] ?? '', nTextX, blockCY,
-        nFontSize, nFontWeight, nColor,
-        nTextAlign, nFont, nLetterSpacing);
-    }
-    if (gs.opacity != null) ctx.globalAlpha = 1;
-  }
+  // ── Notes are now rendered as nodes via the shape registry ──
 
   // ── Markdown blocks ────────────────────────────────────────
   // Renders prose with Markdown headings and bold/italic inline spans.

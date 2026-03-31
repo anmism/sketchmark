@@ -15,8 +15,13 @@ export interface SceneNode extends SceneRect {
     groupId?: string;
     width?: number;
     height?: number;
+    deg?: number;
+    dx?: number;
+    dy?: number;
+    factor?: number;
     imageUrl?: string;
     iconName?: string;
+    pathData?: string;
     meta?: Record<string, string>;
     x: number;
     y: number;
@@ -71,17 +76,6 @@ export interface SceneAnimation {
     steps: ASTStep[];
     currentStep: number;
 }
-export interface SceneNote {
-    id: string;
-    lines: string[];
-    style: StyleProps;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    width?: number;
-    height?: number;
-}
 export interface SceneChart {
     id: string;
     chartType: string;
@@ -115,7 +109,6 @@ export interface SceneGraph {
     nodes: SceneNode[];
     edges: SceneEdge[];
     tables: SceneTable[];
-    notes: SceneNote[];
     charts: SceneChart[];
     markdowns: SceneMarkdown[];
     groups: SceneGroup[];
@@ -130,7 +123,6 @@ export declare function buildSceneGraph(ast: DiagramAST): SceneGraph;
 export declare function nodeMap(sg: SceneGraph): Map<string, SceneNode>;
 export declare function groupMap(sg: SceneGraph): Map<string, SceneGroup>;
 export declare function tableMap(sg: SceneGraph): Map<string, SceneTable>;
-export declare function noteMap(sg: SceneGraph): Map<string, SceneNote>;
 export declare function chartMap(sg: SceneGraph): Map<string, SceneChart>;
 export declare function markdownMap(sg: SceneGraph): Map<string, SceneMarkdown>;
 //# sourceMappingURL=index.d.ts.map

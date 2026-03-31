@@ -25,8 +25,9 @@ import {
   makeValueToY, makeValueToX, yTicks,
   pieArcPath, donutArcPath,
 } from '../roughChart';
+import { SVG_NS, ROUGH } from '../../config';
 
-const NS = 'http://www.w3.org/2000/svg';
+const NS = SVG_NS;
 const se = (tag: string) => document.createElementNS(NS, tag);
 
 function mkG(id?: string, cls?: string): SVGGElement {
@@ -71,7 +72,7 @@ interface RoughSVG {
   path(d: string, opts?: any): SVGElement;
 }
 
-const BASE: any = { roughness: 1.2, bowing: 0.7 };
+const BASE: any = { roughness: ROUGH.chartRoughness, bowing: ROUGH.bowing };
 
 // ── Axes ───────────────────────────────────────────────────
 function drawAxes(

@@ -4,7 +4,8 @@
 // ============================================================
 
 import { svgToString } from '../renderer/svg';
-import { canvasToPNGBlob, canvasToPNGDataURL } from '../renderer/canvas';
+import { canvasToPNGBlob } from '../renderer/canvas';
+import { EXPORT } from '../config';
 
 export type ExportFormat = 'svg' | 'png' | 'html' | 'canvas' | 'gif' | 'mp4';
 
@@ -23,7 +24,7 @@ function download(blob: Blob, filename: string): void {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  setTimeout(() => URL.revokeObjectURL(url), EXPORT.revokeDelay);
 }
 
 // ── SVG export ────────────────────────────────────────────
@@ -53,9 +54,9 @@ export async function svgToPNGDataURL(
   svg: SVGSVGElement,
   opts: ExportOptions = {}
 ): Promise<string> {
-  const scale = opts.scale ?? 2;
-  const w = parseFloat(svg.getAttribute('width')  ?? '400');
-  const h = parseFloat(svg.getAttribute('height') ?? '300');
+  const scale = opts.scale ?? EXPORT.pngScale;
+  const w = parseFloat(svg.getAttribute('width')  ?? String(EXPORT.fallbackW));
+  const h = parseFloat(svg.getAttribute('height') ?? String(EXPORT.fallbackH));
 
   const canvas = document.createElement('canvas');
   canvas.width  = w * scale;
@@ -67,7 +68,7 @@ export async function svgToPNGDataURL(
     ctx.fillStyle = opts.background;
     ctx.fillRect(0, 0, w, h);
   } else {
-    ctx.fillStyle = '#f8f4ea';
+    ctx.fillStyle = EXPORT.fallbackBg;
     ctx.fillRect(0, 0, w, h);
   }
 
@@ -108,7 +109,7 @@ export function exportHTML(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>sketchmark export</title>
   <style>
-    body { margin: 0; background: #f8f4ea; display: flex; flex-direction: column; align-items: center; padding: 2rem; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: ${EXPORT.fallbackBg}; display: flex; flex-direction: column; align-items: center; padding: 2rem; font-family: system-ui, sans-serif; }
     .diagram { max-width: 100%; }
     .dsl { margin-top: 2rem; background: #131008; color: #e0c898; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 13px; line-height: 1.7; white-space: pre; max-width: 800px; width: 100%; overflow: auto; }
   </style>
@@ -141,7 +142,7 @@ export async function exportMP4(
   durationMs: number,
   opts: ExportOptions & { fps?: number } = {}
 ): Promise<Blob> {
-  const fps     = opts.fps ?? 30;
+  const fps     = opts.fps ?? EXPORT.defaultFps;
   const stream  = (canvas as any).captureStream?.(fps);
   if (!stream) throw new Error('captureStream not supported in this browser');
 

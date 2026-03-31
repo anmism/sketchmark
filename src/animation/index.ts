@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ASTStep } from "../ast/types";
+import { ANIMATION } from "../config";
 
 export type AnimationEventType =
   | "step-change"
@@ -179,14 +180,14 @@ function clearDrawStyles(el: SVGGElement): void {
   }
 }
 
-function animateShapeDraw(el: SVGGElement, strokeDur = 420, stag = 55): void {
+function animateShapeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStrokeDur, stag: number = ANIMATION.nodeStagger): void {
   const paths = Array.from(el.querySelectorAll<SVGGeometryElement>("path"));
   const text = el.querySelector<SVGElement>("text");
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       paths.forEach((p, i) => {
         const sd = i * stag,
-          fd = sd + strokeDur - 60;
+          fd = sd + strokeDur + ANIMATION.fillFadeOffset;
         p.style.transition = [
           `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1) ${sd}ms`,
           `fill-opacity 180ms ease ${Math.max(0, fd)}ms`,
@@ -195,8 +196,8 @@ function animateShapeDraw(el: SVGGElement, strokeDur = 420, stag = 55): void {
         p.style.fillOpacity = "1";
       });
       if (text) {
-        const td = paths.length * stag + strokeDur + 80;
-        text.style.transition = `opacity 200ms ease ${td}ms`;
+        const td = paths.length * stag + strokeDur + ANIMATION.textDelay;
+        text.style.transition = `opacity ${ANIMATION.textFade}ms ease ${td}ms`;
         text.style.opacity = "1";
       }
     }),
@@ -219,7 +220,6 @@ function animateEdgeDraw(el: SVGGElement, conn: string): void {
   if (!paths.length) return;
   const linePath  = paths[0];
   const headPaths = paths.slice(1);
-  const STROKE_DUR = 360;
   const len = pathLength(linePath);
   const reversed = conn.startsWith('<') && !conn.includes('>');
 
@@ -237,11 +237,11 @@ function animateEdgeDraw(el: SVGGElement, conn: string): void {
 
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
-      linePath.style.transition       = `stroke-dashoffset ${STROKE_DUR}ms cubic-bezier(.4,0,.2,1)`;
+      linePath.style.transition       = `stroke-dashoffset ${ANIMATION.strokeDur}ms cubic-bezier(.4,0,.2,1)`;
       linePath.style.strokeDashoffset = '0';
       setTimeout(() => {
         headPaths.forEach(p => {
-          p.style.transition = 'opacity 120ms ease';
+          p.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
           p.style.opacity    = '1';
         });
 
@@ -251,9 +251,9 @@ function animateEdgeDraw(el: SVGGElement, conn: string): void {
           linePath.style.strokeDasharray  = '';
           linePath.style.strokeDashoffset = '';
           linePath.style.transition       = '';
-        }, 160);  
+        }, ANIMATION.dashClear);
 
-      }, STROKE_DUR - 40);
+      }, ANIMATION.strokeDur - 40);
     }),
   );
 }
@@ -410,7 +410,7 @@ export class AnimationController {
 
     // Nodes
     this.svg.querySelectorAll<SVGGElement>(".ng").forEach((el) => {
-      el.style.transform = "";
+      el.style.transform = el.dataset.baseTransform ?? "";
       el.style.transition = "";
       el.classList.remove("hl", "faded", "hidden");
       el.style.opacity = el.style.filter = "";
@@ -597,7 +597,9 @@ export class AnimationController {
     el.style.transition = silent
       ? "none"
       : `transform ${duration}ms cubic-bezier(.4,0,.2,1)`;
-    el.style.transform = parts.join(" ") || "";
+    const base = el.dataset.baseTransform ?? "";
+    const anim = parts.join(" ");
+    el.style.transform = anim ? `${anim} ${base}`.trim() : base;
 
     if (silent) {
       requestAnimationFrame(() =>
@@ -700,10 +702,10 @@ export class AnimationController {
         // Groups use slightly longer stroke-draw (bigger box, dashed border = more paths)
         const firstPath = groupEl.querySelector("path");
         if (!firstPath?.style.strokeDasharray) prepareForDraw(groupEl);
-        animateShapeDraw(groupEl, 550, 40);
-          
+        animateShapeDraw(groupEl, ANIMATION.groupStrokeDur, ANIMATION.groupStagger);
+
         const pathCount = groupEl.querySelectorAll('path').length;
-        const totalMs   = pathCount * 40 + 550 + 120;  // stagger + duration + buffer
+        const totalMs   = pathCount * ANIMATION.groupStagger + ANIMATION.groupStrokeDur + 120;
         clearDashOverridesAfter(groupEl, totalMs);
       }
       return;
@@ -726,9 +728,9 @@ export class AnimationController {
       } else {
         tableEl.classList.remove("gg-hidden");
         prepareForDraw(tableEl);
-        animateShapeDraw(tableEl, 500, 40);
+        animateShapeDraw(tableEl, ANIMATION.tableStrokeDur, ANIMATION.tableStagger);
         const tablePathCount = tableEl.querySelectorAll('path').length;
-        clearDashOverridesAfter(tableEl, tablePathCount * 40 + 500 + 120);
+        clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + ANIMATION.tableStrokeDur + 120);
       }
       return;
     }
@@ -750,9 +752,9 @@ export class AnimationController {
       } else {
         noteEl.classList.remove("gg-hidden");
         prepareForDraw(noteEl);
-        animateShapeDraw(noteEl, 420, 55);
+        animateShapeDraw(noteEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
         const notePathCount = noteEl.querySelectorAll('path').length;
-        clearDashOverridesAfter(noteEl, notePathCount * 55 + 420 + 120);
+        clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
       }
       return;
     }
@@ -777,7 +779,7 @@ export class AnimationController {
         chartEl.classList.remove("gg-hidden");
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
-            chartEl.style.transition = "opacity 500ms ease";
+            chartEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
             chartEl.style.opacity = "1";
           }),
         );
@@ -803,7 +805,7 @@ export class AnimationController {
         markdownEl.classList.remove("gg-hidden");
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
-            markdownEl.style.transition = "opacity 500ms ease";
+            markdownEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
             markdownEl.style.opacity = "1";
           }),
         );
@@ -822,9 +824,9 @@ export class AnimationController {
     } else {
       const firstPath = nodeEl.querySelector("path");
       if (!firstPath?.style.strokeDasharray) prepareForDraw(nodeEl);
-      animateShapeDraw(nodeEl, 420, 55);
+      animateShapeDraw(nodeEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
       const nodePathCount = nodeEl.querySelectorAll('path').length;
-      clearDashOverridesAfter(nodeEl, nodePathCount * 55 + 420 + 120);
+      clearDashOverridesAfter(nodeEl, nodePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
     }
   }
 

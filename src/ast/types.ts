@@ -4,7 +4,8 @@
 
 export type NodeShape =
   | 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle'
-  | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon';
+  | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon' | 'note'
+  | 'line' | 'path';
 
 export type EdgeConnector =
   | '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
@@ -38,7 +39,6 @@ export type GroupChildRef =
   | { kind: 'node';  id: string }
   | { kind: 'group'; id: string }
   | { kind: 'table'; id: string }
-  | { kind: 'note'; id: string }
   | { kind: 'chart'; id: string }
   | { kind: 'markdown'; id: string }
 
@@ -47,14 +47,14 @@ export type RootItemRef =
   | { kind: 'node';  id: string }
   | { kind: 'group'; id: string }
   | { kind: 'table'; id: string }
-  | { kind: 'note'; id: string }
   | { kind: 'chart'; id: string }
   | { kind: 'markdown'; id: string }
 
 export interface ASTNode {
   kind: 'node'; id: string; shape: NodeShape; label: string;
-  groupId?: string; imageUrl?: string; iconName?: string;
+  groupId?: string; imageUrl?: string; iconName?: string; pathData?: string;
   width?: number; height?: number;
+  deg?: number; dx?: number; dy?: number; factor?: number;
   theme?: string;
   style?: StyleProps; meta?: Record<string, string>;
 }
@@ -116,16 +116,6 @@ export interface ASTTable {
   style?: StyleProps;
 }
 
-export interface ASTNote {
-  kind:   'note';
-  id:     string;
-  label:  string;       
-  theme?: string;
-  style?: StyleProps;
-  width?: number;
-  height?: number;
-}
-
 export interface ASTMarkdown {
   kind:    'markdown';
   id:      string;
@@ -144,7 +134,6 @@ export interface DiagramAST {
   edges:  ASTEdge[];
   groups: ASTGroup[];
   tables: ASTTable[];
-  notes: ASTNote[];
   steps:  ASTStep[];
   charts: ASTChart[];
   markdowns: ASTMarkdown[];

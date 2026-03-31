@@ -20,6 +20,8 @@ const KEYWORDS = new Set([
     "text",
     "image",
     "icon",
+    "line",
+    "path",
     "group",
     "style",
     "step",
@@ -223,7 +225,7 @@ function uid(prefix) {
 function resetUid() {
     _uid = 0;
 }
-const SHAPES = [
+const SHAPES$1 = [
     "box",
     "circle",
     "diamond",
@@ -234,6 +236,8 @@ const SHAPES = [
     "text",
     "image",
     "icon",
+    "line",
+    "path",
 ];
 const CHART_TYPES = [
     "bar-chart",
@@ -314,7 +318,6 @@ function parse(src) {
         edges: [],
         groups: [],
         steps: [],
-        notes: [],
         charts: [],
         tables: [],
         markdowns: [],
@@ -325,7 +328,6 @@ function parse(src) {
     };
     const nodeIds = new Set();
     const tableIds = new Set();
-    const noteIds = new Set();
     const chartIds = new Set();
     const groupIds = new Set();
     const markdownIds = new Set();
@@ -428,6 +430,10 @@ function parse(src) {
             ...(groupId ? { groupId } : {}),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
+            ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
+            ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
+            ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
+            ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
             ...(props.theme ? { theme: props.theme } : {}),
             style: propsToStyle(props),
         };
@@ -435,6 +441,8 @@ function parse(src) {
             node.imageUrl = props.url;
         if (props.name)
             node.iconName = props.name;
+        if (props.value)
+            node.pathData = props.value;
         return node;
     }
     function parseEdge(fromId, connector, rest) {
@@ -475,7 +483,7 @@ function parse(src) {
             style: propsToStyle(props),
         };
     }
-    // ── parseNote ────────────────────────────────────────────
+    // ── parseNote → returns ASTNode with shape='note' ────────
     function parseNote(groupId) {
         skip(); // 'note'
         const toks = lineTokens();
@@ -505,9 +513,11 @@ function parse(src) {
         // Support multiline via literal \n in label string
         const rawLabel = props.label ?? "";
         return {
-            kind: "note",
+            kind: "node",
             id,
+            shape: "note",
             label: rawLabel.replace(/\\n/g, "\n"),
+            groupId,
             theme: props.theme,
             style: propsToStyle(props),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
@@ -595,12 +605,12 @@ function parse(src) {
                 group.children.push({ kind: "table", id: tbl.id });
                 continue;
             }
-            // ── Note ──────────────────────────────────────────
+            // ── Note (parsed as node with shape='note') ──────
             if (v === "note") {
                 const note = parseNote(id);
-                ast.notes.push(note);
-                noteIds.add(note.id);
-                group.children.push({ kind: "note", id: note.id });
+                ast.nodes.push(note);
+                nodeIds.add(note.id);
+                group.children.push({ kind: "node", id: note.id });
                 continue;
             }
             // ── Markdown ───────────────────────────────────────
@@ -627,7 +637,7 @@ function parse(src) {
                 continue;
             }
             // ── Node shape ────────────────────────────────────
-            if (SHAPES.includes(v)) {
+            if (SHAPES$1.includes(v)) {
                 const node = parseNode(v, id);
                 if (!nodeIds.has(node.id)) {
                     nodeIds.add(node.id);
@@ -829,7 +839,7 @@ function parse(src) {
                 props[k] = cur().value;
                 skip();
             }
-            else if (SHAPES.includes(v) ||
+            else if (SHAPES$1.includes(v) ||
                 v === "step" ||
                 v === "group" ||
                 v === "note" || // ← ADD
@@ -1100,12 +1110,12 @@ function parse(src) {
             ast.rootOrder.push({ kind: "table", id: tbl.id });
             continue;
         }
-        // note
+        // note (parsed as node with shape='note')
         if (v === "note") {
             const note = parseNote();
-            ast.notes.push(note);
-            noteIds.add(note.id);
-            ast.rootOrder.push({ kind: "note", id: note.id });
+            ast.nodes.push(note);
+            nodeIds.add(note.id);
+            ast.rootOrder.push({ kind: "node", id: note.id });
             continue;
         }
         // step
@@ -1142,7 +1152,6 @@ function parse(src) {
                     for (const nid of [fromId, edge.to]) {
                         if (!nodeIds.has(nid) &&
                             !tableIds.has(nid) &&
-                            !noteIds.has(nid) &&
                             !chartIds.has(nid) &&
                             !groupIds.has(nid)) {
                             nodeIds.add(nid);
@@ -1160,7 +1169,7 @@ function parse(src) {
             }
         }
         // node shapes — only reached if NOT followed by an arrow
-        if (SHAPES.includes(v)) {
+        if (SHAPES$1.includes(v)) {
             const node = parseNode(v);
             if (!nodeIds.has(node.id)) {
                 nodeIds.add(node.id);
@@ -1181,32 +1190,146 @@ function parse(src) {
 }
 
 // ============================================================
+// sketchmark — Design Tokens (single source of truth)
+//
+// All layout, sizing, typography, and rendering constants live
+// here. Import from this file instead of scattering magic
+// numbers across modules.
+// ============================================================
+// ── Layout ─────────────────────────────────────────────────
+const LAYOUT = {
+    margin: 60, // default canvas margin (px)
+    gap: 80, // default gap between root-level items (px)
+    groupLabelH: 22, // height reserved for group label strip (px)
+    groupPad: 26, // default group inner padding (px)
+    groupGap: 10, // default gap between items inside a group (px)
+};
+// ── Node sizing ────────────────────────────────────────────
+const NODE = {
+    minW: 90, // minimum auto-sized node width (px)
+    maxW: 180, // maximum auto-sized node width (px)
+    fontPxPerChar: 8.6, // approximate px per character for label width
+    basePad: 26, // base padding added to label width (px)
+};
+// ── Shape-specific sizing ──────────────────────────────────
+const SHAPES = {
+    cylinder: { defaultH: 66, ellipseH: 18 },
+    diamond: { minW: 130, minH: 62, aspect: 0.46, labelPad: 30 },
+    hexagon: { minW: 126, minH: 54, aspect: 0.44, labelPad: 20, inset: 0.56 },
+    triangle: { minW: 108, minH: 64, aspect: 0.6, labelPad: 10 },
+    parallelogram: { defaultH: 50, labelPad: 28, skew: 18 },
+};
+// ── Table sizing ───────────────────────────────────────────
+const TABLE = {
+    cellPad: 20, // total horizontal padding per cell (px)
+    minColW: 50, // minimum column width (px)
+    fontPxPerChar: 7.5, // approx px per char at 12px sans-serif
+    rowH: 30, // data row height (px)
+    headerH: 34, // header row height (px)
+    labelH: 22, // label strip height (px)
+};
+// ── Note shape ─────────────────────────────────────────────
+const NOTE = {
+    lineH: 20, // line height for note text (px)
+    padX: 16, // horizontal padding (px)
+    padY: 12, // vertical padding (px)
+    fontPxPerChar: 7.5, // approx px per char for note text
+    fold: 14, // fold corner size (px)
+    minW: 120, // minimum note width (px)
+};
+// ── Typography defaults ────────────────────────────────────
+const TYPOGRAPHY = {
+    defaultFontSize: 14,
+    defaultFontWeight: 500,
+    defaultLineHeight: 1.3, // multiplier (× fontSize = px)
+    defaultPadding: 8,
+    defaultAlign: "center",
+    defaultVAlign: "middle",
+};
+// ── Title ──────────────────────────────────────────────────
+const TITLE = {
+    y: 26, // baseline Y position (px)
+    fontSize: 18, // default title font size
+    fontWeight: 600, // default title font weight
+};
+// ── Group label typography ─────────────────────────────────
+const GROUP_LABEL = {
+    fontSize: 12,
+    fontWeight: 500,
+    padding: 14,
+};
+// ── Edge / arrow ───────────────────────────────────────────
+const EDGE = {
+    arrowSize: 12, // arrowhead polygon size (px)
+    headInset: 13, // line shortening for arrowhead overlap (px)
+    labelOffset: 14, // perpendicular offset of label from edge line (px)
+    labelFontSize: 11, // default edge label font size
+    labelFontWeight: 400, // default edge label font weight
+    dashPattern: [6, 5], // stroke-dasharray for dashed edges
+};
+// ── Markdown typography ────────────────────────────────────
+const MARKDOWN = {
+    fontSize: { h1: 40, h2: 28, h3: 20, p: 15, blank: 0 },
+    fontWeight: { h1: 700, h2: 600, h3: 600, p: 400, blank: 400 },
+    spacing: { h1: 52, h2: 38, h3: 28, p: 22, blank: 10 },
+    defaultPad: 16,
+};
+// ── Rough.js rendering ─────────────────────────────────────
+const ROUGH = {
+    roughness: 1.3, // default roughness for nodes/edges
+    chartRoughness: 1.2, // slightly smoother for chart elements
+    bowing: 0.7,
+};
+// ── Chart layout ───────────────────────────────────────────
+const CHART = {
+    titleH: 24, // title strip height when label present (px)
+    titleHEmpty: 8, // title strip height when no label (px)
+    padL: 44, // left padding for plot area (px)
+    padR: 12, // right padding (px)
+    padT: 6, // top padding (px)
+    padB: 28, // bottom padding (px)
+    defaultW: 320, // default chart width (px)
+    defaultH: 240, // default chart height (px)
+};
+// ── Animation timing ───────────────────────────────────────
+const ANIMATION = {
+    // Edge drawing
+    strokeDur: 360, // edge stroke-draw duration (ms)
+    arrowReveal: 120, // arrow fade-in delay after stroke (ms)
+    dashClear: 160, // delay before clearing dash overrides (ms)
+    // Shape drawing (per entity type)
+    nodeStrokeDur: 420, // node stroke-draw duration (ms)
+    nodeStagger: 55, // stagger between node paths (ms)
+    groupStrokeDur: 550, // group stroke-draw duration (ms)
+    groupStagger: 40, // stagger between group paths (ms)
+    tableStrokeDur: 500, // table stroke-draw duration (ms)
+    tableStagger: 40, // stagger between table paths (ms)
+    // Text / misc
+    textFade: 200, // text opacity fade-in duration (ms)
+    fillFadeOffset: -60, // fill-opacity start relative to stroke end (ms)
+    textDelay: 80, // extra buffer before text reveals (ms)
+    chartFade: 500, // chart/markdown opacity transition (ms)
+};
+// ── Export defaults ────────────────────────────────────────
+const EXPORT = {
+    pngScale: 2, // default PNG pixel density multiplier
+    fallbackW: 400, // fallback SVG width when not set (px)
+    fallbackH: 300, // fallback SVG height when not set (px)
+    fallbackBg: "#f8f4ea", // default PNG/HTML background color
+    revokeDelay: 5000, // blob URL revocation delay (ms)
+    defaultFps: 30, // default video FPS
+};
+// ── SVG namespace ──────────────────────────────────────────
+const SVG_NS$1 = "http://www.w3.org/2000/svg";
+
+// ============================================================
 // sketchmark — Markdown inline parser
 // Supports: # h1  ## h2  ### h3  **bold**  *italic*  blank lines
 // ============================================================
-// ── Font sizes per line kind ──────────────────────────────
-const LINE_FONT_SIZE = {
-    h1: 40,
-    h2: 28,
-    h3: 20,
-    p: 15,
-    blank: 0,
-};
-const LINE_FONT_WEIGHT = {
-    h1: 700,
-    h2: 600,
-    h3: 600,
-    p: 400,
-    blank: 400,
-};
-// Spacing below each line kind (px)
-const LINE_SPACING = {
-    h1: 52,
-    h2: 38,
-    h3: 28,
-    p: 22,
-    blank: 10,
-};
+// ── Font sizes per line kind (re-exported from config) ───
+const LINE_FONT_SIZE = { ...MARKDOWN.fontSize };
+const LINE_FONT_WEIGHT = { ...MARKDOWN.fontWeight };
+const LINE_SPACING = { ...MARKDOWN.spacing };
 // ── Parse a full markdown string into lines ───────────────
 function parseMarkdownContent(content) {
     const raw = content.split('\n');
@@ -1258,7 +1381,7 @@ function parseInline(text) {
     return runs;
 }
 // ── Calculate natural height of a parsed block ────────────
-function calcMarkdownHeight(lines, pad = 16) {
+function calcMarkdownHeight(lines, pad = MARKDOWN.defaultPad) {
     let h = pad * 2; // top + bottom
     for (const line of lines)
         h += LINE_SPACING[line.kind];
@@ -1280,9 +1403,14 @@ function buildSceneGraph(ast) {
             groupId: n.groupId,
             width: n.width,
             height: n.height,
+            deg: n.deg,
+            dx: n.dx,
+            dy: n.dy,
+            factor: n.factor,
             meta: n.meta,
             imageUrl: n.imageUrl,
             iconName: n.iconName,
+            pathData: n.pathData,
             x: 0,
             y: 0,
             w: 0,
@@ -1298,8 +1426,8 @@ function buildSceneGraph(ast) {
             children: g.children,
             layout: (g.layout ?? "column"),
             columns: g.columns ?? 1,
-            padding: g.padding ?? 26,
-            gap: g.gap ?? 10,
+            padding: g.padding ?? LAYOUT.groupPad,
+            gap: g.gap ?? LAYOUT.groupGap,
             align: (g.align ?? "start"),
             justify: (g.justify ?? "start"),
             style: { ...ast.styles[g.id], ...themeStyle, ...g.style },
@@ -1318,28 +1446,14 @@ function buildSceneGraph(ast) {
             label: t.label,
             rows: t.rows,
             colWidths: [],
-            rowH: 30,
-            headerH: 34,
-            labelH: 22,
+            rowH: TABLE.rowH,
+            headerH: TABLE.headerH,
+            labelH: TABLE.labelH,
             style: { ...ast.styles[t.id], ...themeStyle, ...t.style },
             x: 0,
             y: 0,
             w: 0,
             h: 0,
-        };
-    });
-    const notes = ast.notes.map((n) => {
-        const themeStyle = n.theme ? (ast.themes[n.theme] ?? {}) : {};
-        return {
-            id: n.id,
-            lines: n.label.split("\n"),
-            style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
-            x: 0,
-            y: 0,
-            w: 0,
-            h: 0,
-            width: n.width,
-            height: n.height,
         };
     });
     const charts = ast.charts.map((c) => {
@@ -1352,8 +1466,8 @@ function buildSceneGraph(ast) {
             style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
             x: 0,
             y: 0,
-            w: c.width ?? 320,
-            h: c.height ?? 240,
+            w: c.width ?? CHART.defaultW,
+            h: c.height ?? CHART.defaultH,
         };
     });
     const markdowns = (ast.markdowns ?? []).map(m => {
@@ -1396,7 +1510,6 @@ function buildSceneGraph(ast) {
         edges,
         groups,
         tables,
-        notes,
         charts,
         markdowns,
         animation: { steps: ast.steps, currentStep: -1 },
@@ -1417,15 +1530,694 @@ function groupMap(sg) {
 function tableMap(sg) {
     return new Map(sg.tables.map((t) => [t.id, t]));
 }
-function noteMap(sg) {
-    return new Map(sg.notes.map((n) => [n.id, n]));
-}
 function chartMap(sg) {
     return new Map(sg.charts.map((c) => [c.id, c]));
 }
 function markdownMap(sg) {
     return new Map((sg.markdowns ?? []).map(m => [m.id, m]));
 }
+
+// ============================================================
+// Entity Rect Map — unified lookup for all positionable entities
+//
+// Every scene entity (node, group, table, chart, markdown)
+// has { x, y, w, h }. This map lets layout code look up any
+// entity by ID without kind dispatch.
+// ============================================================
+function buildEntityMap(sg) {
+    const m = new Map();
+    for (const n of sg.nodes)
+        m.set(n.id, n);
+    for (const g of sg.groups)
+        m.set(g.id, g);
+    for (const t of sg.tables)
+        m.set(t.id, t);
+    for (const c of sg.charts)
+        m.set(c.id, c);
+    for (const md of sg.markdowns)
+        m.set(md.id, md);
+    return m;
+}
+
+// ============================================================
+// Shape Strategy Interfaces
+// ============================================================
+// Re-export from centralized config for backward compatibility
+const MIN_W = NODE.minW;
+const MAX_W = NODE.maxW;
+const SVG_NS = SVG_NS$1;
+
+// ============================================================
+// Shape Registry — Strategy pattern for extensible shapes
+// ============================================================
+const shapes = new Map();
+function registerShape(name, def) {
+    shapes.set(name, def);
+}
+function getShape(name) {
+    return shapes.get(name);
+}
+
+const boxShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.h = n.h || 52;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
+    },
+};
+
+const circleShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(84, Math.min(MAX_W, labelW));
+        n.h = n.h || n.w;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        return [rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts);
+    },
+};
+
+const diamondShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(SHAPES.diamond.minW, Math.min(MAX_W, labelW + SHAPES.diamond.labelPad));
+        n.h = n.h || Math.max(SHAPES.diamond.minH, n.w * SHAPES.diamond.aspect);
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        const hw = n.w / 2 - 2;
+        return [rc.polygon([[cx, n.y + 2], [cx + hw, cy], [cx, n.y + n.h - 2], [cx - hw, cy]], opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        const hw = n.w / 2 - 2;
+        rc.polygon([[cx, n.y + 2], [cx + hw, cy], [cx, n.y + n.h - 2], [cx - hw, cy]], opts);
+    },
+};
+
+const hexagonShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(SHAPES.hexagon.minW, Math.min(MAX_W, labelW + SHAPES.hexagon.labelPad));
+        n.h = n.h || Math.max(SHAPES.hexagon.minH, n.w * SHAPES.hexagon.aspect);
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        const hw = n.w / 2 - 2;
+        const hw2 = hw * SHAPES.hexagon.inset;
+        return [rc.polygon([
+                [cx - hw2, n.y + 3], [cx + hw2, n.y + 3], [cx + hw, cy],
+                [cx + hw2, n.y + n.h - 3], [cx - hw2, n.y + n.h - 3], [cx - hw, cy],
+            ], opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        const hw = n.w / 2 - 2;
+        const hw2 = hw * SHAPES.hexagon.inset;
+        rc.polygon([
+            [cx - hw2, n.y + 3], [cx + hw2, n.y + 3], [cx + hw, cy],
+            [cx + hw2, n.y + n.h - 3], [cx - hw2, n.y + n.h - 3], [cx - hw, cy],
+        ], opts);
+    },
+};
+
+const triangleShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(SHAPES.triangle.minW, Math.min(MAX_W, labelW + SHAPES.triangle.labelPad));
+        n.h = n.h || Math.max(SHAPES.triangle.minH, n.w * SHAPES.triangle.aspect);
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const cx = n.x + n.w / 2;
+        return [rc.polygon([
+                [cx, n.y + 3],
+                [n.x + n.w - 3, n.y + n.h - 3],
+                [n.x + 3, n.y + n.h - 3],
+            ], opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const cx = n.x + n.w / 2;
+        rc.polygon([
+            [cx, n.y + 3],
+            [n.x + n.w - 3, n.y + n.h - 3],
+            [n.x + 3, n.y + n.h - 3],
+        ], opts);
+    },
+};
+
+const cylinderShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.h = n.h || SHAPES.cylinder.defaultH;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const cx = n.x + n.w / 2;
+        const eH = SHAPES.cylinder.ellipseH;
+        return [
+            rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts),
+            rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 }),
+            rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6, fill: "none" }),
+        ];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const cx = n.x + n.w / 2;
+        const eH = SHAPES.cylinder.ellipseH;
+        rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts);
+        rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 });
+        rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6, fill: "none" });
+    },
+};
+
+const parallelogramShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + SHAPES.parallelogram.labelPad));
+        n.h = n.h || SHAPES.parallelogram.defaultH;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        return [rc.polygon([
+                [n.x + SHAPES.parallelogram.skew, n.y + 1], [n.x + n.w - 1, n.y + 1],
+                [n.x + n.w - SHAPES.parallelogram.skew, n.y + n.h - 1], [n.x + 1, n.y + n.h - 1],
+            ], opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        rc.polygon([
+            [n.x + SHAPES.parallelogram.skew, n.y + 1], [n.x + n.w - 1, n.y + 1],
+            [n.x + n.w - SHAPES.parallelogram.skew, n.y + n.h - 1], [n.x + 1, n.y + n.h - 1],
+        ], opts);
+    },
+};
+
+const textShape = {
+    size(n, _labelW) {
+        const fontSize = Number(n.style?.fontSize ?? 13);
+        const charWidth = fontSize * 0.55;
+        const pad = Number(n.style?.padding ?? 8) * 2;
+        if (n.width) {
+            const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
+            n.w = n.width;
+            n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
+        }
+        else {
+            const lines = n.label.split("\\n");
+            const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
+            n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
+            n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
+        }
+    },
+    renderSVG(_rc, _n, _palette, _opts) {
+        return []; // no shape drawn — text only
+    },
+    renderCanvas(_rc, _ctx, _n, _palette, _opts) {
+        // no shape drawn — text only
+    },
+};
+
+const iconShape = {
+    size(n, labelW) {
+        const iconBase = 48;
+        const labelH = n.label ? 20 : 0;
+        n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
+        n.h = n.h || (iconBase + labelH);
+    },
+    renderSVG(rc, n, palette, opts) {
+        const s = n.style ?? {};
+        if (n.iconName) {
+            const [prefix, name] = n.iconName.includes(":")
+                ? n.iconName.split(":", 2)
+                : ["mdi", n.iconName];
+            const iconColor = s.color
+                ? encodeURIComponent(String(s.color))
+                : encodeURIComponent(String(palette.nodeStroke));
+            const labelSpace = n.label ? 20 : 0;
+            const iconAreaH = n.h - labelSpace;
+            const iconSize = Math.min(n.w, iconAreaH) - 4;
+            const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+            const img = document.createElementNS(SVG_NS, "image");
+            img.setAttribute("href", iconUrl);
+            const iconX = n.x + (n.w - iconSize) / 2;
+            const iconY = n.y + (iconAreaH - iconSize) / 2;
+            img.setAttribute("x", String(iconX));
+            img.setAttribute("y", String(iconY));
+            img.setAttribute("width", String(iconSize));
+            img.setAttribute("height", String(iconSize));
+            img.setAttribute("preserveAspectRatio", "xMidYMid meet");
+            if (s.opacity != null)
+                img.setAttribute("opacity", String(s.opacity));
+            const clipId = `clip-${n.id}`;
+            const defs = document.createElementNS(SVG_NS, "defs");
+            const clip = document.createElementNS(SVG_NS, "clipPath");
+            clip.setAttribute("id", clipId);
+            const rect = document.createElementNS(SVG_NS, "rect");
+            rect.setAttribute("x", String(iconX));
+            rect.setAttribute("y", String(iconY));
+            rect.setAttribute("width", String(iconSize));
+            rect.setAttribute("height", String(iconSize));
+            rect.setAttribute("rx", "6");
+            clip.appendChild(rect);
+            defs.appendChild(clip);
+            img.setAttribute("clip-path", `url(#${clipId})`);
+            const els = [defs, img];
+            if (s.stroke) {
+                els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "none" }));
+            }
+            return els;
+        }
+        return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "#e0e0e0", stroke: "#999999" })];
+    },
+    renderCanvas(rc, ctx, n, palette, opts) {
+        const s = n.style ?? {};
+        if (n.iconName) {
+            const [prefix, name] = n.iconName.includes(":")
+                ? n.iconName.split(":", 2)
+                : ["mdi", n.iconName];
+            const iconColor = s.color
+                ? encodeURIComponent(String(s.color))
+                : encodeURIComponent(String(palette.nodeStroke));
+            const iconLabelSpace = n.label ? 20 : 0;
+            const iconAreaH = n.h - iconLabelSpace;
+            const iconSize = Math.min(n.w, iconAreaH) - 4;
+            const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                ctx.save();
+                if (s.opacity != null)
+                    ctx.globalAlpha = Number(s.opacity);
+                const iconX = n.x + (n.w - iconSize) / 2;
+                const iconY = n.y + (iconAreaH - iconSize) / 2;
+                ctx.beginPath();
+                const r = 6;
+                ctx.moveTo(iconX + r, iconY);
+                ctx.lineTo(iconX + iconSize - r, iconY);
+                ctx.quadraticCurveTo(iconX + iconSize, iconY, iconX + iconSize, iconY + r);
+                ctx.lineTo(iconX + iconSize, iconY + iconSize - r);
+                ctx.quadraticCurveTo(iconX + iconSize, iconY + iconSize, iconX + iconSize - r, iconY + iconSize);
+                ctx.lineTo(iconX + r, iconY + iconSize);
+                ctx.quadraticCurveTo(iconX, iconY + iconSize, iconX, iconY + iconSize - r);
+                ctx.lineTo(iconX, iconY + r);
+                ctx.quadraticCurveTo(iconX, iconY, iconX + r, iconY);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+                ctx.restore();
+                if (s.stroke) {
+                    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "none" });
+                }
+            };
+            img.src = iconUrl;
+        }
+        else {
+            rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "#e0e0e0", stroke: "#999999" });
+        }
+    },
+};
+
+const imageShape = {
+    size(n, labelW) {
+        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.h = n.h || 52;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const s = n.style ?? {};
+        if (n.imageUrl) {
+            const imgLabelSpace = n.label ? 20 : 0;
+            const imgAreaH = n.h - imgLabelSpace;
+            const img = document.createElementNS(SVG_NS, "image");
+            img.setAttribute("href", n.imageUrl);
+            img.setAttribute("x", String(n.x + 1));
+            img.setAttribute("y", String(n.y + 1));
+            img.setAttribute("width", String(n.w - 2));
+            img.setAttribute("height", String(imgAreaH - 2));
+            img.setAttribute("preserveAspectRatio", "xMidYMid meet");
+            const clipId = `clip-${n.id}`;
+            const defs = document.createElementNS(SVG_NS, "defs");
+            const clip = document.createElementNS(SVG_NS, "clipPath");
+            clip.setAttribute("id", clipId);
+            const rect = document.createElementNS(SVG_NS, "rect");
+            rect.setAttribute("x", String(n.x + 1));
+            rect.setAttribute("y", String(n.y + 1));
+            rect.setAttribute("width", String(n.w - 2));
+            rect.setAttribute("height", String(imgAreaH - 2));
+            rect.setAttribute("rx", "6");
+            clip.appendChild(rect);
+            defs.appendChild(clip);
+            img.setAttribute("clip-path", `url(#${clipId})`);
+            const els = [defs, img];
+            if (s.stroke) {
+                els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "none" }));
+            }
+            return els;
+        }
+        return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "#e0e0e0", stroke: "#999999" })];
+    },
+    renderCanvas(rc, ctx, n, _palette, opts) {
+        const s = n.style ?? {};
+        if (n.imageUrl) {
+            const imgLblSpace = n.label ? 20 : 0;
+            const imgAreaH = n.h - imgLblSpace;
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                ctx.save();
+                ctx.beginPath();
+                const r = 6;
+                ctx.moveTo(n.x + r, n.y);
+                ctx.lineTo(n.x + n.w - r, n.y);
+                ctx.quadraticCurveTo(n.x + n.w, n.y, n.x + n.w, n.y + r);
+                ctx.lineTo(n.x + n.w, n.y + imgAreaH - r);
+                ctx.quadraticCurveTo(n.x + n.w, n.y + imgAreaH, n.x + n.w - r, n.y + imgAreaH);
+                ctx.lineTo(n.x + r, n.y + imgAreaH);
+                ctx.quadraticCurveTo(n.x, n.y + imgAreaH, n.x, n.y + imgAreaH - r);
+                ctx.lineTo(n.x, n.y + r);
+                ctx.quadraticCurveTo(n.x, n.y, n.x + r, n.y);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, imgAreaH - 2);
+                ctx.restore();
+                if (s.stroke) {
+                    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "none" });
+                }
+            };
+            img.src = n.imageUrl;
+        }
+        else {
+            rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: "#e0e0e0", stroke: "#999999" });
+        }
+    },
+};
+
+// ============================================================
+// sketchmark — Font Registry
+// ============================================================
+// built-in named fonts — user can reference these by short name
+const BUILTIN_FONTS = {
+    // hand-drawn
+    caveat: {
+        family: "'Caveat', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&display=swap',
+    },
+    handlee: {
+        family: "'Handlee', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Handlee&display=swap',
+    },
+    'indie-flower': {
+        family: "'Indie Flower', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap',
+    },
+    'patrick-hand': {
+        family: "'Patrick Hand', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap',
+    },
+    // clean / readable
+    'dm-mono': {
+        family: "'DM Mono', monospace",
+        url: 'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap',
+    },
+    'jetbrains': {
+        family: "'JetBrains Mono', monospace",
+        url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap',
+    },
+    'instrument': {
+        family: "'Instrument Serif', serif",
+        url: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap',
+    },
+    'playfair': {
+        family: "'Playfair Display', serif",
+        url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap',
+    },
+    // system fallbacks (no URL needed)
+    system: { family: 'system-ui, sans-serif' },
+    mono: { family: "'Courier New', monospace" },
+    serif: { family: 'Georgia, serif' },
+};
+// default — what renders when no font is specified
+const DEFAULT_FONT = 'system-ui, sans-serif';
+// resolve a short name or pass-through a quoted CSS family
+function resolveFont(nameOrFamily) {
+    const key = nameOrFamily.toLowerCase().trim();
+    if (BUILTIN_FONTS[key])
+        return BUILTIN_FONTS[key].family;
+    return nameOrFamily; // treat as raw CSS font-family
+}
+// inject a <link> into <head> for a built-in font (browser only)
+function loadFont(name) {
+    if (typeof document === 'undefined')
+        return;
+    const key = name.toLowerCase().trim();
+    const def = BUILTIN_FONTS[key];
+    if (!def?.url || def.loaded)
+        return;
+    if (document.querySelector(`link[data-sketchmark-font="${key}"]`))
+        return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = def.url;
+    link.setAttribute('data-sketchmark-font', key);
+    document.head.appendChild(link);
+    def.loaded = true;
+}
+// user registers their own font (already loaded via CSS/link)
+function registerFont(name, family, url) {
+    BUILTIN_FONTS[name.toLowerCase()] = { family, url };
+    if (url)
+        loadFont(name);
+}
+
+// ============================================================
+// sketchmark — Shared Renderer Utilities
+//
+// Functions used by both SVG and Canvas renderers, extracted
+// to eliminate duplication (Phase 1 of SOLID refactoring).
+// ============================================================
+// ── Hash string to seed ───────────────────────────────────────────────────
+function hashStr$3(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++)
+        h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
+    return h;
+}
+// ── Darken a CSS hex colour by `amount` (0–1) ────────────────────────────
+function darkenHex(hex, amount = 0.12) {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    if (!m)
+        return hex;
+    const d = (v) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
+    return `#${d(m[1]).toString(16).padStart(2, "0")}${d(m[2]).toString(16).padStart(2, "0")}${d(m[3]).toString(16).padStart(2, "0")}`;
+}
+// ── Load + resolve font from style or fall back ──────────────────────────
+function resolveStyleFont(style, fallback) {
+    const raw = String(style["font"] ?? "");
+    if (!raw)
+        return fallback;
+    loadFont(raw);
+    return resolveFont(raw);
+}
+// ── Soft word-wrap ───────────────────────────────────────────────────────
+function wrapText(text, maxWidth, fontSize) {
+    const charWidth = fontSize * 0.55;
+    const maxChars = Math.floor(maxWidth / charWidth);
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (test.length > maxChars && current) {
+            lines.push(current);
+            current = word;
+        }
+        else {
+            current = test;
+        }
+    }
+    if (current)
+        lines.push(current);
+    return lines.length ? lines : [text];
+}
+// ── Arrow direction from connector ───────────────────────────────────────
+function connMeta(connector) {
+    if (connector === "--")
+        return { arrowAt: "none", dashed: false };
+    if (connector === "---")
+        return { arrowAt: "none", dashed: true };
+    const bidir = connector.includes("<") && connector.includes(">");
+    if (bidir)
+        return { arrowAt: "both", dashed: connector.includes("--") };
+    const back = connector.startsWith("<");
+    const dashed = connector.includes("--");
+    if (back)
+        return { arrowAt: "start", dashed };
+    return { arrowAt: "end", dashed };
+}
+// ── Generic rect connection point ────────────────────────────────────────
+function rectConnPoint$1(rx, ry, rw, rh, ox, oy) {
+    const cx = rx + rw / 2, cy = ry + rh / 2;
+    const dx = ox - cx, dy = oy - cy;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
+        return [cx, cy];
+    const hw = rw / 2 - 2, hh = rh / 2 - 2;
+    const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
+    const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
+    const t = Math.min(tx, ty);
+    return [cx + t * dx, cy + t * dy];
+}
+// ── Resolve an endpoint entity by ID across all maps ─────────────────────
+function resolveEndpoint(id, nm, tm, gm, cm) {
+    return nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? null;
+}
+// ── Get connection point for any entity ──────────────────────────────────
+function getConnPoint(src, dstCX, dstCY) {
+    if ("shape" in src && src.shape) {
+        return connPoint(src, { x: dstCX - 1, y: dstCY - 1, w: 2, h: 2});
+    }
+    return rectConnPoint$1(src.x, src.y, src.w, src.h, dstCX, dstCY);
+}
+// ── Group depth (for paint order) ────────────────────────────────────────
+function groupDepth(g, gm) {
+    let d = 0;
+    let cur = g;
+    while (cur?.parentId) {
+        d++;
+        cur = gm.get(cur.parentId);
+    }
+    return d;
+}
+
+const noteShape = {
+    idPrefix: "note",
+    cssClass: "ntg",
+    size(n, _labelW) {
+        const lines = n.label.split("\n");
+        const maxChars = Math.max(...lines.map((l) => l.length));
+        n.w = n.w || Math.max(NOTE.minW, Math.ceil(maxChars * NOTE.fontPxPerChar) + NOTE.padX * 2);
+        n.h = n.h || lines.length * NOTE.lineH + NOTE.padY * 2;
+        if (n.width && n.w < n.width)
+            n.w = n.width;
+        if (n.height && n.h < n.height)
+            n.h = n.height;
+    },
+    renderSVG(rc, n, palette, opts) {
+        const s = n.style ?? {};
+        const { x, y, w, h } = n;
+        const fold = NOTE.fold;
+        const strk = String(s.stroke ?? palette.noteStroke);
+        const nStrokeWidth = Number(s.strokeWidth ?? 1.2);
+        const body = rc.polygon([[x, y], [x + w - fold, y], [x + w, y + fold], [x + w, y + h], [x, y + h]], {
+            ...opts,
+            stroke: strk,
+            strokeWidth: nStrokeWidth,
+            ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
+        });
+        const foldEl = rc.polygon([[x + w - fold, y], [x + w, y + fold], [x + w - fold, y + fold]], {
+            roughness: 0.4,
+            seed: hashStr$3(n.id + "f"),
+            fill: palette.noteFold,
+            fillStyle: "solid",
+            stroke: strk,
+            strokeWidth: Math.min(nStrokeWidth, 0.8),
+        });
+        return [body, foldEl];
+    },
+    renderCanvas(rc, _ctx, n, palette, opts) {
+        const s = n.style ?? {};
+        const { x, y, w, h } = n;
+        const fold = NOTE.fold;
+        const strk = String(s.stroke ?? palette.noteStroke);
+        const nStrokeWidth = Number(s.strokeWidth ?? 1.2);
+        rc.polygon([[x, y], [x + w - fold, y], [x + w, y + fold], [x + w, y + h], [x, y + h]], {
+            ...opts,
+            stroke: strk,
+            strokeWidth: nStrokeWidth,
+            ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
+        });
+        rc.polygon([[x + w - fold, y], [x + w, y + fold], [x + w - fold, y + fold]], {
+            roughness: 0.4,
+            seed: hashStr$3(n.id + "f"),
+            fill: palette.noteFold,
+            fillStyle: "solid",
+            stroke: strk,
+            strokeWidth: Math.min(nStrokeWidth, 0.8),
+        });
+    },
+};
+
+const lineShape = {
+    size(n, labelW) {
+        const labelH = n.label ? 20 : 0;
+        n.w = n.width ?? Math.max(MIN_W, labelW + 20);
+        n.h = n.height ?? (6 + labelH);
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const labelH = n.label ? 20 : 0;
+        const lineY = n.y + (n.h - labelH) / 2;
+        return [rc.line(n.x, lineY, n.x + n.w, lineY, opts)];
+    },
+    renderCanvas(rc, _ctx, n, _palette, opts) {
+        const labelH = n.label ? 20 : 0;
+        const lineY = n.y + (n.h - labelH) / 2;
+        rc.line(n.x, lineY, n.x + n.w, lineY, opts);
+    },
+};
+
+const pathShape = {
+    size(n, labelW) {
+        // User should provide width/height; defaults to 100x100
+        n.w = n.width ?? Math.max(100, labelW + 20);
+        n.h = n.height ?? 100;
+    },
+    renderSVG(rc, n, _palette, opts) {
+        const d = n.pathData;
+        if (!d) {
+            // No path data — render placeholder box
+            return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
+        }
+        const el = rc.path(d, opts);
+        // Wrap in a group to translate the user's path to the node position
+        const g = document.createElementNS(SVG_NS, "g");
+        g.setAttribute("transform", `translate(${n.x},${n.y})`);
+        g.appendChild(el);
+        return [g];
+    },
+    renderCanvas(rc, ctx, n, _palette, opts) {
+        const d = n.pathData;
+        if (!d) {
+            rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
+            return;
+        }
+        ctx.save();
+        ctx.translate(n.x, n.y);
+        rc.path(d, opts);
+        ctx.restore();
+    },
+};
+
+// ============================================================
+// Shape Registry — registers all built-in shapes
+//
+// To add a new shape:
+//   1. Create src/renderer/shapes/my-shape.ts implementing ShapeDefinition
+//   2. Import and register it here
+//   3. Add the shape name to NodeShape union in ast/types.ts
+//   4. Add to SHAPES array in parser/index.ts and KEYWORDS in tokenizer.ts
+// ============================================================
+registerShape("box", boxShape);
+registerShape("circle", circleShape);
+registerShape("diamond", diamondShape);
+registerShape("hexagon", hexagonShape);
+registerShape("triangle", triangleShape);
+registerShape("cylinder", cylinderShape);
+registerShape("parallelogram", parallelogramShape);
+registerShape("text", textShape);
+registerShape("icon", iconShape);
+registerShape("image", imageShape);
+registerShape("note", noteShape);
+registerShape("line", lineShape);
+registerShape("path", pathShape);
 
 // ============================================================
 // sketchmark — Layout Engine  (Flexbox-style, recursive)
@@ -1441,22 +2233,6 @@ function markdownMap(sg) {
 //   align=…          → align-items
 //   justify=…        → justify-content
 // ============================================================
-// ── Constants ─────────────────────────────────────────────
-const FONT_PX_PER_CHAR = 8.6;
-const MIN_W = 90;
-const MAX_W = 180;
-const BASE_PAD = 26;
-const GROUP_LABEL_H = 22;
-const DEFAULT_MARGIN = 60;
-const DEFAULT_GAP_MAIN = 80;
-// Table sizing
-const CELL_PAD = 20; // total horizontal padding per cell (left + right)
-const MIN_COL_W = 50; // minimum column width
-const TBL_FONT = 7.5; // px per char at 12px sans-serif
-const NOTE_LINE_H = 20;
-const NOTE_PAD_X = 16;
-const NOTE_PAD_Y = 12;
-const NOTE_FONT = 7.5;
 // ── Node auto-sizing ──────────────────────────────────────
 function sizeNode(n) {
     // User-specified dimensions win
@@ -1464,72 +2240,16 @@ function sizeNode(n) {
         n.w = n.width;
     if (n.height && n.height > 0)
         n.h = n.height;
-    const labelW = Math.round(n.label.length * FONT_PX_PER_CHAR + BASE_PAD);
-    switch (n.shape) {
-        case "circle":
-            n.w = n.w || Math.max(84, Math.min(MAX_W, labelW));
-            n.h = n.h || n.w;
-            break;
-        case "diamond":
-            n.w = n.w || Math.max(130, Math.min(MAX_W, labelW + 30));
-            n.h = n.h || Math.max(62, n.w * 0.46);
-            break;
-        case "hexagon":
-            n.w = n.w || Math.max(126, Math.min(MAX_W, labelW + 20));
-            n.h = n.h || Math.max(54, n.w * 0.44);
-            break;
-        case "triangle":
-            n.w = n.w || Math.max(108, Math.min(MAX_W, labelW + 10));
-            n.h = n.h || Math.max(64, n.w * 0.6);
-            break;
-        case "cylinder":
-            n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-            n.h = n.h || 66;
-            break;
-        case "parallelogram":
-            n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + 28));
-            n.h = n.h || 50;
-            break;
-        case "text": {
-            const fontSize = Number(n.style?.fontSize ?? 13);
-            const charWidth = fontSize * 0.55;
-            const pad = Number(n.style?.padding ?? 8) * 2;
-            if (n.width) {
-                // User set width → word-wrap within it
-                const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
-                n.w = n.width;
-                n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
-            }
-            else {
-                // Auto-size to content
-                const lines = n.label.split("\\n");
-                const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
-                n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
-                n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
-            }
-            break;
-        }
-        case "icon": {
-            const iconBase = 48;
-            const labelH = n.label ? 20 : 0;
-            n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
-            n.h = n.h || (iconBase + labelH);
-            break;
-        }
-        default:
-            n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-            n.h = n.h || 52;
-            break;
+    const labelW = Math.round(n.label.length * NODE.fontPxPerChar + NODE.basePad);
+    const shape = getShape(n.shape);
+    if (shape) {
+        shape.size(n, labelW);
     }
-}
-function sizeNote(n) {
-    const maxChars = Math.max(...n.lines.map((l) => l.length));
-    n.w = Math.max(120, Math.ceil(maxChars * NOTE_FONT) + NOTE_PAD_X * 2);
-    n.h = n.lines.length * NOTE_LINE_H + NOTE_PAD_Y * 2;
-    if (n.width && n.w < n.width)
-        n.w = n.width; // ← add
-    if (n.height && n.h < n.height)
-        n.h = n.height; // ← add
+    else {
+        // fallback for unknown shapes — box-like default
+        n.w = n.w || Math.max(90, Math.min(180, labelW));
+        n.h = n.h || 52;
+    }
 }
 // ── Table auto-sizing ─────────────────────────────────────
 function sizeTable(t) {
@@ -1540,10 +2260,10 @@ function sizeTable(t) {
         return;
     }
     const numCols = Math.max(...rows.map((r) => r.cells.length));
-    const colW = Array(numCols).fill(MIN_COL_W);
+    const colW = Array(numCols).fill(TABLE.minColW);
     for (const row of rows) {
         row.cells.forEach((cell, i) => {
-            colW[i] = Math.max(colW[i], Math.ceil(cell.length * TBL_FONT) + CELL_PAD);
+            colW[i] = Math.max(colW[i], Math.ceil(cell.length * TABLE.fontPxPerChar) + TABLE.cellPad);
         });
     }
     t.colWidths = colW;
@@ -1560,79 +2280,27 @@ function sizeMarkdown(m) {
     m.w = m.width ?? 400;
     m.h = m.height ?? calcMarkdownHeight(m.lines, pad);
 }
-// ── Item size helpers ─────────────────────────────────────
-function iW(r, nm, gm, tm, ntm, cm, mdm) {
-    if (r.kind === "node")
-        return nm.get(r.id).w;
-    if (r.kind === "table")
-        return tm.get(r.id).w;
-    if (r.kind === "note")
-        return ntm.get(r.id).w;
-    if (r.kind === "chart")
-        return cm.get(r.id).w;
-    if (r.kind === "markdown")
-        return mdm.get(r.id).w;
-    return gm.get(r.id).w;
+// ── Item size helpers (entity-map based) ─────────────────
+function iW(r, em) {
+    return em.get(r.id).w;
 }
-function iH(r, nm, gm, tm, ntm, cm, mdm) {
-    if (r.kind === "node")
-        return nm.get(r.id).h;
-    if (r.kind === "table")
-        return tm.get(r.id).h;
-    if (r.kind === "note")
-        return ntm.get(r.id).h;
-    if (r.kind === "chart")
-        return cm.get(r.id).h;
-    if (r.kind === "markdown")
-        return mdm.get(r.id).h;
-    return gm.get(r.id).h;
+function iH(r, em) {
+    return em.get(r.id).h;
 }
-function setPos(r, x, y, nm, gm, tm, ntm, cm, mdm) {
-    if (r.kind === "node") {
-        const n = nm.get(r.id);
-        n.x = Math.round(x);
-        n.y = Math.round(y);
-        return;
-    }
-    if (r.kind === "table") {
-        const t = tm.get(r.id);
-        t.x = Math.round(x);
-        t.y = Math.round(y);
-        return;
-    }
-    if (r.kind === "note") {
-        const nt = ntm.get(r.id);
-        nt.x = Math.round(x);
-        nt.y = Math.round(y);
-        return;
-    }
-    if (r.kind === "chart") {
-        const c = cm.get(r.id);
-        c.x = Math.round(x);
-        c.y = Math.round(y);
-        return;
-    }
-    if (r.kind === "markdown") {
-        const md = mdm.get(r.id);
-        md.x = Math.round(x);
-        md.y = Math.round(y);
-        return;
-    }
-    const g = gm.get(r.id);
-    g.x = Math.round(x);
-    g.y = Math.round(y);
+function setPos(r, x, y, em) {
+    const e = em.get(r.id);
+    e.x = Math.round(x);
+    e.y = Math.round(y);
 }
 // ── Pass 1: Measure (bottom-up) ───────────────────────────
 // Recursively computes w, h for a group from its children's sizes.
-function measure(g, nm, gm, tm, ntm, cm, mdm) {
+function measure(g, gm, tm, cm, mdm, em) {
     // Recurse into nested groups first; size tables before reading their dims
     for (const r of g.children) {
         if (r.kind === "group")
-            measure(gm.get(r.id), nm, gm, tm, ntm, cm, mdm);
+            measure(gm.get(r.id), gm, tm, cm, mdm, em);
         if (r.kind === "table")
             sizeTable(tm.get(r.id));
-        if (r.kind === "note")
-            sizeNote(ntm.get(r.id));
         if (r.kind === "chart")
             sizeChart(cm.get(r.id));
         if (r.kind === "markdown")
@@ -1640,7 +2308,7 @@ function measure(g, nm, gm, tm, ntm, cm, mdm) {
     }
     const { padding: pad, gap, columns, layout } = g;
     const kids = g.children;
-    const labelH = g.label ? GROUP_LABEL_H : 0;
+    const labelH = g.label ? LAYOUT.groupLabelH : 0;
     if (!kids.length) {
         g.w = pad * 2;
         g.h = pad * 2 + labelH;
@@ -1650,8 +2318,8 @@ function measure(g, nm, gm, tm, ntm, cm, mdm) {
             g.h = g.height;
         return;
     }
-    const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-    const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+    const ws = kids.map((r) => iW(r, em));
+    const hs = kids.map((r) => iH(r, em));
     const n = kids.length;
     if (layout === "row") {
         g.w = ws.reduce((s, w) => s + w, 0) + gap * (n - 1) + pad * 2;
@@ -1716,9 +2384,9 @@ function distribute(sizes, contentSize, gap, justify) {
 }
 // ── Pass 2: Place (top-down) ──────────────────────────────
 // Assigns x, y to each child. Assumes g.x / g.y already set by parent.
-function place(g, nm, gm, tm, ntm, cm, mdm) {
+function place(g, gm, em) {
     const { padding: pad, gap, columns, layout, align, justify } = g;
-    const labelH = g.label ? GROUP_LABEL_H : 0;
+    const labelH = g.label ? LAYOUT.groupLabelH : 0;
     const contentX = g.x + pad;
     const contentY = g.y + labelH + pad;
     const contentW = g.w - pad * 2;
@@ -1727,8 +2395,8 @@ function place(g, nm, gm, tm, ntm, cm, mdm) {
     if (!kids.length)
         return;
     if (layout === "row") {
-        const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-        const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+        const ws = kids.map((r) => iW(r, em));
+        const hs = kids.map((r) => iH(r, em));
         const { start, gaps } = distribute(ws, contentW, gap, justify);
         let x = contentX + start;
         for (let i = 0; i < kids.length; i++) {
@@ -1743,22 +2411,22 @@ function place(g, nm, gm, tm, ntm, cm, mdm) {
                 default:
                     y = contentY;
             }
-            setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
+            setPos(kids[i], x, y, em);
             x += ws[i] + (i < gaps.length ? gaps[i] : 0);
         }
     }
     else if (layout === "grid") {
         const cols = Math.max(1, columns);
-        const cellW = Math.max(...kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm)));
-        const cellH = Math.max(...kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm)));
+        const cellW = Math.max(...kids.map((r) => iW(r, em)));
+        const cellH = Math.max(...kids.map((r) => iH(r, em)));
         kids.forEach((ref, i) => {
-            setPos(ref, contentX + (i % cols) * (cellW + gap), contentY + Math.floor(i / cols) * (cellH + gap), nm, gm, tm, ntm, cm, mdm);
+            setPos(ref, contentX + (i % cols) * (cellW + gap), contentY + Math.floor(i / cols) * (cellH + gap), em);
         });
     }
     else {
         // column (default)
-        const ws = kids.map((r) => iW(r, nm, gm, tm, ntm, cm, mdm));
-        const hs = kids.map((r) => iH(r, nm, gm, tm, ntm, cm, mdm));
+        const ws = kids.map((r) => iW(r, em));
+        const hs = kids.map((r) => iH(r, em));
         const { start, gaps } = distribute(hs, contentH, gap, justify);
         let y = contentY + start;
         for (let i = 0; i < kids.length; i++) {
@@ -1773,14 +2441,14 @@ function place(g, nm, gm, tm, ntm, cm, mdm) {
                 default:
                     x = contentX;
             }
-            setPos(kids[i], x, y, nm, gm, tm, ntm, cm, mdm);
+            setPos(kids[i], x, y, em);
             y += hs[i] + (i < gaps.length ? gaps[i] : 0);
         }
     }
     // Recurse into nested groups
     for (const r of kids) {
         if (r.kind === "group")
-            place(gm.get(r.id), nm, gm, tm, ntm, cm, mdm);
+            place(gm.get(r.id), gm, em);
     }
 }
 // ── Edge routing ──────────────────────────────────────────
@@ -1800,7 +2468,7 @@ function connPoint(n, other) {
     const t = Math.min(tx, ty);
     return [cx + t * dx, cy + t * dy];
 }
-function rectConnPoint$2(rx, ry, rw, rh, ox, oy) {
+function rectConnPoint(rx, ry, rw, rh, ox, oy) {
     const cx = rx + rw / 2, cy = ry + rh / 2;
     const dx = ox - cx, dy = oy - cy;
     if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
@@ -1816,7 +2484,6 @@ function routeEdges(sg) {
     const tm = tableMap(sg);
     const gm = groupMap(sg);
     const cm = chartMap(sg);
-    const ntm = noteMap(sg);
     function resolve(id) {
         const n = nm.get(id);
         if (n)
@@ -1830,9 +2497,6 @@ function routeEdges(sg) {
         const c = cm.get(id);
         if (c)
             return c;
-        const nt = ntm.get(id);
-        if (nt)
-            return nt;
         return null;
     }
     function connPt(src, dstCX, dstCY) {
@@ -1844,7 +2508,7 @@ function routeEdges(sg) {
                 w: 2,
                 h: 2});
         }
-        return rectConnPoint$2(src.x, src.y, src.w, src.h, dstCX, dstCY);
+        return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
     }
     for (const e of sg.edges) {
         const src = resolve(e.from);
@@ -1863,7 +2527,6 @@ function computeBounds(sg, margin) {
         ...sg.nodes.map((n) => n.x + n.w),
         ...sg.groups.filter((g) => g.w).map((g) => g.x + g.w),
         ...sg.tables.map((t) => t.x + t.w),
-        ...sg.notes.map((n) => n.x + n.w),
         ...sg.charts.map((c) => c.x + c.w),
         ...sg.markdowns.map((m) => m.x + m.w),
     ];
@@ -1871,7 +2534,6 @@ function computeBounds(sg, margin) {
         ...sg.nodes.map((n) => n.y + n.h),
         ...sg.groups.filter((g) => g.h).map((g) => g.y + g.h),
         ...sg.tables.map((t) => t.y + t.h),
-        ...sg.notes.map((n) => n.y + n.h),
         ...sg.charts.map((c) => c.y + c.h),
         ...sg.markdowns.map((m) => m.y + m.h),
     ];
@@ -1880,37 +2542,33 @@ function computeBounds(sg, margin) {
 }
 // ── Public entry point ────────────────────────────────────
 function layout(sg) {
-    const GAP_MAIN = Number(sg.config["gap"] ?? DEFAULT_GAP_MAIN);
-    const MARGIN = Number(sg.config["margin"] ?? DEFAULT_MARGIN);
-    const nm = nodeMap(sg);
+    const GAP_MAIN = Number(sg.config["gap"] ?? LAYOUT.gap);
+    const MARGIN = Number(sg.config["margin"] ?? LAYOUT.margin);
     const gm = groupMap(sg);
     const tm = tableMap(sg);
-    const ntm = noteMap(sg);
     const cm = chartMap(sg);
     const mdm = markdownMap(sg);
     // 1. Size all nodes and tables
     sg.nodes.forEach(sizeNode);
     sg.tables.forEach(sizeTable);
-    sg.notes.forEach(sizeNote);
     sg.charts.forEach(sizeChart);
     sg.markdowns.forEach(sizeMarkdown);
-    // src/layout/index.ts — after sg.charts.forEach(sizeChart);
+    // Build unified entity map (all entities have x,y,w,h — map holds direct refs)
+    const em = buildEntityMap(sg);
     // 2. Identify root vs nested items
     const nestedGroupIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "group").map((c) => c.id)));
     const groupedNodeIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "node").map((c) => c.id)));
     const groupedTableIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "table").map((c) => c.id)));
-    const groupedNoteIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "note").map((c) => c.id)));
     const groupedChartIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "chart").map((c) => c.id)));
     const groupedMarkdownIds = new Set(sg.groups.flatMap((g) => g.children.filter((c) => c.kind === "markdown").map((c) => c.id)));
     const rootGroups = sg.groups.filter((g) => !nestedGroupIds.has(g.id));
     const rootNodes = sg.nodes.filter((n) => !groupedNodeIds.has(n.id));
     const rootTables = sg.tables.filter((t) => !groupedTableIds.has(t.id));
-    const rootNotes = sg.notes.filter((n) => !groupedNoteIds.has(n.id));
     const rootCharts = sg.charts.filter((c) => !groupedChartIds.has(c.id));
     const rootMarkdowns = sg.markdowns.filter((m) => !groupedMarkdownIds.has(m.id));
     // 3. Measure root groups bottom-up
     for (const g of rootGroups)
-        measure(g, nm, gm, tm, ntm, cm, mdm);
+        measure(g, gm, tm, cm, mdm, em);
     // 4. Build root order
     //    sg.rootOrder preserves DSL declaration order.
     //    Fall back: groups, then nodes, then tables.
@@ -1920,7 +2578,6 @@ function layout(sg) {
             ...rootGroups.map((g) => ({ kind: "group", id: g.id })),
             ...rootNodes.map((n) => ({ kind: "node", id: n.id })),
             ...rootTables.map((t) => ({ kind: "table", id: t.id })),
-            ...rootNotes.map((n) => ({ kind: "note", id: n.id })),
             ...rootCharts.map((c) => ({ kind: "chart", id: c.id })),
             ...rootMarkdowns.map((m) => ({ kind: "markdown", id: m.id })),
         ];
@@ -1942,33 +2599,9 @@ function layout(sg) {
         rootOrder.forEach((ref, idx) => {
             const col = idx % cols;
             const row = Math.floor(idx / cols);
-            let w = 0, h = 0;
-            if (ref.kind === "group") {
-                w = gm.get(ref.id).w;
-                h = gm.get(ref.id).h;
-            }
-            else if (ref.kind === "table") {
-                w = tm.get(ref.id).w;
-                h = tm.get(ref.id).h;
-            }
-            else if (ref.kind === "note") {
-                w = ntm.get(ref.id).w;
-                h = ntm.get(ref.id).h;
-            }
-            else if (ref.kind === "chart") {
-                w = cm.get(ref.id).w;
-                h = cm.get(ref.id).h;
-            }
-            else if (ref.kind === "markdown") {
-                w = mdm.get(ref.id).w;
-                h = mdm.get(ref.id).h;
-            }
-            else {
-                w = nm.get(ref.id).w;
-                h = nm.get(ref.id).h;
-            }
-            colWidths[col] = Math.max(colWidths[col], w);
-            rowHeights[row] = Math.max(rowHeights[row], h);
+            const e = em.get(ref.id);
+            colWidths[col] = Math.max(colWidths[col], e.w);
+            rowHeights[row] = Math.max(rowHeights[row], e.h);
         });
         const colX = [];
         let cx = MARGIN;
@@ -1983,95 +2616,24 @@ function layout(sg) {
             ry += rowHeights[r] + GAP_MAIN;
         }
         rootOrder.forEach((ref, idx) => {
-            const x = colX[idx % cols];
-            const y = rowY[Math.floor(idx / cols)];
-            if (ref.kind === "group") {
-                gm.get(ref.id).x = x;
-                gm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "table") {
-                tm.get(ref.id).x = x;
-                tm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "note") {
-                ntm.get(ref.id).x = x;
-                ntm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "chart") {
-                cm.get(ref.id).x = x;
-                cm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "markdown") {
-                mdm.get(ref.id).x = x;
-                mdm.get(ref.id).y = y;
-            }
-            else {
-                nm.get(ref.id).x = x;
-                nm.get(ref.id).y = y;
-            }
+            const e = em.get(ref.id);
+            e.x = colX[idx % cols];
+            e.y = rowY[Math.floor(idx / cols)];
         });
     }
     else {
         // ── Row or Column linear flow ──────────────────────────
         let pos = MARGIN;
         for (const ref of rootOrder) {
-            let w = 0, h = 0;
-            if (ref.kind === "group") {
-                w = gm.get(ref.id).w;
-                h = gm.get(ref.id).h;
-            }
-            else if (ref.kind === "table") {
-                w = tm.get(ref.id).w;
-                h = tm.get(ref.id).h;
-            }
-            else if (ref.kind === "note") {
-                w = ntm.get(ref.id).w;
-                h = ntm.get(ref.id).h;
-            }
-            else if (ref.kind === "chart") {
-                w = cm.get(ref.id).w;
-                h = cm.get(ref.id).h;
-            }
-            else if (ref.kind === "markdown") {
-                w = mdm.get(ref.id).w;
-                h = mdm.get(ref.id).h;
-            }
-            else {
-                w = nm.get(ref.id).w;
-                h = nm.get(ref.id).h;
-            }
-            const x = useColumn ? MARGIN : pos;
-            const y = useColumn ? pos : MARGIN;
-            if (ref.kind === "group") {
-                gm.get(ref.id).x = x;
-                gm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "table") {
-                tm.get(ref.id).x = x;
-                tm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "note") {
-                ntm.get(ref.id).x = x;
-                ntm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "chart") {
-                cm.get(ref.id).x = x;
-                cm.get(ref.id).y = y;
-            }
-            else if (ref.kind === "markdown") {
-                mdm.get(ref.id).x = x;
-                mdm.get(ref.id).y = y;
-            }
-            else {
-                nm.get(ref.id).x = x;
-                nm.get(ref.id).y = y;
-            }
-            pos += (useColumn ? h : w) + GAP_MAIN;
+            const e = em.get(ref.id);
+            e.x = useColumn ? MARGIN : pos;
+            e.y = useColumn ? pos : MARGIN;
+            pos += (useColumn ? e.h : e.w) + GAP_MAIN;
         }
     }
     // 6. Place children within each root group (top-down, recursive)
     for (const g of rootGroups)
-        place(g, nm, gm, tm, ntm, cm, mdm);
+        place(g, gm, em);
     // 7. Route edges and compute canvas size
     routeEdges(sg);
     computeBounds(sg, MARGIN);
@@ -2088,8 +2650,8 @@ const CHART_COLORS = [
     '#7F77DD', '#D4537E', '#639922', '#E24B4A',
 ];
 function chartLayout(c) {
-    const titleH = c.label ? 24 : 8;
-    const padL = 44, padR = 12, padB = 28, padT = 6;
+    const titleH = c.label ? CHART.titleH : CHART.titleHEmpty;
+    const padL = CHART.padL, padR = CHART.padR, padB = CHART.padB, padT = CHART.padT;
     const pw = c.w - padL - padR;
     const ph = c.h - titleH - padT - padB;
     return {
@@ -2183,7 +2745,7 @@ function donutArcPath(cx, cy, r, ir, startAngle, endAngle) {
 //   Also remove the Chart.js `declare const Chart: any;` at the top of svg/index.ts
 //   and the CHART_COLORS array (they live in roughChart.ts now).
 // ============================================================
-const NS$1 = 'http://www.w3.org/2000/svg';
+const NS$1 = SVG_NS$1;
 const se$1 = (tag) => document.createElementNS(NS$1, tag);
 function mkG(id, cls) {
     const g = se$1('g');
@@ -2206,23 +2768,23 @@ function mkT(txt, x, y, sz = 10, wt = 400, col = '#4a2e10', anchor = 'middle', f
     t.textContent = txt;
     return t;
 }
-function hashStr$4(s) {
+function hashStr$2(s) {
     let h = 5381;
     for (let i = 0; i < s.length; i++)
         h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
     return h;
 }
-const BASE = { roughness: 1.2, bowing: 0.7 };
+const BASE = { roughness: ROUGH.chartRoughness, bowing: ROUGH.bowing };
 // ── Axes ───────────────────────────────────────────────────
 function drawAxes$1(rc, g, c, px, py, pw, ph, allY, labelCol, font = 'system-ui, sans-serif') {
     // Y axis
     g.appendChild(rc.line(px, py, px, py + ph, {
-        roughness: 0.4, seed: hashStr$4(c.id + 'ya'), stroke: labelCol, strokeWidth: 1,
+        roughness: 0.4, seed: hashStr$2(c.id + 'ya'), stroke: labelCol, strokeWidth: 1,
     }));
     // X axis (baseline)
     const baseline = makeValueToY(allY, py, ph)(0);
     g.appendChild(rc.line(px, baseline, px + pw, baseline, {
-        roughness: 0.4, seed: hashStr$4(c.id + 'xa'), stroke: labelCol, strokeWidth: 1,
+        roughness: 0.4, seed: hashStr$2(c.id + 'xa'), stroke: labelCol, strokeWidth: 1,
     }));
     // Y ticks + labels
     const toY = makeValueToY(allY, py, ph);
@@ -2231,7 +2793,7 @@ function drawAxes$1(rc, g, c, px, py, pw, ph, allY, labelCol, font = 'system-ui,
         if (ty < py - 2 || ty > py + ph + 2)
             continue;
         g.appendChild(rc.line(px - 3, ty, px, ty, {
-            roughness: 0.2, seed: hashStr$4(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7,
+            roughness: 0.2, seed: hashStr$2(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7,
         }));
         g.appendChild(mkT(fmtNum$1(tick), px - 5, ty, 9, 400, labelCol, 'end', font));
     }
@@ -2270,7 +2832,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
         cg.setAttribute('opacity', String(s.opacity));
     // Background box
     cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
-        ...BASE, seed: hashStr$4(c.id),
+        ...BASE, seed: hashStr$2(c.id),
         fill: bgFill, fillStyle: 'solid',
         stroke: bgStroke, strokeWidth: Number(s.strokeWidth ?? 1.2),
         ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
@@ -2294,7 +2856,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
                 ? donutArcPath(cx, cy, r, ir, angle, angle + sweep)
                 : pieArcPath(cx, cy, r, angle, angle + sweep);
             cg.appendChild(rc.path(d, {
-                roughness: 1.0, bowing: 0.5, seed: hashStr$4(c.id + seg.label),
+                roughness: 1.0, bowing: 0.5, seed: hashStr$2(c.id + seg.label),
                 fill: seg.color + 'bb',
                 fillStyle: 'solid',
                 stroke: seg.color,
@@ -2313,11 +2875,11 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
         const toX = makeValueToX(xs, px, pw);
         const toY = makeValueToY(ys, py, ph);
         // Simple axes (no named ticks — raw data ranges)
-        cg.appendChild(rc.line(px, py, px, py + ph, { roughness: 0.4, seed: hashStr$4(c.id + 'ya'), stroke: lc, strokeWidth: 1 }));
-        cg.appendChild(rc.line(px, py + ph, px + pw, py + ph, { roughness: 0.4, seed: hashStr$4(c.id + 'xa'), stroke: lc, strokeWidth: 1 }));
+        cg.appendChild(rc.line(px, py, px, py + ph, { roughness: 0.4, seed: hashStr$2(c.id + 'ya'), stroke: lc, strokeWidth: 1 }));
+        cg.appendChild(rc.line(px, py + ph, px + pw, py + ph, { roughness: 0.4, seed: hashStr$2(c.id + 'xa'), stroke: lc, strokeWidth: 1 }));
         pts.forEach((pt, i) => {
             cg.appendChild(rc.ellipse(toX(pt.x), toY(pt.y), 10, 10, {
-                roughness: 0.8, seed: hashStr$4(c.id + pt.label),
+                roughness: 0.8, seed: hashStr$2(c.id + pt.label),
                 fill: CHART_COLORS[i % CHART_COLORS.length] + '99',
                 fillStyle: 'solid',
                 stroke: CHART_COLORS[i % CHART_COLORS.length],
@@ -2350,7 +2912,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
                 const bh = Math.abs(baseline - toY(val)) || 2;
                 cg.appendChild(rc.rectangle(bx, by, barW, bh, {
                     roughness: 1.1, bowing: 0.5,
-                    seed: hashStr$4(c.id + si + i),
+                    seed: hashStr$2(c.id + si + i),
                     fill: ser.color + 'bb',
                     fillStyle: 'hachure',
                     hachureAngle: -41,
@@ -2378,7 +2940,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
                     [pts[pts.length - 1][0], baseline],
                 ];
                 cg.appendChild(rc.polygon(poly, {
-                    roughness: 0.5, seed: hashStr$4(c.id + 'af' + si),
+                    roughness: 0.5, seed: hashStr$2(c.id + 'af' + si),
                     fill: ser.color + '44',
                     fillStyle: 'solid',
                     stroke: 'none',
@@ -2388,7 +2950,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
             for (let i = 0; i < pts.length - 1; i++) {
                 cg.appendChild(rc.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], {
                     roughness: 0.9, bowing: 0.6,
-                    seed: hashStr$4(c.id + si + i),
+                    seed: hashStr$2(c.id + si + i),
                     stroke: ser.color,
                     strokeWidth: 1.8,
                 }));
@@ -2396,7 +2958,7 @@ function renderRoughChartSVG(rc, c, palette, isDark) {
             // Point dots
             pts.forEach(([px2, py2], i) => {
                 cg.appendChild(rc.ellipse(px2, py2, 7, 7, {
-                    roughness: 0.3, seed: hashStr$4(c.id + 'dot' + si + i),
+                    roughness: 0.3, seed: hashStr$2(c.id + 'dot' + si + i),
                     fill: ser.color,
                     fillStyle: 'solid',
                     stroke: ser.color,
@@ -2709,83 +3271,6 @@ function listThemes() {
     return Object.keys(PALETTES);
 }
 const THEME_NAMES = Object.keys(PALETTES);
-
-// ============================================================
-// sketchmark — Font Registry
-// ============================================================
-// built-in named fonts — user can reference these by short name
-const BUILTIN_FONTS = {
-    // hand-drawn
-    caveat: {
-        family: "'Caveat', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&display=swap',
-    },
-    handlee: {
-        family: "'Handlee', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Handlee&display=swap',
-    },
-    'indie-flower': {
-        family: "'Indie Flower', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap',
-    },
-    'patrick-hand': {
-        family: "'Patrick Hand', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap',
-    },
-    // clean / readable
-    'dm-mono': {
-        family: "'DM Mono', monospace",
-        url: 'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap',
-    },
-    'jetbrains': {
-        family: "'JetBrains Mono', monospace",
-        url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap',
-    },
-    'instrument': {
-        family: "'Instrument Serif', serif",
-        url: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap',
-    },
-    'playfair': {
-        family: "'Playfair Display', serif",
-        url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap',
-    },
-    // system fallbacks (no URL needed)
-    system: { family: 'system-ui, sans-serif' },
-    mono: { family: "'Courier New', monospace" },
-    serif: { family: 'Georgia, serif' },
-};
-// default — what renders when no font is specified
-const DEFAULT_FONT = 'system-ui, sans-serif';
-// resolve a short name or pass-through a quoted CSS family
-function resolveFont(nameOrFamily) {
-    const key = nameOrFamily.toLowerCase().trim();
-    if (BUILTIN_FONTS[key])
-        return BUILTIN_FONTS[key].family;
-    return nameOrFamily; // treat as raw CSS font-family
-}
-// inject a <link> into <head> for a built-in font (browser only)
-function loadFont(name) {
-    if (typeof document === 'undefined')
-        return;
-    const key = name.toLowerCase().trim();
-    const def = BUILTIN_FONTS[key];
-    if (!def?.url || def.loaded)
-        return;
-    if (document.querySelector(`link[data-sketchmark-font="${key}"]`))
-        return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = def.url;
-    link.setAttribute('data-sketchmark-font', key);
-    document.head.appendChild(link);
-    def.loaded = true;
-}
-// user registers their own font (already loaded via CSS/link)
-function registerFont(name, family, url) {
-    BUILTIN_FONTS[name.toLowerCase()] = { family, url };
-    if (url)
-        loadFont(name);
-}
 
 function rotatePoints(points, center, degrees) {
     if (points && points.length) {
@@ -4862,53 +5347,62 @@ var rough = {
 };
 
 // ============================================================
+// Shared Typography Resolution
+//
+// Extracts the repeated pattern of resolving fontSize, fontWeight,
+// textColor, font, textAlign, letterSpacing, lineHeight, padding,
+// verticalAlign from a style object with entity-specific defaults.
+// ============================================================
+const ANCHOR_MAP = {
+    left: "start",
+    center: "middle",
+    right: "end",
+};
+function resolveTypography(style, defaults, diagramFont, fallbackTextColor) {
+    const s = (style ?? {});
+    const fontSize = Number(s.fontSize ?? defaults.fontSize ?? TYPOGRAPHY.defaultFontSize);
+    const fontWeight = (s.fontWeight ?? defaults.fontWeight ?? TYPOGRAPHY.defaultFontWeight);
+    const textColor = String(s.color ?? defaults.textColor ?? fallbackTextColor);
+    const font = resolveStyleFont(s, diagramFont);
+    const textAlign = String(s.textAlign ?? defaults.textAlign ?? TYPOGRAPHY.defaultAlign);
+    const textAnchor = ANCHOR_MAP[textAlign] ?? "middle";
+    const letterSpacing = s.letterSpacing;
+    const lhMult = Number(s.lineHeight ?? defaults.lineHeight ?? TYPOGRAPHY.defaultLineHeight);
+    const lineHeight = lhMult * fontSize;
+    const verticalAlign = String(s.verticalAlign ?? defaults.verticalAlign ?? TYPOGRAPHY.defaultVAlign);
+    const padding = Number(s.padding ?? defaults.padding ?? TYPOGRAPHY.defaultPadding);
+    return {
+        fontSize, fontWeight, textColor, font,
+        textAlign, textAnchor, letterSpacing,
+        lineHeight, verticalAlign, padding,
+    };
+}
+/** Compute the x coordinate for text based on alignment within a box. */
+function computeTextX(typo, x, w) {
+    return typo.textAlign === "left" ? x + typo.padding
+        : typo.textAlign === "right" ? x + w - typo.padding
+            : x + w / 2;
+}
+/** Compute the vertical center for a block of text lines within a box. */
+function computeTextCY(typo, y, h, lineCount, topOffset) {
+    const pad = typo.padding;
+    const top = y + (topOffset ?? pad);
+    const bottom = y + h - pad;
+    const mid = (top + bottom) / 2;
+    const blockH = (lineCount - 1) * typo.lineHeight;
+    if (typo.verticalAlign === "top")
+        return top + blockH / 2;
+    if (typo.verticalAlign === "bottom")
+        return bottom - blockH / 2;
+    return mid;
+}
+
+// ============================================================
 // sketchmark — SVG Renderer  (rough.js hand-drawn)
 // ============================================================
-const NS = "http://www.w3.org/2000/svg";
+const NS = SVG_NS$1;
 const se = (tag) => document.createElementNS(NS, tag);
-function hashStr$3(s) {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++)
-        h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
-    return h;
-}
-const BASE_ROUGH = { roughness: 1.3, bowing: 0.7 };
-/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
-function darkenHex$1(hex, amount = 0.12) {
-    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-    if (!m)
-        return hex;
-    const d = (v) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
-    return `#${d(m[1]).toString(16).padStart(2, "0")}${d(m[2]).toString(16).padStart(2, "0")}${d(m[3]).toString(16).padStart(2, "0")}`;
-}
-// ── Small helper: load + resolve font from style or fall back ─────────────
-function resolveStyleFont$1(style, fallback) {
-    const raw = String(style["font"] ?? "");
-    if (!raw)
-        return fallback;
-    loadFont(raw);
-    return resolveFont(raw);
-}
-function wrapText$1(text, maxWidth, fontSize) {
-    const words = text.split(' ');
-    const charsPerPx = fontSize * 0.55; // approximate
-    const maxChars = Math.floor(maxWidth / charsPerPx);
-    const lines = [];
-    let current = '';
-    for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > maxChars && current) {
-            lines.push(current);
-            current = word;
-        }
-        else {
-            current = test;
-        }
-    }
-    if (current)
-        lines.push(current);
-    return lines;
-}
+const BASE_ROUGH = { roughness: ROUGH.roughness, bowing: ROUGH.bowing };
 // ── SVG text helpers ──────────────────────────────────────────────────────
 /**
  * Single-line SVG text element.
@@ -4989,56 +5483,6 @@ function mkGroup(id, cls) {
         g.setAttribute("class", cls);
     return g;
 }
-// ── Arrow direction from connector ────────────────────────────────────────
-function connMeta$1(connector) {
-    if (connector === "--")
-        return { arrowAt: "none", dashed: false };
-    if (connector === "---")
-        return { arrowAt: "none", dashed: true };
-    const bidir = connector.includes("<") && connector.includes(">");
-    if (bidir)
-        return { arrowAt: "both", dashed: connector.includes("--") };
-    const back = connector.startsWith("<");
-    const dashed = connector.includes("--");
-    if (back)
-        return { arrowAt: "start", dashed };
-    return { arrowAt: "end", dashed };
-}
-// ── Generic rect connection point ─────────────────────────────────────────
-function rectConnPoint$1(rx, ry, rw, rh, ox, oy) {
-    const cx = rx + rw / 2, cy = ry + rh / 2;
-    const dx = ox - cx, dy = oy - cy;
-    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
-        return [cx, cy];
-    const hw = rw / 2 - 2, hh = rh / 2 - 2;
-    const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
-    const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-    const t = Math.min(tx, ty);
-    return [cx + t * dx, cy + t * dy];
-}
-function resolveEndpoint$1(id, nm, tm, gm, cm, ntm) {
-    return (nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null);
-}
-function getConnPoint$1(src, dstCX, dstCY) {
-    if ("shape" in src && src.shape) {
-        return connPoint(src, {
-            x: dstCX - 1,
-            y: dstCY - 1,
-            w: 2,
-            h: 2});
-    }
-    return rectConnPoint$1(src.x, src.y, src.w, src.h, dstCX, dstCY);
-}
-// ── Group depth (for paint order) ─────────────────────────────────────────
-function groupDepth$1(g, gm) {
-    let d = 0;
-    let cur = g;
-    while (cur?.parentId) {
-        d++;
-        cur = gm.get(cur.parentId);
-    }
-    return d;
-}
 // ── Node shapes ───────────────────────────────────────────────────────────
 function renderShape$1(rc, n, palette) {
     const s = n.style ?? {};
@@ -5053,171 +5497,15 @@ function renderShape$1(rc, n, palette) {
         strokeWidth: Number(s.strokeWidth ?? 1.9),
         ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
     };
-    const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
-    const hw = n.w / 2 - 2;
-    switch (n.shape) {
-        case "circle":
-            return [rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts)];
-        case "diamond":
-            return [
-                rc.polygon([
-                    [cx, n.y + 2],
-                    [cx + hw, cy],
-                    [cx, n.y + n.h - 2],
-                    [cx - hw, cy],
-                ], opts),
-            ];
-        case "hexagon": {
-            const hw2 = hw * 0.56;
-            return [
-                rc.polygon([
-                    [cx - hw2, n.y + 3],
-                    [cx + hw2, n.y + 3],
-                    [cx + hw, cy],
-                    [cx + hw2, n.y + n.h - 3],
-                    [cx - hw2, n.y + n.h - 3],
-                    [cx - hw, cy],
-                ], opts),
-            ];
-        }
-        case "triangle":
-            return [
-                rc.polygon([
-                    [cx, n.y + 3],
-                    [n.x + n.w - 3, n.y + n.h - 3],
-                    [n.x + 3, n.y + n.h - 3],
-                ], opts),
-            ];
-        case "parallelogram":
-            return [
-                rc.polygon([
-                    [n.x + 18, n.y + 1],
-                    [n.x + n.w - 1, n.y + 1],
-                    [n.x + n.w - 18, n.y + n.h - 1],
-                    [n.x + 1, n.y + n.h - 1],
-                ], opts),
-            ];
-        case "cylinder": {
-            const eH = 18;
-            return [
-                rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts),
-                rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 }),
-                rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, {
-                    ...opts,
-                    roughness: 0.6,
-                    fill: "none",
-                }),
-            ];
-        }
-        case "text":
-            return [];
-        case "icon": {
-            if (n.iconName) {
-                const [prefix, name] = n.iconName.includes(":")
-                    ? n.iconName.split(":", 2)
-                    : ["mdi", n.iconName];
-                const iconColor = s.color
-                    ? encodeURIComponent(String(s.color))
-                    : encodeURIComponent(String(palette.nodeStroke));
-                // reserve bottom 20px for label when present
-                const labelSpace = n.label ? 20 : 0;
-                const iconAreaH = n.h - labelSpace;
-                const iconSize = Math.min(n.w, iconAreaH) - 4;
-                const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
-                const img = document.createElementNS(NS, "image");
-                img.setAttribute("href", iconUrl);
-                const iconX = n.x + (n.w - iconSize) / 2;
-                const iconY = n.y + (iconAreaH - iconSize) / 2;
-                img.setAttribute("x", String(iconX));
-                img.setAttribute("y", String(iconY));
-                img.setAttribute("width", String(iconSize));
-                img.setAttribute("height", String(iconSize));
-                img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-                if (s.opacity != null)
-                    img.setAttribute("opacity", String(s.opacity));
-                // clip-path for rounded corners
-                const clipId = `clip-${n.id}`;
-                const defs = document.createElementNS(NS, "defs");
-                const clip = document.createElementNS(NS, "clipPath");
-                clip.setAttribute("id", clipId);
-                const rect = document.createElementNS(NS, "rect");
-                rect.setAttribute("x", String(iconX));
-                rect.setAttribute("y", String(iconY));
-                rect.setAttribute("width", String(iconSize));
-                rect.setAttribute("height", String(iconSize));
-                rect.setAttribute("rx", "6");
-                clip.appendChild(rect);
-                defs.appendChild(clip);
-                img.setAttribute("clip-path", `url(#${clipId})`);
-                // only draw border when stroke is explicitly set
-                const els = [defs, img];
-                if (s.stroke) {
-                    els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                        ...opts,
-                        fill: "none",
-                    }));
-                }
-                return els;
-            }
-            // fallback: placeholder square
-            return [
-                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                    ...opts,
-                    fill: "#e0e0e0",
-                    stroke: "#999999",
-                }),
-            ];
-        }
-        case "image": {
-            if (n.imageUrl) {
-                // reserve bottom 20px for label when present
-                const imgLabelSpace = n.label ? 20 : 0;
-                const imgAreaH = n.h - imgLabelSpace;
-                const img = document.createElementNS(NS, "image");
-                img.setAttribute("href", n.imageUrl);
-                img.setAttribute("x", String(n.x + 1));
-                img.setAttribute("y", String(n.y + 1));
-                img.setAttribute("width", String(n.w - 2));
-                img.setAttribute("height", String(imgAreaH - 2));
-                img.setAttribute("preserveAspectRatio", "xMidYMid meet");
-                const clipId = `clip-${n.id}`;
-                const defs = document.createElementNS(NS, "defs");
-                const clip = document.createElementNS(NS, "clipPath");
-                clip.setAttribute("id", clipId);
-                const rect = document.createElementNS(NS, "rect");
-                rect.setAttribute("x", String(n.x + 1));
-                rect.setAttribute("y", String(n.y + 1));
-                rect.setAttribute("width", String(n.w - 2));
-                rect.setAttribute("height", String(imgAreaH - 2));
-                rect.setAttribute("rx", "6");
-                clip.appendChild(rect);
-                defs.appendChild(clip);
-                img.setAttribute("clip-path", `url(#${clipId})`);
-                // only draw border when stroke is explicitly set
-                const els = [defs, img];
-                if (s.stroke) {
-                    els.push(rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                        ...opts,
-                        fill: "none",
-                    }));
-                }
-                return els;
-            }
-            return [
-                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, {
-                    ...opts,
-                    fill: "#e0e0e0",
-                    stroke: "#999999",
-                }),
-            ];
-        }
-        default:
-            return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
-    }
+    const shape = getShape(n.shape);
+    if (shape)
+        return shape.renderSVG(rc, n, palette, opts);
+    // fallback: box
+    return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
 }
 // ── Arrowhead ─────────────────────────────────────────────────────────────
 function arrowHead(rc, x, y, angle, col, seed) {
-    const as = 12;
+    const as = EDGE.arrowSize;
     return rc.polygon([
         [x, y],
         [
@@ -5285,13 +5573,13 @@ function renderToSVG(sg, container, options = {}) {
     // ── Title ────────────────────────────────────────────────
     if (options.showTitle && sg.title) {
         const titleColor = String(sg.config["title-color"] ?? palette.titleText);
-        const titleSize = Number(sg.config["title-size"] ?? 18);
-        const titleWeight = Number(sg.config["title-weight"] ?? 600);
-        svg.appendChild(mkText(sg.title, sg.width / 2, 26, titleSize, titleWeight, titleColor, "middle", diagramFont));
+        const titleSize = Number(sg.config["title-size"] ?? TITLE.fontSize);
+        const titleWeight = Number(sg.config["title-weight"] ?? TITLE.fontWeight);
+        svg.appendChild(mkText(sg.title, sg.width / 2, TITLE.y, titleSize, titleWeight, titleColor, "middle", diagramFont));
     }
     // ── Groups ───────────────────────────────────────────────
     const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
-    const sortedGroups = [...sg.groups].sort((a, b) => groupDepth$1(a, gmMap) - groupDepth$1(b, gmMap));
+    const sortedGroups = [...sg.groups].sort((a, b) => groupDepth(a, gmMap) - groupDepth(b, gmMap));
     const GL = mkGroup("grp-layer");
     for (const g of sortedGroups) {
         if (!g.w)
@@ -5312,26 +5600,10 @@ function renderToSVG(sg, container, options = {}) {
             strokeLineDash: gs.strokeDash ?? palette.groupDash,
         }));
         // ── Group label typography ──────────────────────────
-        const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
-        const gFontSize = Number(gs.fontSize ?? 12);
-        const gFontWeight = gs.fontWeight ?? 500;
-        const gFont = resolveStyleFont$1(gs, diagramFont);
-        const gLetterSpacing = gs.letterSpacing;
-        const gPad = Number(gs.padding ?? 14);
-        const gTextAlign = String(gs.textAlign ?? "left");
-        const gAnchorMap = {
-            left: "start",
-            center: "middle",
-            right: "end",
-        };
-        const gAnchor = gAnchorMap[gTextAlign] ?? "start";
-        const gTextX = gTextAlign === "right"
-            ? g.x + g.w - gPad
-            : gTextAlign === "center"
-                ? g.x + g.w / 2
-                : g.x + gPad;
+        const gTypo = resolveTypography(gs, { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding }, diagramFont, palette.groupLabel);
+        const gTextX = computeTextX(gTypo, g.x, g.w);
         if (g.label) {
-            gg.appendChild(mkText(g.label, gTextX, g.y + gPad, gFontSize, gFontWeight, gLabelColor, gAnchor, gFont, gLetterSpacing));
+            gg.appendChild(mkText(g.label, gTextX, g.y + gTypo.padding, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAnchor, gTypo.font, gTypo.letterSpacing));
         }
         GL.appendChild(gg);
     }
@@ -5340,25 +5612,24 @@ function renderToSVG(sg, container, options = {}) {
     const nm = nodeMap(sg);
     const tm = tableMap(sg);
     const cm = chartMap(sg);
-    const ntm = noteMap(sg);
     const EL = mkGroup("edge-layer");
     for (const e of sg.edges) {
-        const src = resolveEndpoint$1(e.from, nm, tm, gmMap, cm, ntm);
-        const dst = resolveEndpoint$1(e.to, nm, tm, gmMap, cm, ntm);
+        const src = resolveEndpoint(e.from, nm, tm, gmMap, cm);
+        const dst = resolveEndpoint(e.to, nm, tm, gmMap, cm);
         if (!src || !dst)
             continue;
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
         const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-        const [x1, y1] = getConnPoint$1(src, dstCX, dstCY);
-        const [x2, y2] = getConnPoint$1(dst, srcCX, srcCY);
+        const [x1, y1] = getConnPoint(src, dstCX, dstCY);
+        const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
         const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
         if (e.style?.opacity != null)
             eg.setAttribute("opacity", String(e.style.opacity));
         const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
         const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
         const ecol = String(e.style?.stroke ?? palette.edgeStroke);
-        const { arrowAt, dashed } = connMeta$1(e.connector);
-        const HEAD = 13;
+        const { arrowAt, dashed } = connMeta(e.connector);
+        const HEAD = EDGE.headInset;
         const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
         const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
         const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
@@ -5369,15 +5640,15 @@ function renderToSVG(sg, container, options = {}) {
             seed: hashStr$3(e.from + e.to),
             stroke: ecol,
             strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
-            ...(dashed ? { strokeLineDash: [6, 5] } : {}),
+            ...(dashed ? { strokeLineDash: EDGE.dashPattern } : {}),
         }));
         if (arrowAt === "end" || arrowAt === "both")
             eg.appendChild(arrowHead(rc, x2, y2, Math.atan2(y2 - y1, x2 - x1), ecol, hashStr$3(e.to)));
         if (arrowAt === "start" || arrowAt === "both")
             eg.appendChild(arrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + "back")));
         if (e.label) {
-            const mx = (x1 + x2) / 2 - ny * 14;
-            const my = (y1 + y2) / 2 + nx * 14;
+            const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
+            const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
             const tw = Math.max(e.label.length * 7 + 12, 36);
             const bg = se("rect");
             bg.setAttribute("x", String(mx - tw / 2));
@@ -5391,10 +5662,10 @@ function renderToSVG(sg, container, options = {}) {
             // ── Edge label typography ───────────────────────
             // supports: font, font-size, letter-spacing
             // always center-anchored (single line floating on edge)
-            const eFontSize = Number(e.style?.fontSize ?? 11);
-            const eFont = resolveStyleFont$1(e.style ?? {}, diagramFont);
+            const eFontSize = Number(e.style?.fontSize ?? EDGE.labelFontSize);
+            const eFont = resolveStyleFont(e.style ?? {}, diagramFont);
             const eLetterSpacing = e.style?.letterSpacing;
-            const eFontWeight = e.style?.fontWeight ?? 400;
+            const eFontWeight = e.style?.fontWeight ?? EDGE.labelFontWeight;
             const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
             eg.appendChild(mkText(e.label, mx, my, eFontSize, eFontWeight, eLabelColor, "middle", eFont, eLetterSpacing));
         }
@@ -5404,54 +5675,63 @@ function renderToSVG(sg, container, options = {}) {
     // ── Nodes ─────────────────────────────────────────────────
     const NL = mkGroup("node-layer");
     for (const n of sg.nodes) {
-        const ng = mkGroup(`node-${n.id}`, "ng");
+        const shapeDef = getShape(n.shape);
+        const idPrefix = shapeDef?.idPrefix ?? "node";
+        const cssClass = shapeDef?.cssClass ?? "ng";
+        const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
         if (n.style?.opacity != null)
             ng.setAttribute("opacity", String(n.style.opacity));
+        // ── Static transform (deg, dx, dy, factor) ──────────
+        // Uses CSS style.transform so that transform-box:fill-box +
+        // transform-origin:center on .ng gives correct center-anchored transforms.
+        // The base transform is stored in data-base-transform so the animation
+        // controller can restore it after _clearAll() instead of wiping to "".
+        const hasTx = n.dx || n.dy || n.deg || (n.factor && n.factor !== 1);
+        if (hasTx) {
+            const parts = [];
+            if (n.dx || n.dy)
+                parts.push(`translate(${n.dx ?? 0}px,${n.dy ?? 0}px)`);
+            if (n.deg)
+                parts.push(`rotate(${n.deg}deg)`);
+            if (n.factor && n.factor !== 1)
+                parts.push(`scale(${n.factor})`);
+            const tx = parts.join(" ");
+            ng.style.transform = tx;
+            ng.dataset.baseTransform = tx;
+        }
         renderShape$1(rc, n, palette).forEach((s) => ng.appendChild(s));
         // ── Node / text typography ─────────────────────────
-        // supports: font, font-size, letter-spacing, text-align, line-height
-        const fontSize = Number(n.style?.fontSize ?? (n.shape === "text" ? 13 : 14));
-        const fontWeight = n.style?.fontWeight ?? (n.shape === "text" ? 400 : 500);
-        const textColor = String(n.style?.color ??
-            (n.shape === "text" ? palette.edgeLabelText : palette.nodeText));
-        const nodeFont = resolveStyleFont$1(n.style ?? {}, diagramFont);
-        const textAlign = String(n.style?.textAlign ?? "center");
-        const anchorMap = {
-            left: "start",
-            center: "middle",
-            right: "end",
-        };
-        const textAnchor = anchorMap[textAlign] ?? "middle";
-        // line-height is a multiplier (e.g. 1.4 = 140% of font-size)
-        const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
-        const letterSpacing = n.style?.letterSpacing;
-        const pad = Number(n.style?.padding ?? 8);
-        // x shifts for left / right alignment
-        const textX = textAlign === "left"
-            ? n.x + pad
-            : textAlign === "right"
-                ? n.x + n.w - pad
-                : n.x + n.w / 2;
+        const isText = n.shape === "text";
+        const isNote = n.shape === "note";
+        const isMediaShape = n.shape === "icon" || n.shape === "image" || n.shape === "line";
+        const typo = resolveTypography(n.style, {
+            fontSize: isText ? 13 : isNote ? 12 : 14,
+            fontWeight: isText || isNote ? 400 : 500,
+            textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
+            textAlign: isNote ? "left" : undefined,
+            lineHeight: isNote ? 1.4 : undefined,
+            padding: isNote ? 12 : undefined,
+            verticalAlign: isNote ? "top" : undefined,
+        }, diagramFont, palette.nodeText);
+        // Note textX accounts for fold corner
+        const FOLD = NOTE.fold;
+        const textX = isNote
+            ? (typo.textAlign === "right" ? n.x + n.w - FOLD - typo.padding
+                : typo.textAlign === "center" ? n.x + (n.w - FOLD) / 2
+                    : n.x + typo.padding)
+            : computeTextX(typo, n.x, n.w);
         const lines = n.shape === 'text' && !n.label.includes('\n')
-            ? wrapText$1(n.label, n.w - pad * 2, fontSize)
+            ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
             : n.label.split('\n');
-        const verticalAlign = String(n.style?.verticalAlign ?? "middle");
-        const nodeBodyTop = n.y + pad;
-        const nodeBodyBottom = n.y + n.h - pad;
-        const nodeBodyMid = n.y + n.h / 2;
-        const blockH = (lines.length - 1) * lineHeight;
-        const isMediaShape = n.shape === "icon" || n.shape === "image";
         const textCY = isMediaShape
-            ? n.y + n.h - 10 // label below the icon/image
-            : verticalAlign === "top"
-                ? nodeBodyTop + blockH / 2
-                : verticalAlign === "bottom"
-                    ? nodeBodyBottom - blockH / 2
-                    : nodeBodyMid;
+            ? n.y + n.h - 10
+            : isNote
+                ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
+                : computeTextCY(typo, n.y, n.h, lines.length);
         if (n.label) {
             ng.appendChild(lines.length > 1
-                ? mkMultilineText(lines, textX, textCY, fontSize, fontWeight, textColor, textAnchor, lineHeight, nodeFont, letterSpacing)
-                : mkText(n.label, textX, textCY, fontSize, fontWeight, textColor, textAnchor, nodeFont, letterSpacing));
+                ? mkMultilineText(lines, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.lineHeight, typo.font, typo.letterSpacing)
+                : mkText(n.label, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.font, typo.letterSpacing));
         }
         if (options.interactive) {
             ng.style.cursor = "pointer";
@@ -5474,7 +5754,7 @@ function renderToSVG(sg, container, options = {}) {
         const fill = String(gs.fill ?? palette.tableFill);
         const strk = String(gs.stroke ?? palette.tableStroke);
         const textCol = String(gs.color ?? palette.tableText);
-        const hdrFill = gs.fill ? darkenHex$1(fill, 0.08) : palette.tableHeaderFill;
+        const hdrFill = gs.fill ? darkenHex(fill, 0.08) : palette.tableHeaderFill;
         const hdrText = String(gs.color ?? palette.tableHeaderText);
         const divCol = palette.tableDivider;
         const pad = t.labelH;
@@ -5483,7 +5763,7 @@ function renderToSVG(sg, container, options = {}) {
         // ── Table-level font (applies to label + all cells) ─
         // supports: font, font-size, letter-spacing
         const tFontSize = Number(gs.fontSize ?? 12);
-        const tFont = resolveStyleFont$1(gs, diagramFont);
+        const tFont = resolveStyleFont(gs, diagramFont);
         const tLetterSpacing = gs.letterSpacing;
         if (gs.opacity != null)
             tg.setAttribute("opacity", String(gs.opacity));
@@ -5566,89 +5846,12 @@ function renderToSVG(sg, container, options = {}) {
         TL.appendChild(tg);
     }
     svg.appendChild(TL);
-    // ── Notes ─────────────────────────────────────────────────
-    const NoteL = mkGroup("note-layer");
-    for (const n of sg.notes) {
-        const ng = mkGroup(`note-${n.id}`, "ntg");
-        const gs = n.style ?? {};
-        const fill = String(gs.fill ?? palette.noteFill);
-        const strk = String(gs.stroke ?? palette.noteStroke);
-        const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
-        const fold = 14;
-        const { x, y, w, h } = n;
-        if (gs.opacity != null)
-            ng.setAttribute("opacity", String(gs.opacity));
-        // ── Note typography ─────────────────────────────────
-        const nFontSize = Number(gs.fontSize ?? 12);
-        const nFontWeight = gs.fontWeight ?? 400;
-        const nFont = resolveStyleFont$1(gs, diagramFont);
-        const nLetterSpacing = gs.letterSpacing;
-        const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
-        const nTextAlign = String(gs.textAlign ?? "left");
-        const nPad = Number(gs.padding ?? 12);
-        const nAnchorMap = {
-            left: "start",
-            center: "middle",
-            right: "end",
-        };
-        const nAnchor = nAnchorMap[nTextAlign] ?? "start";
-        const nTextX = nTextAlign === "right"
-            ? x + w - fold - nPad
-            : nTextAlign === "center"
-                ? x + (w - fold) / 2
-                : x + nPad;
-        const nFoldPad = fold + nPad; // text starts below fold + user padding
-        ng.appendChild(rc.polygon([
-            [x, y],
-            [x + w - fold, y],
-            [x + w, y + fold],
-            [x + w, y + h],
-            [x, y + h],
-        ], {
-            ...BASE_ROUGH,
-            seed: hashStr$3(n.id),
-            fill,
-            fillStyle: "solid",
-            stroke: strk,
-            strokeWidth: nStrokeWidth,
-            ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
-        }));
-        ng.appendChild(rc.polygon([
-            [x + w - fold, y],
-            [x + w, y + fold],
-            [x + w - fold, y + fold],
-        ], {
-            roughness: 0.4,
-            seed: hashStr$3(n.id + "f"),
-            fill: palette.noteFold,
-            fillStyle: "solid",
-            stroke: strk,
-            strokeWidth: Math.min(nStrokeWidth, 0.8),
-        }));
-        const nVerticalAlign = String(gs.verticalAlign ?? "top");
-        const bodyTop = y + nFoldPad;
-        const bodyBottom = y + h - nPad;
-        const bodyMid = (bodyTop + bodyBottom) / 2;
-        const blockH = (n.lines.length - 1) * nLineHeight;
-        const blockCY = nVerticalAlign === "bottom"
-            ? bodyBottom - blockH / 2
-            : nVerticalAlign === "middle"
-                ? bodyMid
-                : bodyTop + blockH / 2;
-        if (n.lines.length > 1) {
-            ng.appendChild(mkMultilineText(n.lines, nTextX, blockCY, nFontSize, nFontWeight, String(gs.color ?? palette.noteText), nAnchor, nLineHeight, nFont, nLetterSpacing));
-        }
-        else {
-            ng.appendChild(mkText(n.lines[0] ?? "", nTextX, blockCY, nFontSize, nFontWeight, String(gs.color ?? palette.noteText), nAnchor, nFont, nLetterSpacing));
-        }
-        NoteL.appendChild(ng);
-    }
-    svg.appendChild(NoteL);
+    // ── Notes are now rendered as nodes via the shape registry ──
     const MDL = mkGroup('markdown-layer');
     for (const m of sg.markdowns) {
         const mg = mkGroup(`markdown-${m.id}`, 'mdg');
         const gs = m.style ?? {};
-        const mFont = resolveStyleFont$1(gs, diagramFont);
+        const mFont = resolveStyleFont(gs, diagramFont);
         const baseColor = String(gs.color ?? palette.nodeText);
         const textAlign = String(gs.textAlign ?? 'left');
         const anchor = textAlign === 'right' ? 'end'
@@ -5736,7 +5939,7 @@ function svgToString(svg) {
 //      with:
 //        for (const c of sg.charts) drawRoughChartCanvas(rc, ctx, c, pal, R);
 // ============================================================
-function hashStr$2(s) {
+function hashStr$1(s) {
     let h = 5381;
     for (let i = 0; i < s.length; i++)
         h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
@@ -5785,15 +5988,15 @@ function drawAxes(rc, ctx, c, px, py, pw, ph, allY, labelCol, R, font = 'system-
     const toY = makeValueToY(allY, py, ph);
     const baseline = toY(0);
     // Y axis
-    rc.line(px, py, px, py + ph, { ...R, roughness: 0.4, seed: hashStr$2(c.id + 'ya'), stroke: labelCol, strokeWidth: 1 });
+    rc.line(px, py, px, py + ph, { ...R, roughness: 0.4, seed: hashStr$1(c.id + 'ya'), stroke: labelCol, strokeWidth: 1 });
     // X axis (baseline)
-    rc.line(px, baseline, px + pw, baseline, { ...R, roughness: 0.4, seed: hashStr$2(c.id + 'xa'), stroke: labelCol, strokeWidth: 1 });
+    rc.line(px, baseline, px + pw, baseline, { ...R, roughness: 0.4, seed: hashStr$1(c.id + 'xa'), stroke: labelCol, strokeWidth: 1 });
     // Y ticks + labels
     for (const tick of yTicks(allY)) {
         const ty = toY(tick);
         if (ty < py - 2 || ty > py + ph + 2)
             continue;
-        rc.line(px - 3, ty, px, ty, { roughness: 0.2, seed: hashStr$2(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7 });
+        rc.line(px - 3, ty, px, ty, { roughness: 0.2, seed: hashStr$1(c.id + 'yt' + tick), stroke: labelCol, strokeWidth: 0.7 });
         ctx.save();
         ctx.font = `400 9px ${font}`;
         ctx.fillStyle = labelCol;
@@ -5831,7 +6034,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
         ctx.globalAlpha = Number(s.opacity);
     // Background
     rc.rectangle(c.x, c.y, c.w, c.h, {
-        ...R, seed: hashStr$2(c.id),
+        ...R, seed: hashStr$1(c.id),
         fill: bgFill,
         fillStyle: 'solid',
         stroke: bgStroke,
@@ -5859,7 +6062,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
         let angle = -Math.PI / 2;
         segments.forEach((seg, i) => {
             const sweep = (seg.value / total) * Math.PI * 2;
-            drawPieArc(rc, ctx, cx, cy, r, ir, angle, angle + sweep, seg.color, hashStr$2(c.id + seg.label + i));
+            drawPieArc(rc, ctx, cx, cy, r, ir, angle, angle + sweep, seg.color, hashStr$1(c.id + seg.label + i));
             angle += sweep;
         });
         drawLegend(ctx, segments.map(s => `${s.label} ${Math.round(s.value / total * 100)}%`), segments.map(s => s.color), legendX, legendY, lc, cFont);
@@ -5872,11 +6075,11 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
         const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
         const toX = makeValueToX(xs, px, pw);
         const toY = makeValueToY(ys, py, ph);
-        rc.line(px, py, px, py + ph, { ...R, roughness: 0.4, seed: hashStr$2(c.id + 'ya'), stroke: lc, strokeWidth: 1 });
-        rc.line(px, py + ph, px + pw, py + ph, { ...R, roughness: 0.4, seed: hashStr$2(c.id + 'xa'), stroke: lc, strokeWidth: 1 });
+        rc.line(px, py, px, py + ph, { ...R, roughness: 0.4, seed: hashStr$1(c.id + 'ya'), stroke: lc, strokeWidth: 1 });
+        rc.line(px, py + ph, px + pw, py + ph, { ...R, roughness: 0.4, seed: hashStr$1(c.id + 'xa'), stroke: lc, strokeWidth: 1 });
         pts.forEach((pt, i) => {
             rc.ellipse(toX(pt.x), toY(pt.y), 10, 10, {
-                roughness: 0.8, seed: hashStr$2(c.id + pt.label),
+                roughness: 0.8, seed: hashStr$1(c.id + pt.label),
                 fill: CHART_COLORS[i % CHART_COLORS.length] + '99',
                 fillStyle: 'solid',
                 stroke: CHART_COLORS[i % CHART_COLORS.length],
@@ -5916,7 +6119,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
                 const bh = Math.abs(baseline - toY(val)) || 2;
                 rc.rectangle(bx, by, barW, bh, {
                     roughness: 1.1, bowing: 0.5,
-                    seed: hashStr$2(c.id + si + i),
+                    seed: hashStr$1(c.id + si + i),
                     fill: ser.color + 'bb',
                     fillStyle: 'hachure',
                     hachureAngle: -41,
@@ -5944,7 +6147,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
                     [pts[pts.length - 1][0], baseline],
                 ];
                 rc.polygon(poly, {
-                    roughness: 0.5, seed: hashStr$2(c.id + 'af' + si),
+                    roughness: 0.5, seed: hashStr$1(c.id + 'af' + si),
                     fill: ser.color + '44',
                     fillStyle: 'solid',
                     stroke: 'none',
@@ -5954,7 +6157,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
             for (let i = 0; i < pts.length - 1; i++) {
                 rc.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], {
                     roughness: 0.9, bowing: 0.6,
-                    seed: hashStr$2(c.id + si + i),
+                    seed: hashStr$1(c.id + si + i),
                     stroke: ser.color,
                     strokeWidth: 1.8,
                 });
@@ -5962,7 +6165,7 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
             // Dots
             pts.forEach(([px2, py2], i) => {
                 rc.ellipse(px2, py2, 7, 7, {
-                    roughness: 0.3, seed: hashStr$2(c.id + 'dot' + si + i),
+                    roughness: 0.3, seed: hashStr$1(c.id + 'dot' + si + i),
                     fill: ser.color,
                     fillStyle: 'solid',
                     stroke: ser.color,
@@ -5982,28 +6185,6 @@ function drawRoughChartCanvas(rc, ctx, c, pal, R) {
 // sketchmark — Canvas Renderer
 // Uses rough.js canvas API for hand-drawn rendering
 // ============================================================
-function hashStr$1(s) {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++)
-        h = ((h * 33) ^ s.charCodeAt(i)) & 0xffff;
-    return h;
-}
-/** Darken a CSS hex colour by `amount` (0–1). Falls back to input for non-hex. */
-function darkenHex(hex, amount = 0.12) {
-    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-    if (!m)
-        return hex;
-    const d = (v) => Math.max(0, Math.round(parseInt(v, 16) * (1 - amount)));
-    return `#${d(m[1]).toString(16).padStart(2, "0")}${d(m[2]).toString(16).padStart(2, "0")}${d(m[3]).toString(16).padStart(2, "0")}`;
-}
-// ── Small helper: load + resolve font from a style map ────────────────────
-function resolveStyleFont(style, fallback) {
-    const raw = String(style['font'] ?? '');
-    if (!raw)
-        return fallback;
-    loadFont(raw);
-    return resolveFont(raw);
-}
 // ── Canvas text helpers ────────────────────────────────────────────────────
 function drawText(ctx, txt, x, y, sz = 14, wt = 500, col = '#1a1208', align = 'center', font = 'system-ui, sans-serif', letterSpacing) {
     ctx.save();
@@ -6036,211 +6217,28 @@ function drawMultilineText(ctx, lines, x, cy, sz = 14, wt = 500, col = '#1a1208'
         drawText(ctx, line, x, startY + i * lineH, sz, wt, col, align, font, letterSpacing);
     });
 }
-// Soft word-wrap for `text` shape nodes
-function wrapText(text, maxWidth, fontSize) {
-    const charWidth = fontSize * 0.55;
-    const maxChars = Math.floor(maxWidth / charWidth);
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > maxChars && current) {
-            lines.push(current);
-            current = word;
-        }
-        else {
-            current = test;
-        }
-    }
-    if (current)
-        lines.push(current);
-    return lines.length ? lines : [text];
-}
-// ── Arrow direction ────────────────────────────────────────────────────────
-function connMeta(connector) {
-    if (connector === '--')
-        return { arrowAt: 'none', dashed: false };
-    if (connector === '---')
-        return { arrowAt: 'none', dashed: true };
-    const bidir = connector.includes('<') && connector.includes('>');
-    if (bidir)
-        return { arrowAt: 'both', dashed: connector.includes('--') };
-    const back = connector.startsWith('<');
-    const dashed = connector.includes('--');
-    if (back)
-        return { arrowAt: 'start', dashed };
-    return { arrowAt: 'end', dashed };
-}
-// ── Rect connection point ──────────────────────────────────────────────────
-function rectConnPoint(rx, ry, rw, rh, ox, oy) {
-    const cx = rx + rw / 2, cy = ry + rh / 2;
-    const dx = ox - cx, dy = oy - cy;
-    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
-        return [cx, cy];
-    const hw = rw / 2 - 2, hh = rh / 2 - 2;
-    const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
-    const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-    const t = Math.min(tx, ty);
-    return [cx + t * dx, cy + t * dy];
-}
-function resolveEndpoint(id, nm, tm, gm, cm, ntm) {
-    return nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? ntm.get(id) ?? null;
-}
-function getConnPoint(src, dstCX, dstCY) {
-    if ('shape' in src && src.shape) {
-        return connPoint(src, {
-            x: dstCX - 1, y: dstCY - 1, w: 2, h: 2});
-    }
-    return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
-}
-// ── Group depth ────────────────────────────────────────────────────────────
-function groupDepth(g, gm) {
-    let d = 0;
-    let cur = g;
-    while (cur?.parentId) {
-        d++;
-        cur = gm.get(cur.parentId);
-    }
-    return d;
-}
 // ── Node shapes ────────────────────────────────────────────────────────────
 function renderShape(rc, ctx, n, palette, R) {
     const s = n.style ?? {};
     const fill = String(s.fill ?? palette.nodeFill);
     const stroke = String(s.stroke ?? palette.nodeStroke);
     const opts = {
-        ...R, seed: hashStr$1(n.id),
+        ...R, seed: hashStr$3(n.id),
         fill, fillStyle: 'solid',
         stroke, strokeWidth: Number(s.strokeWidth ?? 1.9),
         ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
     };
-    const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
-    const hw = n.w / 2 - 2;
-    switch (n.shape) {
-        case 'circle':
-            rc.ellipse(cx, cy, n.w * 0.88, n.h * 0.88, opts);
-            break;
-        case 'diamond':
-            rc.polygon([[cx, n.y + 2], [cx + hw, cy], [cx, n.y + n.h - 2], [cx - hw, cy]], opts);
-            break;
-        case 'hexagon': {
-            const hw2 = hw * 0.56;
-            rc.polygon([
-                [cx - hw2, n.y + 3], [cx + hw2, n.y + 3], [cx + hw, cy],
-                [cx + hw2, n.y + n.h - 3], [cx - hw2, n.y + n.h - 3], [cx - hw, cy],
-            ], opts);
-            break;
-        }
-        case 'triangle':
-            rc.polygon([[cx, n.y + 3], [n.x + n.w - 3, n.y + n.h - 3], [n.x + 3, n.y + n.h - 3]], opts);
-            break;
-        case 'cylinder': {
-            const eH = 18;
-            rc.rectangle(n.x + 3, n.y + eH / 2, n.w - 6, n.h - eH, opts);
-            rc.ellipse(cx, n.y + eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6 });
-            rc.ellipse(cx, n.y + n.h - eH / 2, n.w - 8, eH, { ...opts, roughness: 0.6, fill: 'none' });
-            break;
-        }
-        case 'parallelogram':
-            rc.polygon([
-                [n.x + 18, n.y + 1], [n.x + n.w - 1, n.y + 1],
-                [n.x + n.w - 18, n.y + n.h - 1], [n.x + 1, n.y + n.h - 1],
-            ], opts);
-            break;
-        case 'text':
-            break; // no shape drawn
-        case 'icon': {
-            if (n.iconName) {
-                const [prefix, name] = n.iconName.includes(':')
-                    ? n.iconName.split(':', 2)
-                    : ['mdi', n.iconName];
-                const iconColor = s.color
-                    ? encodeURIComponent(String(s.color))
-                    : encodeURIComponent(String(palette.nodeStroke));
-                // reserve bottom for label
-                const iconLabelSpace = n.label ? 20 : 0;
-                const iconAreaH = n.h - iconLabelSpace;
-                const iconSize = Math.min(n.w, iconAreaH) - 4;
-                const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = () => {
-                    ctx.save();
-                    if (s.opacity != null)
-                        ctx.globalAlpha = Number(s.opacity);
-                    const iconX = n.x + (n.w - iconSize) / 2;
-                    const iconY = n.y + (iconAreaH - iconSize) / 2;
-                    ctx.beginPath();
-                    const r = 6;
-                    ctx.moveTo(iconX + r, iconY);
-                    ctx.lineTo(iconX + iconSize - r, iconY);
-                    ctx.quadraticCurveTo(iconX + iconSize, iconY, iconX + iconSize, iconY + r);
-                    ctx.lineTo(iconX + iconSize, iconY + iconSize - r);
-                    ctx.quadraticCurveTo(iconX + iconSize, iconY + iconSize, iconX + iconSize - r, iconY + iconSize);
-                    ctx.lineTo(iconX + r, iconY + iconSize);
-                    ctx.quadraticCurveTo(iconX, iconY + iconSize, iconX, iconY + iconSize - r);
-                    ctx.lineTo(iconX, iconY + r);
-                    ctx.quadraticCurveTo(iconX, iconY, iconX + r, iconY);
-                    ctx.closePath();
-                    ctx.clip();
-                    ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
-                    ctx.restore();
-                    if (s.stroke) {
-                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
-                    }
-                };
-                img.src = iconUrl;
-            }
-            else {
-                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: '#e0e0e0', stroke: '#999999' });
-            }
-            return;
-        }
-        case 'image': {
-            if (n.imageUrl) {
-                // reserve bottom for label
-                const imgLblSpace = n.label ? 20 : 0;
-                const imgAreaH = n.h - imgLblSpace;
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = () => {
-                    ctx.save();
-                    ctx.beginPath();
-                    const r = 6;
-                    ctx.moveTo(n.x + r, n.y);
-                    ctx.lineTo(n.x + n.w - r, n.y);
-                    ctx.quadraticCurveTo(n.x + n.w, n.y, n.x + n.w, n.y + r);
-                    ctx.lineTo(n.x + n.w, n.y + imgAreaH - r);
-                    ctx.quadraticCurveTo(n.x + n.w, n.y + imgAreaH, n.x + n.w - r, n.y + imgAreaH);
-                    ctx.lineTo(n.x + r, n.y + imgAreaH);
-                    ctx.quadraticCurveTo(n.x, n.y + imgAreaH, n.x, n.y + imgAreaH - r);
-                    ctx.lineTo(n.x, n.y + r);
-                    ctx.quadraticCurveTo(n.x, n.y, n.x + r, n.y);
-                    ctx.closePath();
-                    ctx.clip();
-                    ctx.drawImage(img, n.x + 1, n.y + 1, n.w - 2, imgAreaH - 2);
-                    ctx.restore();
-                    // only draw border when stroke is explicitly set
-                    if (s.stroke) {
-                        rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: 'none' });
-                    }
-                };
-                img.src = n.imageUrl;
-            }
-            else {
-                rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, { ...opts, fill: '#e0e0e0', stroke: '#999999' });
-            }
-            return;
-        }
-        default:
-            rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
-            break;
+    const shape = getShape(n.shape);
+    if (shape) {
+        shape.renderCanvas(rc, ctx, n, palette, opts);
+        return;
     }
+    // fallback: box
+    rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
 }
 // ── Arrowhead ─────────────────────────────────────────────────────────────
 function drawArrowHead(rc, x, y, angle, col, seed, R) {
-    const as = 12;
+    const as = EDGE.arrowSize;
     rc.polygon([
         [x, y],
         [x - as * Math.cos(angle - Math.PI / 6.5), y - as * Math.sin(angle - Math.PI / 6.5)],
@@ -6283,18 +6281,17 @@ function renderToCanvas(sg, canvas, options = {}) {
         ctx.clearRect(0, 0, sg.width, sg.height);
     }
     const rc = rough.canvas(canvas);
-    const R = { roughness: options.roughness ?? 1.3, bowing: options.bowing ?? 0.7 };
+    const R = { roughness: options.roughness ?? ROUGH.roughness, bowing: options.bowing ?? ROUGH.bowing };
     const nm = nodeMap(sg);
     const tm = tableMap(sg);
     const gm = groupMap(sg);
     const cm = chartMap(sg);
-    const ntm = noteMap(sg);
     // ── Title ────────────────────────────────────────────────
     if (sg.title) {
-        const titleSize = Number(sg.config['title-size'] ?? 18);
-        const titleWeight = Number(sg.config['title-weight'] ?? 600);
+        const titleSize = Number(sg.config['title-size'] ?? TITLE.fontSize);
+        const titleWeight = Number(sg.config['title-weight'] ?? TITLE.fontWeight);
         const titleColor = String(sg.config['title-color'] ?? palette.titleText);
-        drawText(ctx, sg.title, sg.width / 2, 28, titleSize, titleWeight, titleColor, 'center', diagramFont);
+        drawText(ctx, sg.title, sg.width / 2, TITLE.y + 2, titleSize, titleWeight, titleColor, 'center', diagramFont);
     }
     // ── Groups (outermost first) ─────────────────────────────
     const sortedGroups = [...sg.groups].sort((a, b) => groupDepth(a, gm) - groupDepth(b, gm));
@@ -6305,7 +6302,7 @@ function renderToCanvas(sg, canvas, options = {}) {
         if (gs.opacity != null)
             ctx.globalAlpha = Number(gs.opacity);
         rc.rectangle(g.x, g.y, g.w, g.h, {
-            ...R, roughness: 1.7, bowing: 0.4, seed: hashStr$1(g.id),
+            ...R, roughness: 1.7, bowing: 0.4, seed: hashStr$3(g.id),
             fill: String(gs.fill ?? palette.groupFill),
             fillStyle: 'solid',
             stroke: String(gs.stroke ?? palette.groupStroke),
@@ -6313,25 +6310,17 @@ function renderToCanvas(sg, canvas, options = {}) {
             strokeLineDash: gs.strokeDash ?? palette.groupDash,
         });
         if (g.label) {
-            const gFontSize = Number(gs.fontSize ?? 12);
-            const gFontWeight = gs.fontWeight ?? 500;
-            const gFont = resolveStyleFont(gs, diagramFont);
-            const gLetterSpacing = gs.letterSpacing;
-            const gLabelColor = gs.color ? String(gs.color) : palette.groupLabel;
-            const gPad = Number(gs.padding ?? 14);
-            const gTextAlign = String(gs.textAlign ?? 'left');
-            const gTextX = gTextAlign === 'right' ? g.x + g.w - gPad
-                : gTextAlign === 'center' ? g.x + g.w / 2
-                    : g.x + gPad;
-            drawText(ctx, g.label, gTextX, g.y + gPad + 2, gFontSize, gFontWeight, gLabelColor, gTextAlign, gFont, gLetterSpacing);
+            const gTypo = resolveTypography(gs, { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding }, diagramFont, palette.groupLabel);
+            const gTextX = computeTextX(gTypo, g.x, g.w);
+            drawText(ctx, g.label, gTextX, g.y + gTypo.padding + 2, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAlign, gTypo.font, gTypo.letterSpacing);
         }
         if (gs.opacity != null)
             ctx.globalAlpha = 1;
     }
     // ── Edges ─────────────────────────────────────────────────
     for (const e of sg.edges) {
-        const src = resolveEndpoint(e.from, nm, tm, gm, cm, ntm);
-        const dst = resolveEndpoint(e.to, nm, tm, gm, cm, ntm);
+        const src = resolveEndpoint(e.from, nm, tm, gm, cm);
+        const dst = resolveEndpoint(e.to, nm, tm, gm, cm);
         if (!src || !dst)
             continue;
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
@@ -6344,31 +6333,31 @@ function renderToCanvas(sg, canvas, options = {}) {
         const { arrowAt, dashed } = connMeta(e.connector);
         const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
         const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
-        const HEAD = 13;
+        const HEAD = EDGE.headInset;
         const sx1 = arrowAt === 'start' || arrowAt === 'both' ? x1 + nx * HEAD : x1;
         const sy1 = arrowAt === 'start' || arrowAt === 'both' ? y1 + ny * HEAD : y1;
         const sx2 = arrowAt === 'end' || arrowAt === 'both' ? x2 - nx * HEAD : x2;
         const sy2 = arrowAt === 'end' || arrowAt === 'both' ? y2 - ny * HEAD : y2;
         rc.line(sx1, sy1, sx2, sy2, {
-            ...R, roughness: 0.9, seed: hashStr$1(e.from + e.to),
+            ...R, roughness: 0.9, seed: hashStr$3(e.from + e.to),
             stroke: ecol,
             strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
-            ...(dashed ? { strokeLineDash: [6, 5] } : {}),
+            ...(dashed ? { strokeLineDash: EDGE.dashPattern } : {}),
         });
         const ang = Math.atan2(y2 - y1, x2 - x1);
         if (arrowAt === 'end' || arrowAt === 'both')
-            drawArrowHead(rc, x2, y2, ang, ecol, hashStr$1(e.to));
+            drawArrowHead(rc, x2, y2, ang, ecol, hashStr$3(e.to));
         if (arrowAt === 'start' || arrowAt === 'both')
-            drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$1(e.from + 'back'));
+            drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + 'back'));
         if (e.label) {
-            const mx = (x1 + x2) / 2 - ny * 14;
-            const my = (y1 + y2) / 2 + nx * 14;
+            const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
+            const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
             // ── Edge label: font, font-size, letter-spacing ──
             // always center-anchored (single line)
-            const eFontSize = Number(e.style?.fontSize ?? 11);
+            const eFontSize = Number(e.style?.fontSize ?? EDGE.labelFontSize);
             const eFont = resolveStyleFont(e.style ?? {}, diagramFont);
             const eLetterSpacing = e.style?.letterSpacing;
-            const eFontWeight = e.style?.fontWeight ?? 400;
+            const eFontWeight = e.style?.fontWeight ?? EDGE.labelFontWeight;
             const eLabelColor = String(e.style?.color ?? palette.edgeLabelText);
             ctx.save();
             ctx.font = `${eFontWeight} ${eFontSize}px ${eFont}`;
@@ -6384,47 +6373,60 @@ function renderToCanvas(sg, canvas, options = {}) {
     for (const n of sg.nodes) {
         if (n.style?.opacity != null)
             ctx.globalAlpha = Number(n.style.opacity);
+        // ── Static transform (deg, dx, dy, factor) ──────────
+        // All transforms anchor around the node's visual center.
+        const hasTx = n.dx || n.dy || n.deg || (n.factor && n.factor !== 1);
+        if (hasTx) {
+            ctx.save();
+            const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+            // Move to center, apply rotate + scale there, move back
+            ctx.translate(cx + (n.dx ?? 0), cy + (n.dy ?? 0));
+            if (n.deg)
+                ctx.rotate((n.deg * Math.PI) / 180);
+            if (n.factor && n.factor !== 1)
+                ctx.scale(n.factor, n.factor);
+            ctx.translate(-cx, -cy);
+        }
         renderShape(rc, ctx, n, palette, R);
         // ── Node / text typography ─────────────────────────
-        // supports: font, font-size, letter-spacing, text-align,
-        //           vertical-align, line-height, word-wrap (text shape)
-        const fontSize = Number(n.style?.fontSize ?? (n.shape === 'text' ? 13 : 14));
-        const fontWeight = n.style?.fontWeight ?? (n.shape === 'text' ? 400 : 500);
-        const textColor = String(n.style?.color ??
-            (n.shape === 'text' ? palette.edgeLabelText : palette.nodeText));
-        const nodeFont = resolveStyleFont(n.style ?? {}, diagramFont);
-        const textAlign = String(n.style?.textAlign ?? 'center');
-        const lineHeight = Number(n.style?.lineHeight ?? 1.3) * fontSize;
-        const letterSpacing = n.style?.letterSpacing;
-        const vertAlign = String(n.style?.verticalAlign ?? 'middle');
-        const pad = Number(n.style?.padding ?? 8);
-        // x shifts for left/right alignment
-        const textX = textAlign === 'left' ? n.x + pad
-            : textAlign === 'right' ? n.x + n.w - pad
-                : n.x + n.w / 2;
-        // word-wrap for text shape; explicit \n for all others
+        const isText = n.shape === 'text';
+        const isNote = n.shape === 'note';
+        const isMediaShape = n.shape === 'icon' || n.shape === 'image' || n.shape === 'line';
+        const typo = resolveTypography(n.style, {
+            fontSize: isText ? 13 : isNote ? 12 : 14,
+            fontWeight: isText || isNote ? 400 : 500,
+            textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
+            textAlign: isNote ? "left" : undefined,
+            lineHeight: isNote ? 1.4 : undefined,
+            padding: isNote ? 12 : undefined,
+            verticalAlign: isNote ? "top" : undefined,
+        }, diagramFont, palette.nodeText);
+        // Note textX accounts for fold corner
+        const FOLD = NOTE.fold;
+        const textX = isNote
+            ? (typo.textAlign === 'right' ? n.x + n.w - FOLD - typo.padding
+                : typo.textAlign === 'center' ? n.x + (n.w - FOLD) / 2
+                    : n.x + typo.padding)
+            : computeTextX(typo, n.x, n.w);
         const rawLines = n.label.split('\n');
         const lines = n.shape === 'text' && rawLines.length === 1
-            ? wrapText(n.label, n.w - pad * 2, fontSize)
+            ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
             : rawLines;
-        // vertical-align: compute textCY from top/middle/bottom
-        const nodeBodyTop = n.y + pad;
-        const nodeBodyBottom = n.y + n.h - pad;
-        const blockH = (lines.length - 1) * lineHeight;
-        const isMediaShape = n.shape === 'icon' || n.shape === 'image';
         const textCY = isMediaShape
-            ? n.y + n.h - 10 // label below the icon/image
-            : vertAlign === 'top' ? nodeBodyTop + blockH / 2
-                : vertAlign === 'bottom' ? nodeBodyBottom - blockH / 2
-                    : n.y + n.h / 2; // middle (default)
+            ? n.y + n.h - 10
+            : isNote
+                ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
+                : computeTextCY(typo, n.y, n.h, lines.length);
         if (n.label) {
             if (lines.length > 1) {
-                drawMultilineText(ctx, lines, textX, textCY, fontSize, fontWeight, textColor, textAlign, lineHeight, nodeFont, letterSpacing);
+                drawMultilineText(ctx, lines, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.lineHeight, typo.font, typo.letterSpacing);
             }
             else {
-                drawText(ctx, lines[0] ?? '', textX, textCY, fontSize, fontWeight, textColor, textAlign, nodeFont, letterSpacing);
+                drawText(ctx, lines[0] ?? '', textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.font, typo.letterSpacing);
             }
         }
+        if (hasTx)
+            ctx.restore();
         if (n.style?.opacity != null)
             ctx.globalAlpha = 1;
     }
@@ -6444,12 +6446,12 @@ function renderToCanvas(sg, canvas, options = {}) {
         if (gs.opacity != null)
             ctx.globalAlpha = Number(gs.opacity);
         rc.rectangle(t.x, t.y, t.w, t.h, {
-            ...R, seed: hashStr$1(t.id),
+            ...R, seed: hashStr$3(t.id),
             fill, fillStyle: 'solid', stroke: strk, strokeWidth: tStrokeWidth,
             ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
         });
         rc.line(t.x, t.y + pad, t.x + t.w, t.y + pad, {
-            roughness: 0.6, seed: hashStr$1(t.id + 'l'), stroke: strk, strokeWidth: 1,
+            roughness: 0.6, seed: hashStr$3(t.id + 'l'), stroke: strk, strokeWidth: 1,
         });
         // ── Table label: always left-anchored ───────────────
         drawText(ctx, t.label, t.x + 10, t.y + pad / 2, tFontSize, tFontWeight, textCol, 'left', tFont, tLetterSpacing);
@@ -6461,7 +6463,7 @@ function renderToCanvas(sg, canvas, options = {}) {
                 ctx.fillRect(t.x + 1, rowY + 1, t.w - 2, rh - 1);
             }
             rc.line(t.x, rowY + rh, t.x + t.w, rowY + rh, {
-                roughness: 0.4, seed: hashStr$1(t.id + rowY),
+                roughness: 0.4, seed: hashStr$3(t.id + rowY),
                 stroke: row.kind === 'header' ? strk : palette.tableDivider,
                 strokeWidth: row.kind === 'header' ? 1.2 : 0.6,
             });
@@ -6483,7 +6485,7 @@ function renderToCanvas(sg, canvas, options = {}) {
                 drawText(ctx, cell, cellX, rowY + rh / 2, tFontSize, cellFw, cellColor, cellAlignProp, tFont, tLetterSpacing);
                 if (i < row.cells.length - 1) {
                     rc.line(cx + cw, t.y + pad, cx + cw, t.y + t.h, {
-                        roughness: 0.3, seed: hashStr$1(t.id + 'c' + i),
+                        roughness: 0.3, seed: hashStr$3(t.id + 'c' + i),
                         stroke: palette.tableDivider, strokeWidth: 0.5,
                     });
                 }
@@ -6493,62 +6495,7 @@ function renderToCanvas(sg, canvas, options = {}) {
         }
         ctx.globalAlpha = 1;
     }
-    // ── Notes ─────────────────────────────────────────────────
-    for (const n of sg.notes) {
-        const gs = n.style ?? {};
-        const fill = String(gs.fill ?? palette.noteFill);
-        const strk = String(gs.stroke ?? palette.noteStroke);
-        const nStrokeWidth = Number(gs.strokeWidth ?? 1.2);
-        const fold = 14;
-        const { x, y, w, h } = n;
-        if (gs.opacity != null)
-            ctx.globalAlpha = Number(gs.opacity);
-        rc.polygon([
-            [x, y],
-            [x + w - fold, y],
-            [x + w, y + fold],
-            [x + w, y + h],
-            [x, y + h],
-        ], { ...R, seed: hashStr$1(n.id), fill, fillStyle: 'solid', stroke: strk,
-            strokeWidth: nStrokeWidth,
-            ...(gs.strokeDash ? { strokeLineDash: gs.strokeDash } : {}),
-        });
-        rc.polygon([
-            [x + w - fold, y],
-            [x + w, y + fold],
-            [x + w - fold, y + fold],
-        ], { roughness: 0.4, seed: hashStr$1(n.id + 'f'),
-            fill: palette.noteFold, fillStyle: 'solid', stroke: strk,
-            strokeWidth: Math.min(nStrokeWidth, 0.8),
-        });
-        const nFontSize = Number(gs.fontSize ?? 12);
-        const nFontWeight = gs.fontWeight ?? 400;
-        const nFont = resolveStyleFont(gs, diagramFont);
-        const nLetterSpacing = gs.letterSpacing;
-        const nLineHeight = Number(gs.lineHeight ?? 1.4) * nFontSize;
-        const nTextAlign = String(gs.textAlign ?? 'left');
-        const nVertAlign = String(gs.verticalAlign ?? 'top');
-        const nColor = String(gs.color ?? palette.noteText);
-        const nPad = Number(gs.padding ?? 12);
-        const nTextX = nTextAlign === 'right' ? x + w - fold - nPad
-            : nTextAlign === 'center' ? x + (w - fold) / 2
-                : x + nPad;
-        const nFoldPad = fold + nPad;
-        const bodyTop = y + nFoldPad;
-        const bodyBottom = y + h - nPad;
-        const blockH = (n.lines.length - 1) * nLineHeight;
-        const blockCY = nVertAlign === 'bottom' ? bodyBottom - blockH / 2
-            : nVertAlign === 'middle' ? (bodyTop + bodyBottom) / 2
-                : bodyTop + blockH / 2;
-        if (n.lines.length > 1) {
-            drawMultilineText(ctx, n.lines, nTextX, blockCY, nFontSize, nFontWeight, nColor, nTextAlign, nLineHeight, nFont, nLetterSpacing);
-        }
-        else {
-            drawText(ctx, n.lines[0] ?? '', nTextX, blockCY, nFontSize, nFontWeight, nColor, nTextAlign, nFont, nLetterSpacing);
-        }
-        if (gs.opacity != null)
-            ctx.globalAlpha = 1;
-    }
+    // ── Notes are now rendered as nodes via the shape registry ──
     // ── Markdown blocks ────────────────────────────────────────
     // Renders prose with Markdown headings and bold/italic inline spans.
     // Canvas has no native bold-within-a-run, so each run is drawn
@@ -6565,7 +6512,7 @@ function renderToCanvas(sg, canvas, options = {}) {
         // Background + border
         if (gs.fill || gs.stroke) {
             rc.rectangle(m.x, m.y, m.w, m.h, {
-                ...R, seed: hashStr$1(m.id),
+                ...R, seed: hashStr$3(m.id),
                 fill: String(gs.fill ?? 'none'), fillStyle: 'solid',
                 stroke: String(gs.stroke ?? 'none'),
                 strokeWidth: Number(gs.strokeWidth ?? 1.2),
@@ -6783,12 +6730,12 @@ function clearDrawStyles(el) {
         text.style.opacity = text.style.transition = "";
     }
 }
-function animateShapeDraw(el, strokeDur = 420, stag = 55) {
+function animateShapeDraw(el, strokeDur = ANIMATION.nodeStrokeDur, stag = ANIMATION.nodeStagger) {
     const paths = Array.from(el.querySelectorAll("path"));
     const text = el.querySelector("text");
     requestAnimationFrame(() => requestAnimationFrame(() => {
         paths.forEach((p, i) => {
-            const sd = i * stag, fd = sd + strokeDur - 60;
+            const sd = i * stag, fd = sd + strokeDur + ANIMATION.fillFadeOffset;
             p.style.transition = [
                 `stroke-dashoffset ${strokeDur}ms cubic-bezier(.4,0,.2,1) ${sd}ms`,
                 `fill-opacity 180ms ease ${Math.max(0, fd)}ms`,
@@ -6797,8 +6744,8 @@ function animateShapeDraw(el, strokeDur = 420, stag = 55) {
             p.style.fillOpacity = "1";
         });
         if (text) {
-            const td = paths.length * stag + strokeDur + 80;
-            text.style.transition = `opacity 200ms ease ${td}ms`;
+            const td = paths.length * stag + strokeDur + ANIMATION.textDelay;
+            text.style.transition = `opacity ${ANIMATION.textFade}ms ease ${td}ms`;
             text.style.opacity = "1";
         }
     }));
@@ -6819,7 +6766,6 @@ function animateEdgeDraw(el, conn) {
         return;
     const linePath = paths[0];
     const headPaths = paths.slice(1);
-    const STROKE_DUR = 360;
     const len = pathLength(linePath);
     const reversed = conn.startsWith('<') && !conn.includes('>');
     linePath.style.strokeDasharray = `${len}`;
@@ -6833,11 +6779,11 @@ function animateEdgeDraw(el, conn) {
     el.classList.add('draw-reveal');
     el.style.opacity = '1';
     requestAnimationFrame(() => requestAnimationFrame(() => {
-        linePath.style.transition = `stroke-dashoffset ${STROKE_DUR}ms cubic-bezier(.4,0,.2,1)`;
+        linePath.style.transition = `stroke-dashoffset ${ANIMATION.strokeDur}ms cubic-bezier(.4,0,.2,1)`;
         linePath.style.strokeDashoffset = '0';
         setTimeout(() => {
             headPaths.forEach(p => {
-                p.style.transition = 'opacity 120ms ease';
+                p.style.transition = `opacity ${ANIMATION.arrowReveal}ms ease`;
                 p.style.opacity = '1';
             });
             // ── ADD: clear inline dash overrides so SVG attribute
@@ -6846,8 +6792,8 @@ function animateEdgeDraw(el, conn) {
                 linePath.style.strokeDasharray = '';
                 linePath.style.strokeDashoffset = '';
                 linePath.style.transition = '';
-            }, 160);
-        }, STROKE_DUR - 40);
+            }, ANIMATION.dashClear);
+        }, ANIMATION.strokeDur - 40);
     }));
 }
 // ── AnimationController ───────────────────────────────────
@@ -6979,7 +6925,7 @@ class AnimationController {
         this._transforms.clear();
         // Nodes
         this.svg.querySelectorAll(".ng").forEach((el) => {
-            el.style.transform = "";
+            el.style.transform = el.dataset.baseTransform ?? "";
             el.style.transition = "";
             el.classList.remove("hl", "faded", "hidden");
             el.style.opacity = el.style.filter = "";
@@ -7162,7 +7108,9 @@ class AnimationController {
         el.style.transition = silent
             ? "none"
             : `transform ${duration}ms cubic-bezier(.4,0,.2,1)`;
-        el.style.transform = parts.join(" ") || "";
+        const base = el.dataset.baseTransform ?? "";
+        const anim = parts.join(" ");
+        el.style.transform = anim ? `${anim} ${base}`.trim() : base;
         if (silent) {
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 el.style.transition = "";
@@ -7260,9 +7208,9 @@ class AnimationController {
                 const firstPath = groupEl.querySelector("path");
                 if (!firstPath?.style.strokeDasharray)
                     prepareForDraw(groupEl);
-                animateShapeDraw(groupEl, 550, 40);
+                animateShapeDraw(groupEl, ANIMATION.groupStrokeDur, ANIMATION.groupStagger);
                 const pathCount = groupEl.querySelectorAll('path').length;
-                const totalMs = pathCount * 40 + 550 + 120; // stagger + duration + buffer
+                const totalMs = pathCount * ANIMATION.groupStagger + ANIMATION.groupStrokeDur + 120;
                 clearDashOverridesAfter(groupEl, totalMs);
             }
             return;
@@ -7283,9 +7231,9 @@ class AnimationController {
             else {
                 tableEl.classList.remove("gg-hidden");
                 prepareForDraw(tableEl);
-                animateShapeDraw(tableEl, 500, 40);
+                animateShapeDraw(tableEl, ANIMATION.tableStrokeDur, ANIMATION.tableStagger);
                 const tablePathCount = tableEl.querySelectorAll('path').length;
-                clearDashOverridesAfter(tableEl, tablePathCount * 40 + 500 + 120);
+                clearDashOverridesAfter(tableEl, tablePathCount * ANIMATION.tableStagger + ANIMATION.tableStrokeDur + 120);
             }
             return;
         }
@@ -7305,9 +7253,9 @@ class AnimationController {
             else {
                 noteEl.classList.remove("gg-hidden");
                 prepareForDraw(noteEl);
-                animateShapeDraw(noteEl, 420, 55);
+                animateShapeDraw(noteEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
                 const notePathCount = noteEl.querySelectorAll('path').length;
-                clearDashOverridesAfter(noteEl, notePathCount * 55 + 420 + 120);
+                clearDashOverridesAfter(noteEl, notePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
             }
             return;
         }
@@ -7329,7 +7277,7 @@ class AnimationController {
                 chartEl.style.opacity = "0"; // start from 0 explicitly
                 chartEl.classList.remove("gg-hidden");
                 requestAnimationFrame(() => requestAnimationFrame(() => {
-                    chartEl.style.transition = "opacity 500ms ease";
+                    chartEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
                     chartEl.style.opacity = "1";
                 }));
             }
@@ -7351,7 +7299,7 @@ class AnimationController {
                 markdownEl.style.opacity = "0";
                 markdownEl.classList.remove("gg-hidden");
                 requestAnimationFrame(() => requestAnimationFrame(() => {
-                    markdownEl.style.transition = "opacity 500ms ease";
+                    markdownEl.style.transition = `opacity ${ANIMATION.chartFade}ms ease`;
                     markdownEl.style.opacity = "1";
                 }));
             }
@@ -7369,9 +7317,9 @@ class AnimationController {
             const firstPath = nodeEl.querySelector("path");
             if (!firstPath?.style.strokeDasharray)
                 prepareForDraw(nodeEl);
-            animateShapeDraw(nodeEl, 420, 55);
+            animateShapeDraw(nodeEl, ANIMATION.nodeStrokeDur, ANIMATION.nodeStagger);
             const nodePathCount = nodeEl.querySelectorAll('path').length;
-            clearDashOverridesAfter(nodeEl, nodePathCount * 55 + 420 + 120);
+            clearDashOverridesAfter(nodeEl, nodePathCount * ANIMATION.nodeStagger + ANIMATION.nodeStrokeDur + 120);
         }
     }
     // ── erase ─────────────────────────────────────────────────
@@ -7484,7 +7432,7 @@ function download(blob, filename) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setTimeout(() => URL.revokeObjectURL(url), EXPORT.revokeDelay);
 }
 // ── SVG export ────────────────────────────────────────────
 function exportSVG(svg, opts = {}) {
@@ -7506,9 +7454,9 @@ async function exportPNG(svg, opts = {}) {
     download(blob, opts.filename ?? 'diagram.png');
 }
 async function svgToPNGDataURL(svg, opts = {}) {
-    const scale = opts.scale ?? 2;
-    const w = parseFloat(svg.getAttribute('width') ?? '400');
-    const h = parseFloat(svg.getAttribute('height') ?? '300');
+    const scale = opts.scale ?? EXPORT.pngScale;
+    const w = parseFloat(svg.getAttribute('width') ?? String(EXPORT.fallbackW));
+    const h = parseFloat(svg.getAttribute('height') ?? String(EXPORT.fallbackH));
     const canvas = document.createElement('canvas');
     canvas.width = w * scale;
     canvas.height = h * scale;
@@ -7519,7 +7467,7 @@ async function svgToPNGDataURL(svg, opts = {}) {
         ctx.fillRect(0, 0, w, h);
     }
     else {
-        ctx.fillStyle = '#f8f4ea';
+        ctx.fillStyle = EXPORT.fallbackBg;
         ctx.fillRect(0, 0, w, h);
     }
     const svgStr = svgToString(svg);
@@ -7548,7 +7496,7 @@ function exportHTML(svg, dslSource, opts = {}) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>sketchmark export</title>
   <style>
-    body { margin: 0; background: #f8f4ea; display: flex; flex-direction: column; align-items: center; padding: 2rem; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: ${EXPORT.fallbackBg}; display: flex; flex-direction: column; align-items: center; padding: 2rem; font-family: system-ui, sans-serif; }
     .diagram { max-width: 100%; }
     .dsl { margin-top: 2rem; background: #131008; color: #e0c898; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 13px; line-height: 1.7; white-space: pre; max-width: 800px; width: 100%; overflow: auto; }
   </style>
@@ -7571,7 +7519,7 @@ async function exportGIF(frames, opts = {}) {
 }
 // ── MP4 stub (requires ffmpeg.wasm or MediaRecorder) ──────
 async function exportMP4(canvas, durationMs, opts = {}) {
-    const fps = opts.fps ?? 30;
+    const fps = opts.fps ?? EXPORT.defaultFps;
     const stream = canvas.captureStream?.(fps);
     if (!stream)
         throw new Error('captureStream not supported in this browser');
