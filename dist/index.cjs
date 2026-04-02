@@ -68,6 +68,15 @@ const KEYWORDS = new Set([
     "tree",
     "force",
     "markdown",
+    "narrate",
+    "pace",
+    "slow",
+    "fast",
+    "pause",
+    "beat",
+    "underline",
+    "crossout",
+    "bracket",
 ]);
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];
 // Characters that can start an arrow pattern — used to decide whether a '-'
@@ -677,7 +686,18 @@ function parse(src) {
             target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
         }
         const step = { kind: "step", action, target };
-        for (let j = 2; j < toks.length; j++) {
+        // narrate: text is the value, not a target
+        if (action === "narrate") {
+            step.target = "";
+            step.value = toks[1]?.value ?? "";
+        }
+        // bracket: needs two targets
+        if (action === "bracket" && toks.length >= 3) {
+            step.target = toks[1]?.value ?? "";
+            step.target2 = toks[2]?.value ?? "";
+        }
+        const kvStart = action === "bracket" ? 3 : 2;
+        for (let j = kvStart; j < toks.length; j++) {
             const k = toks[j]?.value;
             const eq = toks[j + 1];
             const vt = toks[j + 2];
@@ -720,6 +740,11 @@ function parse(src) {
                 }
                 if (k === "color") {
                     step.value = vt.value;
+                    j += 2;
+                    continue;
+                }
+                if (k === "pace") {
+                    step.pace = vt.value;
                     j += 2;
                     continue;
                 }
@@ -1118,6 +1143,31 @@ function parse(src) {
             ast.rootOrder.push({ kind: "node", id: note.id });
             continue;
         }
+        // beat { ... } — parallel steps
+        if (v === "beat") {
+            skip(); // 'beat'
+            skipNL();
+            if (cur().type === "LBRACE") {
+                skip();
+                skipNL();
+            }
+            const children = [];
+            while (cur().type !== "RBRACE" && cur().value !== "end" && cur().type !== "EOF") {
+                skipNL();
+                if (cur().type === "RBRACE")
+                    break;
+                if (cur().value === "step") {
+                    children.push(parseStep());
+                }
+                else {
+                    skip();
+                }
+            }
+            if (cur().type === "RBRACE")
+                skip();
+            ast.steps.push({ kind: "beat", children });
+            continue;
+        }
         // step
         if (v === "step") {
             ast.steps.push(parseStep());
@@ -1309,6 +1359,20 @@ const ANIMATION = {
     fillFadeOffset: -60, // fill-opacity start relative to stroke end (ms)
     textDelay: 80, // extra buffer before text reveals (ms)
     chartFade: 500, // chart/markdown opacity transition (ms)
+    // Pace
+    paceSlowMul: 2.0, // slow pace duration multiplier
+    paceFastMul: 0.5, // fast pace duration multiplier
+    pauseHoldMs: 1500, // extra hold time for pause pace (ms)
+    // Narration
+    narrationFadeMs: 300, // caption fade-in/out duration (ms)
+    narrationTypeMs: 30, // per-character typing speed for narration (ms)
+    // Text writing reveal
+    textRevealMs: 400, // text clip-reveal duration (ms)
+    // Annotations
+    annotationStrokeDur: 300, // annotation draw-in duration (ms)
+    annotationColor: '#c85428', // default annotation color
+    annotationStrokeW: 2.5, // annotation stroke width
+    pointerSize: 8, // default pointer dot radius
 };
 // ── Export defaults ────────────────────────────────────────
 const EXPORT = {
@@ -6844,6 +6908,51 @@ function prepareNodeForDraw(el) {
 function revealNodeInstant(el) {
     clearNodeDrawStyles(el);
 }
+// ── Text writing reveal (clipPath) ───────────────────────
+function animateTextReveal(textEl, delayMs, durationMs = ANIMATION.textRevealMs) {
+    const ownerSvg = textEl.ownerSVGElement;
+    if (!ownerSvg) {
+        // fallback: just fade
+        textEl.style.transition = `opacity ${ANIMATION.textFade}ms ease ${delayMs}ms`;
+        textEl.style.opacity = "1";
+        return;
+    }
+    // Make text visible but clipped to zero width
+    textEl.style.opacity = "1";
+    // We need to wait for text to be visible before we can measure it
+    setTimeout(() => {
+        const bbox = textEl.getBBox?.();
+        if (!bbox || bbox.width === 0) {
+            // fallback if can't measure
+            return;
+        }
+        let defs = ownerSvg.querySelector("defs");
+        if (!defs) {
+            defs = document.createElementNS(SVG_NS$1, "defs");
+            ownerSvg.insertBefore(defs, ownerSvg.firstChild);
+        }
+        const clipId = `skm-clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const clipPath = document.createElementNS(SVG_NS$1, "clipPath");
+        clipPath.setAttribute("id", clipId);
+        const rect = document.createElementNS(SVG_NS$1, "rect");
+        rect.setAttribute("x", String(bbox.x - 2));
+        rect.setAttribute("y", String(bbox.y - 2));
+        rect.setAttribute("width", "0");
+        rect.setAttribute("height", String(bbox.height + 4));
+        clipPath.appendChild(rect);
+        defs.appendChild(clipPath);
+        textEl.setAttribute("clip-path", `url(#${clipId})`);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            rect.style.transition = `width ${durationMs}ms cubic-bezier(.4,0,.2,1)`;
+            rect.setAttribute("width", String(bbox.width + 4));
+        }));
+        // Cleanup after animation
+        setTimeout(() => {
+            textEl.removeAttribute("clip-path");
+            clipPath.remove();
+        }, durationMs + 50);
+    }, delayMs);
+}
 function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur) {
     const guide = nodeGuidePathEl(el);
     if (!guide) {
@@ -6867,12 +6976,11 @@ function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur) {
             p.style.opacity = "1";
         });
         if (text) {
-            text.style.transition = `opacity ${ANIMATION.textFade}ms ease ${textDelay}ms`;
-            text.style.opacity = "1";
+            animateTextReveal(text, textDelay);
         }
         setTimeout(() => {
             clearNodeDrawStyles(el);
-        }, textDelay + ANIMATION.textFade + 40);
+        }, textDelay + ANIMATION.textRevealMs + 80);
     }));
 }
 // ── Arrow connector parser ────────────────────────────────
@@ -6889,10 +6997,21 @@ function parseEdgeTarget(target) {
     }
     return null;
 }
+// ── Step flattening helper ────────────────────────────────
+function flattenSteps(items) {
+    const out = [];
+    for (const item of items) {
+        if (item.kind === "beat")
+            out.push(...item.children);
+        else
+            out.push(item);
+    }
+    return out;
+}
 // ── Draw target helpers ───────────────────────────────────
 function getDrawTargetEdgeIds(steps) {
     const ids = new Set();
-    for (const s of steps) {
+    for (const s of flattenSteps(steps)) {
         if (s.action !== "draw")
             continue;
         const e = parseEdgeTarget(s.target);
@@ -6903,7 +7022,7 @@ function getDrawTargetEdgeIds(steps) {
 }
 function getDrawTargetNodeIds(steps) {
     const ids = new Set();
-    for (const s of steps) {
+    for (const s of flattenSteps(steps)) {
         if (s.action !== "draw" || parseEdgeTarget(s.target))
             continue;
         ids.add(`node-${s.target}`);
@@ -7040,29 +7159,40 @@ class AnimationController {
     get drawTargets() {
         return this.drawTargetEdges;
     }
-    constructor(svg, steps) {
+    constructor(svg, steps, _container, _rc, _config) {
         this.svg = svg;
         this.steps = steps;
+        this._container = _container;
+        this._rc = _rc;
+        this._config = _config;
         this._step = -1;
         this._pendingStepTimers = new Set();
         this._transforms = new Map();
         this._listeners = [];
+        // ── Narration caption ──
+        this._captionEl = null;
+        this._captionTextEl = null;
+        // ── Annotations ──
+        this._annotationLayer = null;
+        this._annotations = [];
+        // ── Pointer ──
+        this._pointerEl = null;
+        this._pointerType = 'none';
+        // ── TTS ──
+        this._tts = false;
         this.drawTargetEdges = getDrawTargetEdgeIds(steps);
         this.drawTargetNodes = getDrawTargetNodeIds(steps);
         // Groups: non-edge draw steps whose target has a #group-{id} element in the SVG.
-        // We detect this at construction time (after render) so we correctly distinguish
-        // a group ID from a node ID without needing extra metadata.
         this.drawTargetGroups = new Set();
         this.drawTargetTables = new Set();
         this.drawTargetNotes = new Set();
         this.drawTargetCharts = new Set();
         this.drawTargetMarkdowns = new Set();
-        for (const s of steps) {
+        for (const s of flattenSteps(steps)) {
             if (s.action !== "draw" || parseEdgeTarget(s.target))
                 continue;
             if (svg.querySelector(`#group-${s.target}`)) {
                 this.drawTargetGroups.add(`group-${s.target}`);
-                // Remove from node targets if it was accidentally added
                 this.drawTargetNodes.delete(`node-${s.target}`);
             }
             if (svg.querySelector(`#table-${s.target}`)) {
@@ -7083,7 +7213,31 @@ class AnimationController {
             }
         }
         this._clearAll();
+        // Init narration caption
+        if (this._container)
+            this._initCaption();
+        // Init annotation layer
+        this._annotationLayer = document.createElementNS(SVG_NS$1, "g");
+        this._annotationLayer.setAttribute("id", "annotation-layer");
+        this._annotationLayer.style.pointerEvents = "none";
+        this.svg.appendChild(this._annotationLayer);
+        // Init pointer
+        this._pointerType = (this._config?.pointer ?? "none");
+        if (this._pointerType !== "none")
+            this._initPointer();
+        // Init TTS from config: `config tts=on`
+        this._tts = this._config?.tts === true || this._config?.tts === "on";
+        if (this._tts)
+            this._warmUpSpeech();
     }
+    /** The narration caption element — mount it anywhere via `yourContainer.appendChild(anim.captionElement)` */
+    get captionElement() {
+        return this._captionEl;
+    }
+    /** Enable/disable browser text-to-speech for narrate steps */
+    get tts() { return this._tts; }
+    set tts(on) { this._tts = on; if (!on)
+        this._cancelSpeech(); }
     get currentStep() {
         return this._step;
     }
@@ -7119,6 +7273,17 @@ class AnimationController {
         this._step = -1;
         this._clearAll();
         this.emit("animation-reset");
+    }
+    /** Remove caption and annotation layer from the DOM */
+    destroy() {
+        this._clearAll();
+        this._captionEl?.remove();
+        this._captionEl = null;
+        this._captionTextEl = null;
+        this._annotationLayer?.remove();
+        this._annotationLayer = null;
+        this._pointerEl?.remove();
+        this._pointerEl = null;
     }
     next() {
         if (!this.canNext)
@@ -7177,15 +7342,43 @@ class AnimationController {
         }, delayMs);
         this._pendingStepTimers.add(id);
     }
+    _stepWaitMs(step, fallbackMs) {
+        const delay = Math.max(0, step.delay ?? 0);
+        const duration = Math.max(0, step.duration ?? 0);
+        // Compute minimum time the step actually needs to finish
+        let minNeeded = 0;
+        if (step.action === "narrate") {
+            // Typing effect: chars × typeMs + fade buffer
+            minNeeded = (step.value?.length ?? 0) * ANIMATION.narrationTypeMs + ANIMATION.narrationFadeMs;
+        }
+        else if (step.action === "circle" || step.action === "underline" ||
+            step.action === "crossout" || step.action === "bracket") {
+            // Annotation guide draw + rough reveal + pointer fade
+            minNeeded = ANIMATION.annotationStrokeDur + 120 + 200;
+        }
+        else if (step.action === "draw") {
+            minNeeded = ANIMATION.nodeStrokeDur + ANIMATION.textRevealMs + 80;
+        }
+        let wait = delay + Math.max(fallbackMs, duration, minNeeded);
+        if (step.pace === "slow")
+            wait *= ANIMATION.paceSlowMul;
+        else if (step.pace === "fast")
+            wait *= ANIMATION.paceFastMul;
+        else if (step.pace === "pause")
+            wait += ANIMATION.pauseHoldMs;
+        return wait;
+    }
     _playbackWaitMs(step, fallbackMs) {
         if (!step)
             return fallbackMs;
-        const delay = Math.max(0, step.delay ?? 0);
-        const duration = Math.max(0, step.duration ?? 0);
-        return delay + Math.max(fallbackMs, duration);
+        if (step.kind === "beat") {
+            return Math.max(fallbackMs, ...step.children.map((c) => this._stepWaitMs(c, fallbackMs)));
+        }
+        return this._stepWaitMs(step, fallbackMs);
     }
     _clearAll() {
         this._clearPendingStepTimers();
+        this._cancelSpeech();
         this._transforms.clear();
         // Nodes
         this.svg.querySelectorAll(".ng").forEach((el) => {
@@ -7296,17 +7489,52 @@ class AnimationController {
             el.style.opacity = "";
             el.classList.remove("hl", "faded");
         });
+        // Clear narration caption
+        if (this._captionEl) {
+            this._captionEl.style.opacity = "0";
+            if (this._captionTextEl)
+                this._captionTextEl.textContent = "";
+        }
+        // Clear annotations
+        this._annotations.forEach((a) => a.remove());
+        this._annotations = [];
+        // Clear pointer
+        if (this._pointerEl) {
+            this._pointerEl.setAttribute("opacity", "0");
+            this._pointerEl.style.transition = "none";
+        }
     }
     _applyStep(i, silent) {
-        const s = this.steps[i];
-        if (!s)
+        const item = this.steps[i];
+        if (!item)
             return;
-        const run = () => this._runStep(s, silent);
         if (silent) {
-            run();
+            this._runStepItem(item, true);
             return;
         }
-        this._scheduleStep(run, Math.max(0, s.delay ?? 0));
+        if (item.kind === "beat") {
+            for (const child of item.children) {
+                const run = () => this._runStep(child, false);
+                this._scheduleStep(run, Math.max(0, child.delay ?? 0));
+            }
+        }
+        else {
+            let delayMs = Math.max(0, item.delay ?? 0);
+            if (item.pace === "slow")
+                delayMs *= ANIMATION.paceSlowMul;
+            else if (item.pace === "fast")
+                delayMs *= ANIMATION.paceFastMul;
+            this._scheduleStep(() => this._runStep(item, false), delayMs);
+        }
+    }
+    _runStepItem(item, silent) {
+        if (item.kind === "beat") {
+            for (const child of item.children)
+                this._runStep(child, silent);
+        }
+        else {
+            this._runStep(item, silent);
+        }
     }
     _runStep(s, silent) {
         switch (s.action) {
@@ -7346,6 +7574,21 @@ class AnimationController {
                 break;
             case "rotate":
                 this._doRotate(s.target, s, silent);
+                break;
+            case "narrate":
+                this._doNarrate(s.value ?? "", silent);
+                break;
+            case "circle":
+                this._doAnnotationCircle(s.target, silent);
+                break;
+            case "underline":
+                this._doAnnotationUnderline(s.target, silent);
+                break;
+            case "crossout":
+                this._doAnnotationCrossout(s.target, silent);
+                break;
+            case "bracket":
+                this._doAnnotationBracket(s.target, s.target2 ?? "", silent);
                 break;
         }
     }
@@ -7649,6 +7892,290 @@ class AnimationController {
             });
         }
     }
+    // ── narration ───────────────────────────────────────────
+    _initCaption() {
+        if (!this._container)
+            return;
+        const cap = document.createElement("div");
+        cap.className = "skm-caption";
+        cap.style.cssText = `
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 9999; max-width: 600px; width: max-content;
+      padding: 10px 24px; box-sizing: border-box;
+      font-family: var(--font-sans, system-ui, sans-serif);
+      font-size: 15px; line-height: 1.5;
+      color: #fde68a; background: #1a1208;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+      opacity: 0; transition: opacity ${ANIMATION.narrationFadeMs}ms ease;
+      pointer-events: none; user-select: none;
+      text-align: center;
+    `;
+        const span = document.createElement("span");
+        cap.appendChild(span);
+        document.body.appendChild(cap);
+        this._captionEl = cap;
+        this._captionTextEl = span;
+    }
+    _doNarrate(text, silent) {
+        if (!this._captionEl || !this._captionTextEl)
+            return;
+        this._captionEl.style.opacity = "1";
+        if (silent || !text) {
+            this._captionTextEl.textContent = text;
+            return;
+        }
+        // Fire TTS first — it has internal startup latency, so give it a head start
+        if (this._tts && text)
+            this._speak(text);
+        // Typing effect
+        this._captionTextEl.textContent = "";
+        let charIdx = 0;
+        const typeNext = () => {
+            if (charIdx < text.length) {
+                this._captionTextEl.textContent += text[charIdx++];
+                const id = window.setTimeout(typeNext, ANIMATION.narrationTypeMs);
+                this._pendingStepTimers.add(id);
+            }
+        };
+        typeNext();
+    }
+    _speak(text) {
+        if (typeof speechSynthesis === "undefined")
+            return;
+        this._cancelSpeech();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 0.95;
+        utter.pitch = 1;
+        utter.lang = "en-US";
+        speechSynthesis.speak(utter);
+    }
+    _cancelSpeech() {
+        if (typeof speechSynthesis !== "undefined")
+            speechSynthesis.cancel();
+    }
+    /** Pre-warm the speech engine with a silent utterance to eliminate cold-start delay */
+    _warmUpSpeech() {
+        if (typeof speechSynthesis === "undefined")
+            return;
+        const warm = new SpeechSynthesisUtterance("");
+        warm.volume = 0;
+        speechSynthesis.speak(warm);
+    }
+    // ── annotations ─────────────────────────────────────────
+    _nodeMetrics(el) {
+        const x = parseFloat(el.dataset.x ?? "");
+        const y = parseFloat(el.dataset.y ?? "");
+        const w = parseFloat(el.dataset.w ?? "");
+        const h = parseFloat(el.dataset.h ?? "");
+        if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h))
+            return null;
+        return { x, y, w, h };
+    }
+    /**
+     * Animate an annotation using the same guide-path approach as node draw:
+     * 1. Hide the rough.js element (opacity=0)
+     * 2. Create a clean single guide path and animate it with stroke-dashoffset
+     * 3. Pointer follows the guide path
+     * 4. After guide finishes → fade in rough.js element, remove guide
+     */
+    _animateAnnotation(roughEl, guideD, silent) {
+        if (silent)
+            return;
+        // Hide rough.js element — will be revealed after guide draws
+        roughEl.style.opacity = "0";
+        roughEl.style.transition = "none";
+        // Create a clean guide path
+        const guide = document.createElementNS(SVG_NS$1, "path");
+        guide.setAttribute("d", guideD);
+        guide.setAttribute("fill", "none");
+        guide.setAttribute("stroke", ANIMATION.annotationColor);
+        guide.setAttribute("stroke-width", String(ANIMATION.annotationStrokeW));
+        guide.setAttribute("stroke-linecap", "round");
+        guide.setAttribute("stroke-linejoin", "round");
+        guide.style.pointerEvents = "none";
+        this._annotationLayer.appendChild(guide);
+        const len = pathLength(guide);
+        guide.style.strokeDasharray = `${len}`;
+        guide.style.strokeDashoffset = `${len}`;
+        guide.style.transition = "none";
+        // Pre-position pointer at the start of the guide
+        const hasPointer = !!this._pointerEl;
+        if (hasPointer) {
+            try {
+                const startPt = guide.getPointAtLength(0);
+                this._pointerEl.setAttribute("transform", `translate(${startPt.x},${startPt.y})`);
+            }
+            catch { /* ignore */ }
+            this._pointerEl.setAttribute("opacity", "1");
+            this._pointerEl.style.transition = "none";
+        }
+        const dur = ANIMATION.annotationStrokeDur;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            // Animate guide stroke-dashoffset
+            guide.style.transition = `stroke-dashoffset ${dur}ms cubic-bezier(.4,0,.2,1)`;
+            guide.style.strokeDashoffset = "0";
+            // Animate pointer along guide path
+            if (hasPointer) {
+                const startTime = performance.now();
+                const pointerRef = this._pointerEl;
+                const animate = () => {
+                    const elapsed = performance.now() - startTime;
+                    const t = Math.min(elapsed / dur, 1);
+                    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                    try {
+                        const pt = guide.getPointAtLength(eased * len);
+                        pointerRef.setAttribute("transform", `translate(${pt.x},${pt.y})`);
+                    }
+                    catch { /* ignore */ }
+                    if (t < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                    else {
+                        pointerRef.style.transition = `opacity 200ms ease`;
+                        pointerRef.setAttribute("opacity", "0");
+                    }
+                };
+                requestAnimationFrame(animate);
+            }
+            // After guide finishes: reveal rough.js element, remove guide
+            const id = window.setTimeout(() => {
+                roughEl.style.transition = `opacity 120ms ease`;
+                roughEl.style.opacity = "1";
+                guide.remove();
+            }, dur + 30);
+            this._pendingStepTimers.add(id);
+        }));
+    }
+    _doAnnotationCircle(target, silent) {
+        const el = resolveEl(this.svg, target);
+        if (!el || !this._rc || !this._annotationLayer)
+            return;
+        const m = this._nodeMetrics(el);
+        if (!m)
+            return;
+        const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+        const rx = m.w * 0.65, ry = m.h * 0.65;
+        const roughEl = this._rc.ellipse(cx, cy, rx * 2, ry * 2, {
+            roughness: 2.0, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, fill: "none",
+            seed: Date.now(),
+        });
+        this._annotationLayer.appendChild(roughEl);
+        this._annotations.push(roughEl);
+        // Clean guide path for draw-in animation
+        const guideD = ellipsePath(cx, cy, rx, ry);
+        this._animateAnnotation(roughEl, guideD, silent);
+    }
+    _doAnnotationUnderline(target, silent) {
+        const el = resolveEl(this.svg, target);
+        if (!el || !this._rc || !this._annotationLayer)
+            return;
+        const m = this._nodeMetrics(el);
+        if (!m)
+            return;
+        const lineY = m.y + m.h + 4;
+        const roughEl = this._rc.line(m.x, lineY, m.x + m.w, lineY, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+        });
+        this._annotationLayer.appendChild(roughEl);
+        this._annotations.push(roughEl);
+        // Clean guide path
+        const guideD = `M ${m.x} ${lineY} L ${m.x + m.w} ${lineY}`;
+        this._animateAnnotation(roughEl, guideD, silent);
+    }
+    _doAnnotationCrossout(target, silent) {
+        const el = resolveEl(this.svg, target);
+        if (!el || !this._rc || !this._annotationLayer)
+            return;
+        const m = this._nodeMetrics(el);
+        if (!m)
+            return;
+        const pad = 4;
+        const roughG = document.createElementNS(SVG_NS$1, "g");
+        const line1 = this._rc.line(m.x - pad, m.y - pad, m.x + m.w + pad, m.y + m.h + pad, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+        });
+        const line2 = this._rc.line(m.x + m.w + pad, m.y - pad, m.x - pad, m.y + m.h + pad, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now() + 1,
+        });
+        roughG.appendChild(line1);
+        roughG.appendChild(line2);
+        this._annotationLayer.appendChild(roughG);
+        this._annotations.push(roughG);
+        // Clean guide: two diagonal lines in a single path (pointer draws both)
+        const guideD = `M ${m.x - pad} ${m.y - pad} L ${m.x + m.w + pad} ${m.y + m.h + pad} ` +
+            `M ${m.x + m.w + pad} ${m.y - pad} L ${m.x - pad} ${m.y + m.h + pad}`;
+        this._animateAnnotation(roughG, guideD, silent);
+    }
+    _doAnnotationBracket(target1, target2, silent) {
+        const el1 = resolveEl(this.svg, target1);
+        const el2 = resolveEl(this.svg, target2);
+        if (!el1 || !el2 || !this._rc || !this._annotationLayer)
+            return;
+        const m1 = this._nodeMetrics(el1);
+        const m2 = this._nodeMetrics(el2);
+        if (!m1 || !m2)
+            return;
+        // Bracket on the right side spanning both elements
+        const rightX = Math.max(m1.x + m1.w, m2.x + m2.w) + 12;
+        const topY = Math.min(m1.y, m2.y);
+        const botY = Math.max(m1.y + m1.h, m2.y + m2.h);
+        const midY = (topY + botY) / 2;
+        const bulge = 16;
+        // Draw a curly brace using path
+        const guideD = `M ${rightX} ${topY} Q ${rightX + bulge} ${topY} ${rightX + bulge} ${midY - 4} ` +
+            `L ${rightX + bulge} ${midY} L ${rightX + bulge * 1.5} ${midY} ` +
+            `M ${rightX + bulge} ${midY} L ${rightX + bulge} ${midY + 4} ` +
+            `Q ${rightX + bulge} ${botY} ${rightX} ${botY}`;
+        const roughEl = this._rc.path(guideD, {
+            roughness: 1.2, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, fill: "none",
+            seed: Date.now(),
+        });
+        this._annotationLayer.appendChild(roughEl);
+        this._annotations.push(roughEl);
+        this._animateAnnotation(roughEl, guideD, silent);
+    }
+    // ── pointer ─────────────────────────────────────────────
+    _initPointer() {
+        if (this._pointerType === "dot") {
+            const circle = document.createElementNS(SVG_NS$1, "circle");
+            circle.setAttribute("r", String(ANIMATION.pointerSize));
+            circle.setAttribute("fill", ANIMATION.annotationColor);
+            circle.setAttribute("opacity", "0");
+            circle.style.pointerEvents = "none";
+            this.svg.appendChild(circle);
+            this._pointerEl = circle;
+        }
+        else if (this._pointerType === "chalk") {
+            const g = document.createElementNS(SVG_NS$1, "g");
+            const circle = document.createElementNS(SVG_NS$1, "circle");
+            circle.setAttribute("r", "5");
+            circle.setAttribute("fill", "#fff");
+            circle.setAttribute("stroke", "#1a1208");
+            circle.setAttribute("stroke-width", "1.5");
+            g.appendChild(circle);
+            g.setAttribute("opacity", "0");
+            g.style.pointerEvents = "none";
+            this.svg.appendChild(g);
+            this._pointerEl = g;
+        }
+        else if (this._pointerType === "hand") {
+            const g = document.createElementNS(SVG_NS$1, "g");
+            const path = document.createElementNS(SVG_NS$1, "path");
+            path.setAttribute("d", "M5,0 L5,12 L8,9 L11,16 L13,15 L10,8 L14,8 Z");
+            path.setAttribute("fill", "#1a1208");
+            g.appendChild(path);
+            g.setAttribute("opacity", "0");
+            g.style.pointerEvents = "none";
+            this.svg.appendChild(g);
+            this._pointerEl = g;
+        }
+    }
 }
 const ANIMATION_CSS = `
 .ng, .gg, .tg, .ntg, .cg, .eg, .mdg {
@@ -7683,6 +8210,9 @@ const ANIMATION_CSS = `
 .ntg.gg-hidden { opacity: 0; }
 .cg.gg-hidden  { opacity: 0; }
 .mdg.gg-hidden { opacity: 0; }
+
+/* narration caption */
+.skm-caption { pointer-events: none; user-select: none; }
 `;
 
 // ============================================================
@@ -7929,7 +8459,16 @@ function render(options) {
             interactive: true,
             onNodeClick,
         });
-        anim = new AnimationController(svg, ast.steps);
+        // Create rough.js instance for annotations
+        let rc = null;
+        try {
+            const roughMod = window.rough ?? (typeof require !== 'undefined' ? require('roughjs/bin/rough') : null);
+            if (roughMod?.svg)
+                rc = roughMod.svg(svg);
+        }
+        catch { /* rough.js not available — annotations disabled */ }
+        const containerEl = el instanceof SVGSVGElement ? undefined : el;
+        anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
     }
     onReady?.(anim, svg);
     const instance = {

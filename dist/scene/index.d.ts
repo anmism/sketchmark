@@ -1,4 +1,4 @@
-import type { DiagramAST, ASTNode, ASTStep, StyleProps, GroupChildRef, RootItemRef, ASTTableRow } from "../ast/types";
+import type { DiagramAST, ASTNode, ASTStepItem, StyleProps, GroupChildRef, RootItemRef, ASTTableRow } from "../ast/types";
 import type { MarkdownLine } from '../markdown/parser';
 export type { GroupChildRef, RootItemRef };
 export interface SceneRect {
@@ -73,7 +73,7 @@ export interface SceneTable {
     h: number;
 }
 export interface SceneAnimation {
-    steps: ASTStep[];
+    steps: ASTStepItem[];
     currentStep: number;
 }
 export interface SceneChart {

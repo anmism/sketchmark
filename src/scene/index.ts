@@ -5,7 +5,7 @@
 import type {
   DiagramAST,
   ASTNode,
-  ASTStep,
+  ASTStepItem,
   StyleProps,
   GroupChildRef,
   RootItemRef,
@@ -96,7 +96,7 @@ export interface SceneTable {
 }
 
 export interface SceneAnimation {
-  steps: ASTStep[];
+  steps: ASTStepItem[];
   currentStep: number;
 }
 

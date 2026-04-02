@@ -134,6 +134,28 @@ export const ANIMATION = {
   fillFadeOffset:  -60,   // fill-opacity start relative to stroke end (ms)
   textDelay:       80,    // extra buffer before text reveals (ms)
   chartFade:       500,   // chart/markdown opacity transition (ms)
+
+  // Pace
+  paceSlowMul:     2.0,   // slow pace duration multiplier
+  paceFastMul:     0.5,   // fast pace duration multiplier
+  pauseHoldMs:     1500,  // extra hold time for pause pace (ms)
+
+  // Narration
+  narrationFadeMs: 300,   // caption fade-in/out duration (ms)
+  narrationTypeMs: 30,    // per-character typing speed for narration (ms)
+
+  // Text writing reveal
+  textRevealMs:    400,   // text clip-reveal duration (ms)
+
+  // Annotations
+  annotationStrokeDur: 300,    // annotation draw-in duration (ms)
+  annotationColor:     '#c85428', // default annotation color
+  annotationStrokeW:   2.5,    // annotation stroke width
+
+  // Pointer
+  pointerMoveMs:   350,   // pointer travel duration (ms)
+  pointerPreStepMs: 120,  // pause after pointer arrives before step fires (ms)
+  pointerSize:     8,     // default pointer dot radius
 } as const;
 
 // ── Export defaults ────────────────────────────────────────

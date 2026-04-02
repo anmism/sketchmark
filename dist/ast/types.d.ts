@@ -3,8 +3,9 @@ export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 export type LayoutType = 'row' | 'column' | 'grid';
 export type AlignItems = 'start' | 'center' | 'end';
 export type JustifyContent = 'start' | 'center' | 'end' | 'space-between' | 'space-around';
-export type AnimationAction = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate';
+export type AnimationAction = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate' | 'narrate' | 'circle' | 'underline' | 'crossout' | 'bracket';
 export type AnimationTrigger = 'on-click';
+export type StepPace = 'slow' | 'fast' | 'pause';
 export interface StyleProps {
     fill?: string;
     stroke?: string;
@@ -112,7 +113,14 @@ export interface ASTStep {
     dy?: number;
     factor?: number;
     deg?: number;
+    pace?: StepPace;
+    target2?: string;
 }
+export interface ASTBeat {
+    kind: 'beat';
+    children: ASTStep[];
+}
+export type ASTStepItem = ASTStep | ASTBeat;
 export interface ASTChartData {
     headers: string[];
     rows: (string | number)[][];
@@ -158,7 +166,7 @@ export interface DiagramAST {
     edges: ASTEdge[];
     groups: ASTGroup[];
     tables: ASTTable[];
-    steps: ASTStep[];
+    steps: ASTStepItem[];
     charts: ASTChart[];
     markdowns: ASTMarkdown[];
     styles: Record<string, StyleProps>;

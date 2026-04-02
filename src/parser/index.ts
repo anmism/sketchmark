@@ -9,6 +9,8 @@ import type {
   ASTEdge,
   ASTGroup,
   ASTStep,
+  ASTBeat,
+  ASTStepItem,
   ASTChart,
   ASTTable,
   NodeShape,
@@ -20,6 +22,7 @@ import type {
   AlignItems,
   JustifyContent,
   ASTMarkdown,
+  StepPace,
 } from "../ast/types";
 
 export type { DiagramAST } from "../ast/types";
@@ -510,7 +513,20 @@ export function parse(src: string): DiagramAST {
     }
     const step: ASTStep = { kind: "step", action, target };
 
-    for (let j = 2; j < toks.length; j++) {
+    // narrate: text is the value, not a target
+    if (action === "narrate") {
+      step.target = "";
+      step.value = toks[1]?.value ?? "";
+    }
+
+    // bracket: needs two targets
+    if (action === "bracket" && toks.length >= 3) {
+      step.target = toks[1]?.value ?? "";
+      step.target2 = toks[2]?.value ?? "";
+    }
+
+    const kvStart = action === "bracket" ? 3 : 2;
+    for (let j = kvStart; j < toks.length; j++) {
       const k = toks[j]?.value;
       const eq = toks[j + 1];
       const vt = toks[j + 2];
@@ -554,6 +570,11 @@ export function parse(src: string): DiagramAST {
         }
         if (k === "color") {
           step.value = vt.value;
+          j += 2;
+          continue;
+        }
+        if (k === "pace") {
+          step.pace = vt.value as StepPace;
           j += 2;
           continue;
         }
@@ -968,6 +989,26 @@ export function parse(src: string): DiagramAST {
       ast.nodes.push(note);
       nodeIds.add(note.id);
       ast.rootOrder.push({ kind: "node", id: note.id });
+      continue;
+    }
+
+    // beat { ... } — parallel steps
+    if (v === "beat") {
+      skip(); // 'beat'
+      skipNL();
+      if (cur().type === "LBRACE") { skip(); skipNL(); }
+      const children: ASTStep[] = [];
+      while (cur().type !== "RBRACE" && cur().value !== "end" && cur().type !== "EOF") {
+        skipNL();
+        if (cur().type === "RBRACE") break;
+        if (cur().value === "step") {
+          children.push(parseStep());
+        } else {
+          skip();
+        }
+      }
+      if (cur().type === "RBRACE") skip();
+      ast.steps.push({ kind: "beat", children } as ASTBeat);
       continue;
     }
 

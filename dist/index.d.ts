@@ -11,8 +11,7 @@ export { AnimationController, ANIMATION_CSS } from './animation';
 export type { AnimationEvent, AnimationEventType } from './animation';
 export { exportSVG, exportPNG, exportCanvasPNG, exportHTML, exportGIF, exportMP4, getSVGBlob, svgToPNGDataURL, } from './export';
 export type { ExportFormat, ExportOptions } from './export';
-export type { NodeShape, EdgeConnector, LayoutType, AlignItems, JustifyContent, // ← new
-AnimationAction, AnimationTrigger, StyleProps, ASTNode, ASTEdge, ASTGroup, ASTStep, ASTChart, ASTTable, GroupChildRef, RootItemRef, ASTMarkdown } from './ast/types';
+export type { NodeShape, EdgeConnector, LayoutType, AlignItems, JustifyContent, AnimationAction, AnimationTrigger, StyleProps, StepPace, ASTNode, ASTEdge, ASTGroup, ASTStep, ASTBeat, ASTStepItem, ASTChart, ASTTable, GroupChildRef, RootItemRef, ASTMarkdown, } from './ast/types';
 export { hashStr, clamp, lerp, parseHex, sleep, throttle, debounce, EventEmitter } from './utils';
 import { buildSceneGraph } from './scene';
 import { AnimationController } from './animation';

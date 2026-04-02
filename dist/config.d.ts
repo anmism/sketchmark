@@ -137,6 +137,18 @@ export declare const ANIMATION: {
     readonly fillFadeOffset: -60;
     readonly textDelay: 80;
     readonly chartFade: 500;
+    readonly paceSlowMul: 2;
+    readonly paceFastMul: 0.5;
+    readonly pauseHoldMs: 1500;
+    readonly narrationFadeMs: 300;
+    readonly narrationTypeMs: 30;
+    readonly textRevealMs: 400;
+    readonly annotationStrokeDur: 300;
+    readonly annotationColor: "#c85428";
+    readonly annotationStrokeW: 2.5;
+    readonly pointerMoveMs: 350;
+    readonly pointerPreStepMs: 120;
+    readonly pointerSize: 8;
 };
 export declare const EXPORT: {
     readonly pngScale: 2;

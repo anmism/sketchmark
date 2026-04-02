@@ -409,6 +409,7 @@
         overflow: hidden;
         background: var(--canvas-bg);
         cursor: grab;
+        touch-action: none;
         transition: background 0.2s;
       }
       #viewport.dark-canvas {
@@ -1288,8 +1289,11 @@ end`,
         panY = 60,
         zoom = 1;
       let isPanning = false;
+      let activePointerId = null;
       let lastPX = 0,
         lastPY = 0;
+      let suppressClickUntil = 0;
+      let animUnsub = null;
       let canvasTheme = "light";
       let hasRenderedOnce = false; // only auto-fit on the very first render
 
@@ -1377,17 +1381,24 @@ end`,
       vp.addEventListener("pointerdown", (e) => {
         // middle button always pans; left button pans everywhere
         if (e.button === 0 || e.button === 1) {
+          if (e.target instanceof Element &&
+              e.target.closest("#canvas-controls, #minimap-wrap")) {
+            return;
+          }
           isPanning = true;
           panMoved = false;
+          activePointerId = e.pointerId;
           lastPX = e.clientX;
           lastPY = e.clientY;
-          vp.setPointerCapture(e.pointerId);
+          try {
+            vp.setPointerCapture(e.pointerId);
+          } catch (_) {}
           // don't preventDefault here — lets clicks reach interactive nodes
         }
       });
 
       vp.addEventListener("pointermove", (e) => {
-        if (!isPanning) return;
+        if (!isPanning || (activePointerId !== null && e.pointerId !== activePointerId)) return;
         const dx = e.clientX - lastPX;
         const dy = e.clientY - lastPY;
         if (!panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
@@ -1403,16 +1414,37 @@ end`,
         lastPY = e.clientY;
       });
 
-      vp.addEventListener("pointerup", () => {
+      function stopPanning(e) {
+        if (activePointerId !== null && e?.pointerId != null && e.pointerId !== activePointerId) {
+          return;
+        }
+        if (panMoved) {
+          suppressClickUntil = performance.now() + 180;
+        }
+        if (activePointerId !== null && vp.hasPointerCapture?.(activePointerId)) {
+          try {
+            vp.releasePointerCapture(activePointerId);
+          } catch (_) {}
+        }
+        activePointerId = null;
         isPanning = false;
         panMoved = false;
         vp.classList.remove("panning");
-      });
-      vp.addEventListener("pointerleave", () => {
-        isPanning = false;
-        panMoved = false;
-        vp.classList.remove("panning");
-      });
+      }
+
+      vp.addEventListener("pointerup", stopPanning);
+      vp.addEventListener("pointercancel", stopPanning);
+      vp.addEventListener("lostpointercapture", stopPanning);
+      vp.addEventListener(
+        "click",
+        (e) => {
+          if (performance.now() <= suppressClickUntil) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        },
+        true,
+      );
 
       vp.addEventListener(
         "wheel",
@@ -1440,11 +1472,89 @@ end`,
         applyTransform();
       };
 
+      // ── Auto-pan to keep animated element in view ─────────────────────────
+      function findSvgElement(svgEl, id) {
+        const prefixes = ["group-", "node-", "edge-", "table-", "chart-", "markdown-", "note-", ""];
+        for (const prefix of prefixes) {
+          try {
+            const el = svgEl.querySelector(`#${CSS.escape(prefix + id)}`);
+            if (el) return el;
+          } catch (_) {}
+        }
+        for (const attr of ["data-id", "data-node", "data-group", "sketchmark-id"]) {
+          try {
+            const el = svgEl.querySelector(`[${attr}="${id}"]`);
+            if (el) return el;
+          } catch (_) {}
+        }
+        return null;
+      }
+
+      function focusAnimatedElement(targetId) {
+        const svgEl = instance?.svg;
+        if (!targetId || !svgEl || !vp) return;
+
+        // for edges like "a-->b" — try both nodes
+        const ids = targetId.split(/-->|->|<--|<->/).map(s => s.trim()).filter(Boolean);
+        const searchIds = ids.length > 1 ? ids : [targetId.trim()];
+
+        let el = null;
+        for (const id of searchIds) {
+          el = findSvgElement(svgEl, id);
+          if (el) break;
+        }
+        if (!el) return;
+
+        let bbox;
+        try { bbox = el.getBoundingClientRect(); } catch (_) { return; }
+        if (bbox.width === 0 && bbox.height === 0) return;
+
+        const vpRect = vp.getBoundingClientRect();
+        const elCX = bbox.left + bbox.width / 2 - vpRect.left;
+        const elCY = bbox.top + bbox.height / 2 - vpRect.top;
+        const vpW = vpRect.width;
+        const vpH = vpRect.height;
+        const MARGIN = 100;
+
+        // Skip if element is already visible with margin
+        if (elCX >= MARGIN && elCX <= vpW - MARGIN &&
+            elCY >= MARGIN && elCY <= vpH - MARGIN) return;
+
+        const targetPanX = panX + (vpW / 2 - elCX);
+        const targetPanY = panY + (vpH / 2 - elCY);
+        const startPanX = panX;
+        const startPanY = panY;
+        const startTs = performance.now();
+        const DURATION = 350;
+
+        function frame(now) {
+          const t = Math.min((now - startTs) / DURATION, 1);
+          const et = 1 - Math.pow(1 - t, 3); // easeOut
+          panX = startPanX + (targetPanX - startPanX) * et;
+          panY = startPanY + (targetPanY - startPanY) * et;
+          applyTransform();
+          if (t < 1) requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+      }
+
       // ── Run diagram ────────────────────────────────────────────────────────
+      function focusCurrentStep() {
+        const anim = instance?.anim;
+        if (!anim || anim.currentStep < 0 || anim.currentStep >= anim.total) return;
+        const targetId = anim.steps[anim.currentStep]?.target;
+        if (!targetId) return;
+        setTimeout(() => focusAnimatedElement(targetId), 40);
+      }
+
       function runDiagram(dsl) {
         dsl = dsl ?? dslEl.value;
         errEl.style.display = "none";
         wrap.innerHTML = "";
+        if (animUnsub) {
+          animUnsub();
+          animUnsub = null;
+        }
         try {
           instance = render({
             container: wrap,
@@ -1457,6 +1567,17 @@ end`,
             },
           });
           syncAnim();
+          if (instance?.anim?.on) {
+            const unsub = instance.anim.on((event) => {
+              if (event?.type !== "step-change") return;
+              const targetId = event?.step?.target;
+              if (!targetId) return;
+              requestAnimationFrame(() => {
+                setTimeout(() => focusAnimatedElement(targetId), 40);
+              });
+            });
+            animUnsub = typeof unsub === "function" ? unsub : null;
+          }
           document.getElementById("stats").textContent =
             `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e · ${instance.scene.groups.length}g`;
           mmWrap.classList.add("visible");
@@ -1507,10 +1628,12 @@ end`,
       document.getElementById("btn-prev").onclick = () => {
         instance?.anim.prev();
         syncAnim();
+        focusCurrentStep();
       };
       document.getElementById("btn-next").onclick = () => {
         instance?.anim.next();
         syncAnim();
+        focusCurrentStep();
       };
       document.getElementById("btn-play").onclick = async function () {
         this.disabled = true;

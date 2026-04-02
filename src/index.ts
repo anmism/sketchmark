@@ -30,10 +30,10 @@ export type { ExportFormat, ExportOptions } from './export';
 // ── AST Types ─────────────────────────────────────────────
 export type {
   NodeShape, EdgeConnector, LayoutType,
-  AlignItems, JustifyContent,                              // ← new
-  AnimationAction, AnimationTrigger, StyleProps,
-  ASTNode, ASTEdge, ASTGroup, ASTStep, ASTChart, ASTTable,
-  GroupChildRef, RootItemRef,   ASTMarkdown                           // ← new
+  AlignItems, JustifyContent,
+  AnimationAction, AnimationTrigger, StyleProps, StepPace,
+  ASTNode, ASTEdge, ASTGroup, ASTStep, ASTBeat, ASTStepItem, ASTChart, ASTTable,
+  GroupChildRef, RootItemRef, ASTMarkdown,
 } from './ast/types';
 
 // ── Utilities ─────────────────────────────────────────────
@@ -135,7 +135,14 @@ export function render(options: RenderOptions): DiagramInstance {
       interactive: true,
       onNodeClick,
     });
-    anim = new AnimationController(svg, ast.steps);
+    // Create rough.js instance for annotations
+    let rc: any = null;
+    try {
+      const roughMod = (window as any).rough ?? (typeof require !== 'undefined' ? require('roughjs/bin/rough') : null);
+      if (roughMod?.svg) rc = roughMod.svg(svg);
+    } catch { /* rough.js not available — annotations disabled */ }
+    const containerEl = el instanceof SVGSVGElement ? undefined : el as HTMLElement;
+    anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
   }
 
   onReady?.(anim, svg);

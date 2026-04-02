@@ -97,6 +97,15 @@ export const KEYWORDS = new Set([
   "tree",
   "force",
   "markdown",
+  "narrate",
+  "pace",
+  "slow",
+  "fast",
+  "pause",
+  "beat",
+  "underline",
+  "crossout",
+  "bracket",
 ]);
 
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];

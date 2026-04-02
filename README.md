@@ -25,6 +25,12 @@
 11. [Themes](#themes)
 12. [Fonts](#fonts)
 13. [Animation System](#animation-system)
+    - [Narration](#narration)
+    - [Annotations](#annotations)
+    - [Parallel Steps (Beat)](#parallel-steps-beat)
+    - [Pace](#pace)
+    - [Text-to-Speech](#text-to-speech)
+    - [Pointer / Cursor](#pointer--cursor)
 14. [Config Options](#config-options)
 15. [Export](#export)
 16. [Supported vs Unsupported Features](#supported-vs-unsupported-features)
@@ -581,7 +587,7 @@ step <action> <target> [options]
 | Action | Target | Options | Description |
 |--------|--------|---------|-------------|
 | `highlight` | node/edge/group | — | Pulsing glow highlight (only one element at a time) |
-| `draw` | node/edge/group/table/chart/markdown | `duration=N` | Animated stroke-drawing reveal |
+| `draw` | node/edge/group/table/chart/markdown | `duration=N` | Animated stroke-drawing reveal with text writing effect |
 | `fade` | node/edge/group | — | Fade to 22% opacity |
 | `unfade` | node/edge/group | — | Restore from fade |
 | `erase` | node/edge/group | `duration=N` | Fade to invisible (opacity 0) |
@@ -592,6 +598,69 @@ step <action> <target> [options]
 | `scale` | node | `factor=N duration=N` | Scale to factor (absolute) |
 | `rotate` | node | `deg=N duration=N` | Rotate by deg (cumulative) |
 | `color` | node/edge | `fill="#..."` or `color="#..."` | Change fill/stroke color |
+| `narrate` | — | `"text"` | Show a caption with typing effect |
+| `circle` | node | — | Draw a rough circle annotation around element |
+| `underline` | node | — | Draw a rough underline below element |
+| `crossout` | node | — | Draw rough diagonal cross-out lines |
+| `bracket` | node node | — | Draw a rough curly brace spanning two elements |
+
+### Narration
+
+Show captions like a teacher explaining on a blackboard. The caption appears as a floating bar at the bottom center of the viewport with a typing effect.
+
+```
+step narrate "Plants need sunlight to make food"
+step narrate "This is the most important step" pace=slow
+```
+
+- Caption is rendered as a fixed-position `<div>` on `document.body` (independent of diagram pan/zoom).
+- Access via `anim.captionElement` to reparent it anywhere.
+- Supports built-in browser text-to-speech (see [TTS](#text-to-speech)).
+
+### Annotations
+
+Hand-drawn annotation marks powered by rough.js. A clean guide path draws in first, then the rough sketch fades in. If `config pointer=chalk|dot|hand` is set, a pointer follows the annotation stroke.
+
+```
+step circle leaf           # circle around "leaf" node
+step underline sun         # underline below "sun" node
+step crossout wrong        # X through "wrong" node
+step bracket sun leaf      # curly brace spanning "sun" and "leaf"
+```
+
+Annotations require rough.js to be loaded. They are drawn into a dedicated SVG layer on top of the diagram.
+
+### Parallel Steps (Beat)
+
+Fire multiple steps simultaneously with `beat { }`:
+
+```
+beat {
+  step draw sun
+  step draw co2
+  step narrate "Both appear at once"
+}
+```
+
+- All children fire at the same time.
+- Playback waits for the longest child to finish before advancing.
+- Beats can contain any step action including `narrate` and annotations.
+
+### Pace
+
+Control timing per step with `pace=slow|fast|pause`:
+
+```
+step draw sun pace=slow      # 2× slower
+step draw leaf pace=fast     # 2× faster
+step narrate "Key point" pace=pause   # extra 1.5s hold after step
+```
+
+| Pace | Effect |
+|------|--------|
+| `slow` | Duration × 2.0 |
+| `fast` | Duration × 0.5 |
+| `pause` | Adds 1500ms hold |
 
 ### Step Options
 
@@ -599,6 +668,7 @@ step <action> <target> [options]
 |--------|-------------|---------|
 | `duration=N` | Animation duration in ms | varies by type |
 | `delay=N` | Delay before this step fires (ms) | 0 |
+| `pace=slow\|fast\|pause` | Timing modifier | — |
 | `dx=N` | X translation for `move` | 0 |
 | `dy=N` | Y translation for `move` | 0 |
 | `factor=N` | Scale factor for `scale` | 1 |
@@ -614,6 +684,22 @@ step draw client-->server
 step highlight server
 step draw server-->db
 step highlight db
+
+# Narration with pacing
+step narrate "The client sends a request" pace=slow
+step draw client-->server
+step narrate "The server processes it"
+
+# Annotations
+step circle server
+step underline db
+step bracket server db
+
+# Parallel steps
+beat {
+  step draw sun
+  step draw moon
+}
 
 # Move a node
 step move myBox dx=100 dy=0 duration=500
@@ -649,11 +735,13 @@ step highlight server delay=500
 const { anim } = render({ ... });
 
 // Properties
-anim.total         // number of steps
-anim.currentStep   // current step index (-1 = before start)
-anim.canNext       // boolean
-anim.canPrev       // boolean
-anim.atEnd         // boolean
+anim.total            // number of steps
+anim.currentStep      // current step index (-1 = before start)
+anim.canNext          // boolean
+anim.canPrev          // boolean
+anim.atEnd            // boolean
+anim.captionElement   // HTMLDivElement | null — the narration caption element
+anim.tts              // boolean — text-to-speech enabled/disabled
 
 // Methods
 anim.next()                // advance one step (returns bool)
@@ -661,16 +749,60 @@ anim.prev()                // go back one step (returns bool)
 anim.reset()               // reset to before step 0
 anim.goTo(index)           // jump to step N
 await anim.play(700)       // play all remaining steps (700ms between)
+anim.destroy()             // remove caption, annotations, pointer from DOM
+
+// Toggle TTS programmatically
+anim.tts = true;           // enable browser speech
+anim.tts = false;          // disable (stops current speech)
+
+// Reparent the narration caption to a custom container
+myDiv.appendChild(anim.captionElement);
 
 // Event listener
 const unsub = anim.on((event) => {
   console.log(event.type);      // 'step-change' | 'animation-start' | 'animation-end' | 'animation-reset'
   console.log(event.stepIndex); // number
-  console.log(event.step);      // ASTStep object
+  console.log(event.step);      // ASTStepItem (ASTStep | ASTBeat)
   console.log(event.total);     // total steps
 });
 unsub(); // unsubscribe
 ```
+
+### Text-to-Speech
+
+Enable browser-native speech synthesis for narrate steps:
+
+```
+# In DSL
+config tts=on
+```
+
+```javascript
+// Or via API
+anim.tts = true;
+
+// Custom TTS (e.g. ElevenLabs) via event listener
+anim.tts = false; // disable built-in
+anim.on((e) => {
+  if (e.step?.kind === 'step' && e.step.action === 'narrate') {
+    myTTSService.speak(e.step.value);
+  }
+});
+```
+
+Speech cancels automatically on `reset()`, `prev()`, `destroy()`, or when a new narrate step fires.
+
+### Pointer / Cursor
+
+Show a pointer that follows annotation strokes (circle, underline, crossout, bracket):
+
+```
+config pointer=chalk    # white dot with outline
+config pointer=dot      # colored dot
+config pointer=hand     # hand cursor
+```
+
+The pointer only appears during annotation steps — it follows the guide path as the annotation draws in, then fades out.
 
 ### Pre-hidden Elements (Draw Targets)
 
@@ -692,6 +824,8 @@ Set in DSL with `config key=value`:
 | `title-color` | Diagram title text color | palette default |
 | `title-size` | Diagram title font size | `18` |
 | `title-weight` | Diagram title font weight | `600` |
+| `pointer` | Annotation pointer type | `none` |
+| `tts` | Enable browser text-to-speech | `off` |
 
 ```
 diagram
@@ -701,6 +835,8 @@ config gap=60
 config margin=40
 config theme=ocean
 config font=caveat
+config pointer=chalk
+config tts=on
 config title-size=24
 config title-color="#001f5b"
 ```
@@ -836,7 +972,7 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | Feature | Supported | Notes |
 |---------|-----------|-------|
 | highlight | ✅ | Pulsing glow |
-| draw (nodes) | ✅ | Stroke-path reveal |
+| draw (nodes) | ✅ | Guide-path stroke reveal + text writing effect |
 | draw (edges) | ✅ | Animated line draw |
 | draw (groups) | ✅ | |
 | draw (tables) | ✅ | |
@@ -850,11 +986,20 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | scale | ✅ | CSS transform scale |
 | rotate | ✅ | CSS transform rotate |
 | color | ✅ | Dynamic fill/stroke color change |
+| narrate | ✅ | Typing-effect captions |
+| circle annotation | ✅ | Rough circle around element |
+| underline annotation | ✅ | Rough underline below element |
+| crossout annotation | ✅ | Rough X through element |
+| bracket annotation | ✅ | Rough curly brace spanning two elements |
+| pace (slow/fast/pause) | ✅ | Per-step timing control |
+| parallel steps (beat) | ✅ | `beat { }` fires children simultaneously |
+| pointer / cursor | ✅ | Follows annotation strokes (chalk/dot/hand) |
+| text-to-speech | ✅ | Browser `speechSynthesis` API |
+| text writing animation | ✅ | Left-to-right clipPath reveal on draw |
 | delay per step | ✅ | `delay=N` ms |
 | custom duration | ✅ | `duration=N` ms |
 | Canvas renderer animation | ❌ | SVG renderer only |
 | Click-triggered steps | ❌ | Parsed but not implemented |
-| Parallel steps | ❌ | Sequential only |
 
 ### Export
 
@@ -924,20 +1069,27 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | `step scale` | Animation | `step scale nodeId factor=1.5 duration=300` |
 | `step rotate` | Animation | `step rotate nodeId deg=90 duration=400` |
 | `step color` | Animation | `step color nodeId fill="#ff0000"` |
+| `step narrate` | Animation | `step narrate "Caption text" pace=slow` |
+| `step circle` | Animation | `step circle nodeId` |
+| `step underline` | Animation | `step underline nodeId` |
+| `step crossout` | Animation | `step crossout nodeId` |
+| `step bracket` | Animation | `step bracket nodeId1 nodeId2` |
+| `beat` | Animation | `beat { step draw a \n step draw b }` |
+| `pace` | Animation | `step draw nodeId pace=slow\|fast\|pause` |
 
 ---
 
 ## Complete Example
 
-This example demonstrates most features in a single diagram:
+This example demonstrates most features including narration, annotations, beats, pacing, and pointer:
 
 ```
 diagram
-title label="Full Stack Architecture"
+title label="How the Internet Delivers a Webpage"
 layout row
 config gap=50
-config theme=light
-config font=system
+config pointer=chalk
+config tts=on
 
 # Define named themes
 theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
@@ -945,48 +1097,50 @@ theme success fill="#e8ffe8" stroke="#007700" color="#004400"
 theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
 theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
-# Standalone node
-box client label="Browser" theme=primary width=120 height=50
+box you     label="You"              theme=warning width=120 height=50
+box browser label="Browser"          theme=primary width=120 height=50
+box dns     label="DNS\nServer"      theme=muted   width=120 height=55
+box server  label="Web\nServer"      theme=success width=120 height=55
+box html    label="HTML\nCSS JS"     theme=primary width=120 height=55
+box screen  label="Rendered\nPage"   theme=warning width=120 height=55
 
-# Group of services
-group backend label="Backend" layout=column gap=12 padding=24 theme=muted
-{
-  box api   label="REST API"   theme=warning width=130 height=48
-  box auth  label="Auth"       theme=primary width=130 height=48
+you     --> browser label="types URL"
+browser --> dns     label="lookup"
+dns     --> browser label="IP address"
+browser --> server  label="request"
+server  --> html    label="responds"
+html    --> screen  label="renders"
+
+# Animation with narration, annotations, beats, and pacing
+step narrate "You type a website address into your browser" pace=slow
+step draw you
+step draw browser
+step draw you-->browser
+step underline you
+step narrate "The browser asks a DNS server — the internet's phone book"
+step draw dns
+step draw browser-->dns
+step circle dns
+step narrate "DNS translates the domain name into an IP address"
+step draw dns-->browser
+step narrate "Now the browser knows WHERE to go" pace=slow
+beat {
+  step draw server
+  step draw browser-->server
 }
-
-# Database
-cylinder db label="PostgreSQL" theme=success width=130 height=65
-
-# Edges
-client --> api  label="HTTPS"
-api    --> auth
-api    --> db   label="SQL"
-auth   --> db   label="SQL"
-
-# Inline table
-table users label="Users Table"
-{
-  header ID Name Email
-  row    "1"  "Alice" "alice@example.com"
-  row    "2"  "Bob"   "bob@example.com"
+step narrate "It sends a request to the web server at that address"
+step underline server
+step narrate "The server responds with HTML, CSS, and JavaScript" pace=slow
+beat {
+  step draw html
+  step draw server-->html
 }
-
-# A chart
-bar-chart traffic label="Daily Traffic" width=300 height=200
-data
-  [["Day", "Requests"],
-   ["Mon", 1200],
-   ["Tue", 1500],
-   ["Wed", 900]]
-
-# Animation sequence
-step highlight client
-step draw client-->api
-step highlight api
-step draw api-->auth
-step draw api-->db
-step highlight db
+step circle html
+step narrate "The browser assembles everything into the page you see"
+step draw html-->screen
+step draw screen pace=slow
+step bracket html screen
+step narrate "All of this happens in under a second!" pace=pause
 end
 ```
 
