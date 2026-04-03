@@ -36,6 +36,7 @@ export declare class AnimationController {
     private _pointerEl;
     private _pointerType;
     private _tts;
+    private _speechDone;
     get drawTargets(): Set<string>;
     constructor(svg: SVGSVGElement, steps: ASTStepItem[], _container?: HTMLElement | undefined, _rc?: any | undefined, _config?: Record<string, string | number | boolean> | undefined);
     /** The narration caption element — mount it anywhere via `yourContainer.appendChild(anim.captionElement)` */

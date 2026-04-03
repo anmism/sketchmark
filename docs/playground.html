@@ -623,7 +623,7 @@
       </div>
     </main>
 
-    <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+    <!-- <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script> -->
     <script type="module">
       import { render } from '../dist/index.js';
 
@@ -1550,6 +1550,8 @@ end`,
       function runDiagram(dsl) {
         dsl = dsl ?? dslEl.value;
         errEl.style.display = "none";
+        // Destroy previous animation controller (removes caption from document.body)
+        instance?.anim?.destroy();
         wrap.innerHTML = "";
         if (animUnsub) {
           animUnsub();

@@ -7181,6 +7181,7 @@ var AIDiagram = (function (exports) {
             this._pointerType = 'none';
             // ── TTS ──
             this._tts = false;
+            this._speechDone = null;
             this.drawTargetEdges = getDrawTargetEdgeIds(steps);
             this.drawTargetNodes = getDrawTargetNodeIds(steps);
             // Groups: non-edge draw steps whose target has a #group-{id} element in the SVG.
@@ -7311,7 +7312,11 @@ var AIDiagram = (function (exports) {
             while (this.canNext) {
                 const nextStep = this.steps[this._step + 1];
                 this.next();
-                await new Promise((r) => setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)));
+                // Wait for timer AND speech to finish (whichever is longer)
+                await Promise.all([
+                    new Promise((r) => setTimeout(r, this._playbackWaitMs(nextStep, msPerStep))),
+                    this._speechDone ?? Promise.resolve(),
+                ]);
             }
         }
         goTo(index) {
@@ -7349,8 +7354,13 @@ var AIDiagram = (function (exports) {
             // Compute minimum time the step actually needs to finish
             let minNeeded = 0;
             if (step.action === "narrate") {
+                const text = step.value ?? "";
                 // Typing effect: chars × typeMs + fade buffer
-                minNeeded = (step.value?.length ?? 0) * ANIMATION.narrationTypeMs + ANIMATION.narrationFadeMs;
+                const typingMs = text.length * ANIMATION.narrationTypeMs + ANIMATION.narrationFadeMs;
+                // TTS estimate: ~150ms per word + 500ms buffer for engine latency
+                const wordCount = text.split(/\s+/).filter(Boolean).length;
+                const ttsMs = this._tts ? wordCount * 150 + 500 : 0;
+                minNeeded = Math.max(typingMs, ttsMs);
             }
             else if (step.action === "circle" || step.action === "underline" ||
                 step.action === "crossout" || step.action === "bracket") {
@@ -7895,8 +7905,8 @@ var AIDiagram = (function (exports) {
         }
         // ── narration ───────────────────────────────────────────
         _initCaption() {
-            if (!this._container)
-                return;
+            // Remove any leftover caption from a previous instance
+            document.querySelector('.skm-caption')?.remove();
             const cap = document.createElement("div");
             cap.className = "skm-caption";
             cap.style.cssText = `
@@ -7926,7 +7936,7 @@ var AIDiagram = (function (exports) {
                 this._captionTextEl.textContent = text;
                 return;
             }
-            // Fire TTS first — it has internal startup latency, so give it a head start
+            // Fire TTS as full sentence — play() waits for _speechDone
             if (this._tts && text)
                 this._speak(text);
             // Typing effect
@@ -7949,11 +7959,17 @@ var AIDiagram = (function (exports) {
             utter.rate = 0.95;
             utter.pitch = 1;
             utter.lang = "en-US";
+            // Track when speech actually finishes
+            this._speechDone = new Promise((resolve) => {
+                utter.onend = () => resolve();
+                utter.onerror = () => resolve();
+            });
             speechSynthesis.speak(utter);
         }
         _cancelSpeech() {
             if (typeof speechSynthesis !== "undefined")
                 speechSynthesis.cancel();
+            this._speechDone = null;
         }
         /** Pre-warm the speech engine with a silent utterance to eliminate cold-start delay */
         _warmUpSpeech() {
@@ -8460,12 +8476,10 @@ var AIDiagram = (function (exports) {
                 interactive: true,
                 onNodeClick,
             });
-            // Create rough.js instance for annotations
+            // Create rough.js instance for annotations (same import as SVG renderer)
             let rc = null;
             try {
-                const roughMod = window.rough ?? (typeof require !== 'undefined' ? require('roughjs/bin/rough') : null);
-                if (roughMod?.svg)
-                    rc = roughMod.svg(svg);
+                rc = rough.svg(svg);
             }
             catch { /* rough.js not available — annotations disabled */ }
             const containerEl = el instanceof SVGSVGElement ? undefined : el;
@@ -8474,7 +8488,7 @@ var AIDiagram = (function (exports) {
         onReady?.(anim, svg);
         const instance = {
             scene, anim, svg, canvas,
-            update: (newDsl) => render({ ...options, dsl: newDsl }),
+            update: (newDsl) => { anim?.destroy(); return render({ ...options, dsl: newDsl }); },
             exportSVG: (filename = 'diagram.svg') => {
                 if (svg) {
                     Promise.resolve().then(function () { return index; }).then(m => m.exportSVG(svg, { filename }));

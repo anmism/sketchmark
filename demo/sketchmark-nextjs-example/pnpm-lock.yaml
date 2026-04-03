@@ -17,12 +17,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
-      roughjs:
-        specifier: ^4.6.6
-        version: 4.6.6
       sketchmark:
         specifier: latest
-        version: 0.1.8(roughjs@4.6.6)
+        version: 1.0.0(roughjs@4.6.6)
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -322,8 +319,8 @@ packages:
   simple-swizzle@0.2.4:
     resolution: {integrity: sha512-nAu1WFPQSMNr2Zn9PGSZK9AGn4t/y97lEm+MXTtUDwfP0ksAIX4nO+6ruD9Jwut4C49SB1Ws+fbXsm/yScWOHw==}
 
-  sketchmark@0.1.8:
-    resolution: {integrity: sha512-K7GRoID5JTi55AHSV8a11zyKDNSRrLQa/dfNUOZ7KGdxRRCjhp5j9xheicZomZoL45YI5Ny6uaSR66tExDhSUA==}
+  sketchmark@1.0.0:
+    resolution: {integrity: sha512-DRDD1wRDQgj5Cl4Yd8ptrwfm/lp1xjodqglpxPppHpWc4PpTg9VyigAKG9+Dg3XViO9k8aQjL4pNfbk5WDXxYQ==}
     peerDependencies:
       roughjs: ^4.6.0
 
@@ -618,7 +615,7 @@ snapshots:
       is-arrayish: 0.3.4
     optional: true
 
-  sketchmark@0.1.8(roughjs@4.6.6):
+  sketchmark@1.0.0(roughjs@4.6.6):
     dependencies:
       roughjs: 4.6.6
 

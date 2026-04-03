@@ -630,6 +630,7 @@ export class AnimationController {
 
   // ── TTS ──
   private _tts = false;
+  private _speechDone: Promise<void> | null = null;
 
   get drawTargets(): Set<string> {
     return this.drawTargetEdges;
@@ -778,9 +779,13 @@ export class AnimationController {
     while (this.canNext) {
       const nextStep = this.steps[this._step + 1];
       this.next();
-      await new Promise<void>((r) =>
-        setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)),
-      );
+      // Wait for timer AND speech to finish (whichever is longer)
+      await Promise.all([
+        new Promise<void>((r) =>
+          setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)),
+        ),
+        this._speechDone ?? Promise.resolve(),
+      ]);
     }
   }
 
@@ -822,8 +827,13 @@ export class AnimationController {
     // Compute minimum time the step actually needs to finish
     let minNeeded = 0;
     if (step.action === "narrate") {
+      const text = step.value ?? "";
       // Typing effect: chars × typeMs + fade buffer
-      minNeeded = (step.value?.length ?? 0) * ANIMATION.narrationTypeMs + ANIMATION.narrationFadeMs;
+      const typingMs = text.length * ANIMATION.narrationTypeMs + ANIMATION.narrationFadeMs;
+      // TTS estimate: ~150ms per word + 500ms buffer for engine latency
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      const ttsMs = this._tts ? wordCount * 150 + 500 : 0;
+      minNeeded = Math.max(typingMs, ttsMs);
     } else if (step.action === "circle" || step.action === "underline" ||
                step.action === "crossout" || step.action === "bracket") {
       // Annotation guide draw + rough reveal + pointer fade
@@ -1397,7 +1407,9 @@ export class AnimationController {
 
   // ── narration ───────────────────────────────────────────
   private _initCaption(): void {
-    if (!this._container) return;
+    // Remove any leftover caption from a previous instance
+    document.querySelector('.skm-caption')?.remove();
+
     const cap = document.createElement("div");
     cap.className = "skm-caption";
     cap.style.cssText = `
@@ -1427,7 +1439,8 @@ export class AnimationController {
       this._captionTextEl.textContent = text;
       return;
     }
-    // Fire TTS first — it has internal startup latency, so give it a head start
+
+    // Fire TTS as full sentence — play() waits for _speechDone
     if (this._tts && text) this._speak(text);
 
     // Typing effect
@@ -1450,11 +1463,17 @@ export class AnimationController {
     utter.rate = 0.95;
     utter.pitch = 1;
     utter.lang = "en-US";
+    // Track when speech actually finishes
+    this._speechDone = new Promise<void>((resolve) => {
+      utter.onend = () => resolve();
+      utter.onerror = () => resolve();
+    });
     speechSynthesis.speak(utter);
   }
 
   private _cancelSpeech(): void {
     if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    this._speechDone = null;
   }
 
   /** Pre-warm the speech engine with a silent utterance to eliminate cold-start delay */

@@ -6,40 +6,62 @@
 
 export const ARCHITECTURE_DSL = `
 diagram
-title label="System Architecture"
+title label="How the Internet Delivers a Webpage"
 layout row
-config gap=60
+config gap=50
+config pointer=chalk
+config tts=on
 
+# Define named themes
 theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
 theme success fill="#e8ffe8" stroke="#007700" color="#004400"
 theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
 theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
-box client  label="Client App"   theme=primary width=140 height=55
-box gateway label="API Gateway"  theme=warning width=140 height=55
+box you     label="You"              theme=warning width=120 height=50
+box browser label="Browser"          theme=primary width=120 height=50
+box dns     label="DNS\nServer"      theme=muted   width=120 height=55
+box server  label="Web\nServer"      theme=success width=120 height=55
+box html    label="HTML\nCSS JS"     theme=primary width=120 height=55
+box screen  label="Rendered\nPage"   theme=warning width=120 height=55
 
-group services label="Services" layout=column gap=16 padding=30 theme=muted
-{
-  box auth  label="Auth Service"  theme=primary width=130 height=50
-  box data  label="Data Service"  theme=primary width=130 height=50
+you     --> browser label="types URL"
+browser --> dns     label="lookup"
+dns     --> browser label="IP address"
+browser --> server  label="request"
+server  --> html    label="responds"
+html    --> screen  label="renders"
+
+# Animation with narration, annotations, beats, and pacing
+step narrate "You type a website address into your browser" pace=slow
+step draw you
+step draw browser
+step draw you-->browser
+step underline you
+step narrate "The browser asks a DNS server — the internet's phone book"
+step draw dns
+step draw browser-->dns
+step circle dns
+step narrate "DNS translates the domain name into an IP address"
+step draw dns-->browser
+step narrate "Now the browser knows WHERE to go" pace=slow
+beat {
+  step draw server
+  step draw browser-->server
 }
-
-cylinder db label="PostgreSQL" theme=success width=140 height=65
-
-client  --> gateway label="HTTPS"
-gateway --> auth
-gateway --> data
-auth    --> db label="SQL"
-data    --> db label="SQL"
-
-step highlight client
-step draw client-->gateway
-step highlight gateway
-step draw gateway-->auth
-step draw gateway-->data
-step highlight auth
-step draw auth-->db
-step highlight db
+step narrate "It sends a request to the web server at that address"
+step underline server
+step narrate "The server responds with HTML, CSS, and JavaScript" pace=slow
+beat {
+  step draw html
+  step draw server-->html
+}
+step circle html
+step narrate "The browser assembles everything into the page you see"
+step draw html-->screen
+step draw screen pace=slow
+step bracket html screen
+step narrate "All of this happens in under a second!" pace=pause
 end
 `.trim();
 

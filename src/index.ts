@@ -47,6 +47,7 @@ import { parse }           from './parser';
 import { buildSceneGraph } from './scene';
 import { layout }          from './layout';
 import { renderToSVG }     from './renderer/svg';
+import rough               from 'roughjs/bin/rough';
 import { renderToCanvas }  from './renderer/canvas';
 import { AnimationController, ANIMATION_CSS } from './animation';
 import type { SVGRendererOptions }    from './renderer/svg';
@@ -135,11 +136,10 @@ export function render(options: RenderOptions): DiagramInstance {
       interactive: true,
       onNodeClick,
     });
-    // Create rough.js instance for annotations
+    // Create rough.js instance for annotations (same import as SVG renderer)
     let rc: any = null;
     try {
-      const roughMod = (window as any).rough ?? (typeof require !== 'undefined' ? require('roughjs/bin/rough') : null);
-      if (roughMod?.svg) rc = roughMod.svg(svg);
+      rc = rough.svg(svg);
     } catch { /* rough.js not available — annotations disabled */ }
     const containerEl = el instanceof SVGSVGElement ? undefined : el as HTMLElement;
     anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
@@ -149,7 +149,7 @@ export function render(options: RenderOptions): DiagramInstance {
 
   const instance: DiagramInstance = {
     scene, anim, svg, canvas,
-    update: (newDsl: string) => render({ ...options, dsl: newDsl }),
+    update: (newDsl: string) => { anim?.destroy(); return render({ ...options, dsl: newDsl }); },
     exportSVG: (filename = 'diagram.svg') => {
       if (svg) { import('./export').then(m => m.exportSVG(svg!, { filename })); }
     },
