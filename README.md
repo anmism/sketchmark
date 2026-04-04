@@ -603,7 +603,8 @@ step <action> <target> [options]
 | `underline` | node | — | Draw a rough underline below element |
 | `crossout` | node | — | Draw rough diagonal cross-out lines |
 | `bracket` | node node | — | Draw a rough curly brace spanning two elements |
-
+| `tick` | node | — | Draw a tick mark  |
+| `strikeoff` | node | — | Draw a strikeoff mark |
 ### Narration
 
 Show captions like a teacher explaining on a blackboard. The caption appears as a floating bar at the bottom center of the viewport with a typing effect.
