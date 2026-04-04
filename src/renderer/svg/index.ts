@@ -19,7 +19,7 @@ import {
 } from '../../markdown/parser';
 
 import {
-  hashStr, darkenHex, resolveStyleFont, wrapText,
+  hashStr, darkenHex, resolveStyleFont, wrapText, buildFontStr, shapeInnerTextWidth,
   connMeta, resolveEndpoint, getConnPoint, groupDepth,
 } from '../shared';
 import { getShape } from '../shapes';
@@ -541,9 +541,9 @@ export function renderToSVG(
         fontSize: isText ? 13 : isNote ? 12 : 14,
         fontWeight: isText || isNote ? 400 : 500,
         textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
-        textAlign: isNote ? "left" : undefined,
+        textAlign: isText || isNote ? "left" : undefined,
         lineHeight: isNote ? 1.4 : undefined,
-        padding: isNote ? 12 : undefined,
+        padding: isText ? 0 : isNote ? 12 : undefined,
         verticalAlign: isNote ? "top" : undefined,
       },
       diagramFont,
@@ -558,8 +558,11 @@ export function renderToSVG(
        : n.x + typo.padding)
       : computeTextX(typo, n.x, n.w);
 
-    const lines = n.shape === 'text' && !n.label.includes('\n')
-      ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
+    const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
+    const shouldWrap = !isMediaShape && !n.label.includes('\n');
+    const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
+    const lines = shouldWrap
+      ? wrapText(n.label, innerW, typo.fontSize, fontStr)
       : n.label.split('\n');
 
     const textCY = isMediaShape
@@ -759,7 +762,7 @@ export function renderToSVG(
     const anchor     = textAlign === 'right'  ? 'end'
                      : textAlign === 'center' ? 'middle'
                      : 'start';
-    const PAD   = Number(gs.padding ?? 16);
+    const PAD   = Number(gs.padding ?? 0);
     const mLetterSpacing = gs.letterSpacing as number | undefined;
 
     if (gs.opacity != null) mg.setAttribute('opacity', String(gs.opacity));

@@ -4,8 +4,17 @@ import { SHAPES } from "../../config";
 
 export const parallelogramShape: ShapeDefinition = {
   size(n, labelW) {
-    n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + SHAPES.parallelogram.labelPad));
-    n.h = n.h || SHAPES.parallelogram.defaultH;
+    const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + SHAPES.parallelogram.labelPad));
+    n.w = w;
+    if (!n.h) {
+      if (labelW + SHAPES.parallelogram.labelPad > w) {
+        const fontSize = Number(n.style?.fontSize ?? 14);
+        const lines = Math.ceil(labelW / (w - SHAPES.parallelogram.labelPad));
+        n.h = Math.max(SHAPES.parallelogram.defaultH, lines * fontSize * 1.5 + 20);
+      } else {
+        n.h = SHAPES.parallelogram.defaultH;
+      }
+    }
   },
   renderSVG(rc, n, _palette, opts) {
     return [rc.polygon([

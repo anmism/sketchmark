@@ -95,6 +95,8 @@ export declare class AnimationController {
     private _doAnnotationCircle;
     private _doAnnotationUnderline;
     private _doAnnotationCrossout;
+    private _doAnnotationTick;
+    private _doAnnotationStrikeoff;
     private _doAnnotationBracket;
     private _initPointer;
 }

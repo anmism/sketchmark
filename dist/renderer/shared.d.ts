@@ -2,7 +2,8 @@ import type { SceneNode, SceneGroup, SceneTable, SceneChart } from "../scene";
 export declare function hashStr(s: string): number;
 export declare function darkenHex(hex: string, amount?: number): string;
 export declare function resolveStyleFont(style: Record<string, unknown>, fallback: string): string;
-export declare function wrapText(text: string, maxWidth: number, fontSize: number): string[];
+export { buildFontStr, measureTextWidth, wrapText } from '../utils/text-measure';
+export declare function shapeInnerTextWidth(shape: string, w: number, padding: number): number;
 export declare function connMeta(connector: string): {
     arrowAt: "end" | "start" | "both" | "none";
     dashed: boolean;

@@ -4,8 +4,17 @@ import { SVG_NS } from "./types";
 export const pathShape: ShapeDefinition = {
   size(n, labelW) {
     // User should provide width/height; defaults to 100x100
-    n.w = n.width ?? Math.max(100, labelW + 20);
-    n.h = n.height ?? 100;
+    const w = n.width ?? Math.max(100, Math.min(300, labelW + 20));
+    n.w = w;
+    if (!n.h) {
+      if (!n.width && labelW + 20 > w) {
+        const fontSize = Number(n.style?.fontSize ?? 14);
+        const lines = Math.ceil(labelW / (w - 20));
+        n.h = Math.max(100, lines * fontSize * 1.5 + 20);
+      } else {
+        n.h = n.height ?? 100;
+      }
+    }
   },
 
   renderSVG(rc, n, _palette, opts) {

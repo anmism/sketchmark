@@ -24,12 +24,14 @@ import type { GroupChildRef } from "../ast/types";
 import { nodeMap, groupMap, tableMap, chartMap } from "../scene";
 
 import { markdownMap } from "../scene";
-import { calcMarkdownHeight } from "../markdown/parser";
+import { calcMarkdownHeight, calcMarkdownWidth } from "../markdown/parser";
 import type { SceneMarkdown } from "../scene";
 import { buildEntityMap } from "./entity-rect";
 import type { EntityRect } from "./entity-rect";
 import { getShape } from "../renderer/shapes";
 import { LAYOUT, NODE, TABLE } from "../config";
+import { measureTextWidth, buildFontStr } from "../utils/text-measure";
+import { DEFAULT_FONT } from "../fonts";
 
 
 // ── Node auto-sizing ──────────────────────────────────────
@@ -38,13 +40,19 @@ function sizeNode(n: SceneNode): void {
   if (n.width && n.width > 0) n.w = n.width;
   if (n.height && n.height > 0) n.h = n.height;
 
-  const labelW = Math.round(n.label.length * NODE.fontPxPerChar + NODE.basePad);
+  // Use pretext for accurate label measurement
+  const fontSize = Number(n.style?.fontSize ?? 14);
+  const fontWeight = n.style?.fontWeight ?? 500;
+  const fontFamily = String(n.style?.font ?? DEFAULT_FONT);
+  const font = buildFontStr(fontSize, fontWeight, fontFamily);
+  const labelW = Math.round(measureTextWidth(n.label, font) + NODE.basePad);
+
   const shape = getShape(n.shape);
   if (shape) {
     shape.size(n, labelW);
   } else {
     // fallback for unknown shapes — box-like default
-    n.w = n.w || Math.max(90, Math.min(180, labelW));
+    n.w = n.w || Math.max(90, Math.min(300, labelW));
     n.h = n.h || 52;
   }
 }
@@ -79,8 +87,9 @@ function sizeChart(_c: SceneChart): void {
 }
 
 function sizeMarkdown(m: SceneMarkdown): void {
-  const pad = Number(m.style?.padding ?? 16);
-  m.w = m.width ?? 400;
+  const pad = Number(m.style?.padding ?? 0);
+  const fontFamily = String(m.style?.font ?? DEFAULT_FONT);
+  m.w = m.width ?? calcMarkdownWidth(m.lines, fontFamily, pad);
   m.h = m.height ?? calcMarkdownHeight(m.lines, pad);
 }
 

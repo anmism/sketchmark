@@ -18,7 +18,7 @@ export const LAYOUT = {
 // ── Node sizing ────────────────────────────────────────────
 export const NODE = {
   minW:         90,    // minimum auto-sized node width (px)
-  maxW:         180,   // maximum auto-sized node width (px)
+  maxW:         300,   // maximum auto-sized node width (px)
   defaultH:     52,    // default node height (px)
   fontPxPerChar: 8.6,  // approximate px per character for label width
   basePad:      26,    // base padding added to label width (px)
@@ -92,7 +92,7 @@ export const MARKDOWN = {
   fontSize:   { h1: 40, h2: 28, h3: 20, p: 15, blank: 0 },
   fontWeight: { h1: 700, h2: 600, h3: 600, p: 400, blank: 400 },
   spacing:    { h1: 52, h2: 38, h3: 28, p: 22, blank: 10 },
-  defaultPad: 16,
+  defaultPad: 0,
 } as const;
 
 // ── Rough.js rendering ─────────────────────────────────────

@@ -40,25 +40,21 @@ export function resolveStyleFont(
   return resolveFont(raw);
 }
 
-// ── Soft word-wrap ───────────────────────────────────────────────────────
-export function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const charWidth = fontSize * 0.55;
-  const maxChars  = Math.floor(maxWidth / charWidth);
-  const words     = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
+// ── Text measurement (re-exported from utils to keep existing imports working)
+export { buildFontStr, measureTextWidth, wrapText } from '../utils/text-measure';
 
-  for (const word of words) {
-    const test = current ? `${current} ${word}` : word;
-    if (test.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [text];
+// ── Inner text width per shape (for wrapping inside non-rectangular shapes)
+const SHAPE_TEXT_RATIO: Record<string, number> = {
+  circle:        0.65,
+  diamond:       0.45,
+  hexagon:       0.55,
+  triangle:      0.40,
+};
+
+export function shapeInnerTextWidth(shape: string, w: number, padding: number): number {
+  const ratio = SHAPE_TEXT_RATIO[shape];
+  if (ratio) return w * ratio;
+  return w - padding * 2;
 }
 
 // ── Arrow direction from connector ───────────────────────────────────────

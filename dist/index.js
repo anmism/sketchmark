@@ -75,6 +75,8 @@ const KEYWORDS = new Set([
     "underline",
     "crossout",
     "bracket",
+    "tick",
+    "strikeoff",
 ]);
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];
 // Characters that can start an arrow pattern — used to decide whether a '-'
@@ -1255,8 +1257,7 @@ const LAYOUT = {
 // ── Node sizing ────────────────────────────────────────────
 const NODE = {
     minW: 90, // minimum auto-sized node width (px)
-    maxW: 180, // maximum auto-sized node width (px)
-    fontPxPerChar: 8.6, // approximate px per character for label width
+    maxW: 300, // maximum auto-sized node width (px)
     basePad: 26, // base padding added to label width (px)
 };
 // ── Shape-specific sizing ──────────────────────────────────
@@ -1281,7 +1282,6 @@ const NOTE = {
     lineH: 20, // line height for note text (px)
     padX: 16, // horizontal padding (px)
     padY: 12, // vertical padding (px)
-    fontPxPerChar: 7.5, // approx px per char for note text
     fold: 14, // fold corner size (px)
     minW: 120, // minimum note width (px)
 };
@@ -1320,7 +1320,7 @@ const MARKDOWN = {
     fontSize: { h1: 40, h2: 28, h3: 20, p: 15, blank: 0 },
     fontWeight: { h1: 700, h2: 600, h3: 600, p: 400, blank: 400 },
     spacing: { h1: 52, h2: 38, h3: 28, p: 22, blank: 10 },
-    defaultPad: 16,
+    defaultPad: 0,
 };
 // ── Rough.js rendering ─────────────────────────────────────
 const ROUGH = {
@@ -1383,6 +1383,2102 @@ const EXPORT = {
 };
 // ── SVG namespace ──────────────────────────────────────────
 const SVG_NS$1 = "http://www.w3.org/2000/svg";
+
+// Simplified bidi metadata helper for the rich prepareWithSegments() path,
+// forked from pdf.js via Sebastian's text-layout. It classifies characters
+// into bidi types, computes embedding levels, and maps them onto prepared
+// segments for custom rendering. The line-breaking engine does not consume
+// these levels.
+const baseTypes = [
+    'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'S', 'B', 'S', 'WS',
+    'B', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN',
+    'BN', 'BN', 'B', 'B', 'B', 'S', 'WS', 'ON', 'ON', 'ET', 'ET', 'ET', 'ON',
+    'ON', 'ON', 'ON', 'ON', 'ON', 'CS', 'ON', 'CS', 'ON', 'EN', 'EN', 'EN',
+    'EN', 'EN', 'EN', 'EN', 'EN', 'EN', 'EN', 'ON', 'ON', 'ON', 'ON', 'ON',
+    'ON', 'ON', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'ON', 'ON',
+    'ON', 'ON', 'ON', 'ON', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'ON', 'ON', 'ON', 'ON', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'B', 'BN',
+    'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN',
+    'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN',
+    'BN', 'CS', 'ON', 'ET', 'ET', 'ET', 'ET', 'ON', 'ON', 'ON', 'ON', 'L', 'ON',
+    'ON', 'ON', 'ON', 'ON', 'ET', 'ET', 'EN', 'EN', 'ON', 'L', 'ON', 'ON', 'ON',
+    'EN', 'L', 'ON', 'ON', 'ON', 'ON', 'ON', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'ON', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L',
+    'L', 'L', 'L', 'ON', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L'
+];
+const arabicTypes = [
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'CS', 'AL', 'ON', 'ON', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM',
+    'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AN', 'AN', 'AN', 'AN', 'AN', 'AN', 'AN', 'AN', 'AN',
+    'AN', 'ET', 'AN', 'AN', 'AL', 'AL', 'AL', 'NSM', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM',
+    'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'NSM', 'ON', 'NSM',
+    'NSM', 'NSM', 'NSM', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL',
+    'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL', 'AL'
+];
+function classifyChar(charCode) {
+    if (charCode <= 0x00ff)
+        return baseTypes[charCode];
+    if (0x0590 <= charCode && charCode <= 0x05f4)
+        return 'R';
+    if (0x0600 <= charCode && charCode <= 0x06ff)
+        return arabicTypes[charCode & 0xff];
+    if (0x0700 <= charCode && charCode <= 0x08AC)
+        return 'AL';
+    return 'L';
+}
+function computeBidiLevels(str) {
+    const len = str.length;
+    if (len === 0)
+        return null;
+    // eslint-disable-next-line unicorn/no-new-array
+    const types = new Array(len);
+    let numBidi = 0;
+    for (let i = 0; i < len; i++) {
+        const t = classifyChar(str.charCodeAt(i));
+        if (t === 'R' || t === 'AL' || t === 'AN')
+            numBidi++;
+        types[i] = t;
+    }
+    if (numBidi === 0)
+        return null;
+    const startLevel = (len / numBidi) < 0.3 ? 0 : 1;
+    const levels = new Int8Array(len);
+    for (let i = 0; i < len; i++)
+        levels[i] = startLevel;
+    const e = (startLevel & 1) ? 'R' : 'L';
+    const sor = e;
+    // W1-W7
+    let lastType = sor;
+    for (let i = 0; i < len; i++) {
+        if (types[i] === 'NSM')
+            types[i] = lastType;
+        else
+            lastType = types[i];
+    }
+    lastType = sor;
+    for (let i = 0; i < len; i++) {
+        const t = types[i];
+        if (t === 'EN')
+            types[i] = lastType === 'AL' ? 'AN' : 'EN';
+        else if (t === 'R' || t === 'L' || t === 'AL')
+            lastType = t;
+    }
+    for (let i = 0; i < len; i++) {
+        if (types[i] === 'AL')
+            types[i] = 'R';
+    }
+    for (let i = 1; i < len - 1; i++) {
+        if (types[i] === 'ES' && types[i - 1] === 'EN' && types[i + 1] === 'EN') {
+            types[i] = 'EN';
+        }
+        if (types[i] === 'CS' &&
+            (types[i - 1] === 'EN' || types[i - 1] === 'AN') &&
+            types[i + 1] === types[i - 1]) {
+            types[i] = types[i - 1];
+        }
+    }
+    for (let i = 0; i < len; i++) {
+        if (types[i] !== 'EN')
+            continue;
+        let j;
+        for (j = i - 1; j >= 0 && types[j] === 'ET'; j--)
+            types[j] = 'EN';
+        for (j = i + 1; j < len && types[j] === 'ET'; j++)
+            types[j] = 'EN';
+    }
+    for (let i = 0; i < len; i++) {
+        const t = types[i];
+        if (t === 'WS' || t === 'ES' || t === 'ET' || t === 'CS')
+            types[i] = 'ON';
+    }
+    lastType = sor;
+    for (let i = 0; i < len; i++) {
+        const t = types[i];
+        if (t === 'EN')
+            types[i] = lastType === 'L' ? 'L' : 'EN';
+        else if (t === 'R' || t === 'L')
+            lastType = t;
+    }
+    // N1-N2
+    for (let i = 0; i < len; i++) {
+        if (types[i] !== 'ON')
+            continue;
+        let end = i + 1;
+        while (end < len && types[end] === 'ON')
+            end++;
+        const before = i > 0 ? types[i - 1] : sor;
+        const after = end < len ? types[end] : sor;
+        const bDir = before !== 'L' ? 'R' : 'L';
+        const aDir = after !== 'L' ? 'R' : 'L';
+        if (bDir === aDir) {
+            for (let j = i; j < end; j++)
+                types[j] = bDir;
+        }
+        i = end - 1;
+    }
+    for (let i = 0; i < len; i++) {
+        if (types[i] === 'ON')
+            types[i] = e;
+    }
+    // I1-I2
+    for (let i = 0; i < len; i++) {
+        const t = types[i];
+        if ((levels[i] & 1) === 0) {
+            if (t === 'R')
+                levels[i]++;
+            else if (t === 'AN' || t === 'EN')
+                levels[i] += 2;
+        }
+        else if (t === 'L' || t === 'AN' || t === 'EN') {
+            levels[i]++;
+        }
+    }
+    return levels;
+}
+function computeSegmentLevels(normalized, segStarts) {
+    const bidiLevels = computeBidiLevels(normalized);
+    if (bidiLevels === null)
+        return null;
+    const segLevels = new Int8Array(segStarts.length);
+    for (let i = 0; i < segStarts.length; i++) {
+        segLevels[i] = bidiLevels[segStarts[i]];
+    }
+    return segLevels;
+}
+
+const collapsibleWhitespaceRunRe = /[ \t\n\r\f]+/g;
+const needsWhitespaceNormalizationRe = /[\t\n\r\f]| {2,}|^ | $/;
+function getWhiteSpaceProfile(whiteSpace) {
+    const mode = whiteSpace ?? 'normal';
+    return mode === 'pre-wrap'
+        ? { mode, preserveOrdinarySpaces: true, preserveHardBreaks: true }
+        : { mode, preserveOrdinarySpaces: false, preserveHardBreaks: false };
+}
+function normalizeWhitespaceNormal(text) {
+    if (!needsWhitespaceNormalizationRe.test(text))
+        return text;
+    let normalized = text.replace(collapsibleWhitespaceRunRe, ' ');
+    if (normalized.charCodeAt(0) === 0x20) {
+        normalized = normalized.slice(1);
+    }
+    if (normalized.length > 0 && normalized.charCodeAt(normalized.length - 1) === 0x20) {
+        normalized = normalized.slice(0, -1);
+    }
+    return normalized;
+}
+function normalizeWhitespacePreWrap(text) {
+    if (!/[\r\f]/.test(text))
+        return text.replace(/\r\n/g, '\n');
+    return text
+        .replace(/\r\n/g, '\n')
+        .replace(/[\r\f]/g, '\n');
+}
+let sharedWordSegmenter = null;
+let segmenterLocale;
+function getSharedWordSegmenter() {
+    if (sharedWordSegmenter === null) {
+        sharedWordSegmenter = new Intl.Segmenter(segmenterLocale, { granularity: 'word' });
+    }
+    return sharedWordSegmenter;
+}
+const arabicScriptRe = /\p{Script=Arabic}/u;
+const combiningMarkRe = /\p{M}/u;
+const decimalDigitRe = /\p{Nd}/u;
+function containsArabicScript(text) {
+    return arabicScriptRe.test(text);
+}
+function isCJK(s) {
+    for (const ch of s) {
+        const c = ch.codePointAt(0);
+        if ((c >= 0x4E00 && c <= 0x9FFF) ||
+            (c >= 0x3400 && c <= 0x4DBF) ||
+            (c >= 0x20000 && c <= 0x2A6DF) ||
+            (c >= 0x2A700 && c <= 0x2B73F) ||
+            (c >= 0x2B740 && c <= 0x2B81F) ||
+            (c >= 0x2B820 && c <= 0x2CEAF) ||
+            (c >= 0x2CEB0 && c <= 0x2EBEF) ||
+            (c >= 0x30000 && c <= 0x3134F) ||
+            (c >= 0xF900 && c <= 0xFAFF) ||
+            (c >= 0x2F800 && c <= 0x2FA1F) ||
+            (c >= 0x3000 && c <= 0x303F) ||
+            (c >= 0x3040 && c <= 0x309F) ||
+            (c >= 0x30A0 && c <= 0x30FF) ||
+            (c >= 0xAC00 && c <= 0xD7AF) ||
+            (c >= 0xFF00 && c <= 0xFFEF)) {
+            return true;
+        }
+    }
+    return false;
+}
+const kinsokuStart = new Set([
+    '\uFF0C',
+    '\uFF0E',
+    '\uFF01',
+    '\uFF1A',
+    '\uFF1B',
+    '\uFF1F',
+    '\u3001',
+    '\u3002',
+    '\u30FB',
+    '\uFF09',
+    '\u3015',
+    '\u3009',
+    '\u300B',
+    '\u300D',
+    '\u300F',
+    '\u3011',
+    '\u3017',
+    '\u3019',
+    '\u301B',
+    '\u30FC',
+    '\u3005',
+    '\u303B',
+    '\u309D',
+    '\u309E',
+    '\u30FD',
+    '\u30FE',
+]);
+const kinsokuEnd = new Set([
+    '"',
+    '(', '[', '{',
+    '“', '‘', '«', '‹',
+    '\uFF08',
+    '\u3014',
+    '\u3008',
+    '\u300A',
+    '\u300C',
+    '\u300E',
+    '\u3010',
+    '\u3016',
+    '\u3018',
+    '\u301A',
+]);
+const forwardStickyGlue = new Set([
+    "'", '’',
+]);
+const leftStickyPunctuation = new Set([
+    '.', ',', '!', '?', ':', ';',
+    '\u060C',
+    '\u061B',
+    '\u061F',
+    '\u0964',
+    '\u0965',
+    '\u104A',
+    '\u104B',
+    '\u104C',
+    '\u104D',
+    '\u104F',
+    ')', ']', '}',
+    '%',
+    '"',
+    '”', '’', '»', '›',
+    '…',
+]);
+const arabicNoSpaceTrailingPunctuation = new Set([
+    ':',
+    '.',
+    '\u060C',
+    '\u061B',
+]);
+const myanmarMedialGlue = new Set([
+    '\u104F',
+]);
+const closingQuoteChars = new Set([
+    '”', '’', '»', '›',
+    '\u300D',
+    '\u300F',
+    '\u3011',
+    '\u300B',
+    '\u3009',
+    '\u3015',
+    '\uFF09',
+]);
+function isLeftStickyPunctuationSegment(segment) {
+    if (isEscapedQuoteClusterSegment(segment))
+        return true;
+    let sawPunctuation = false;
+    for (const ch of segment) {
+        if (leftStickyPunctuation.has(ch)) {
+            sawPunctuation = true;
+            continue;
+        }
+        if (sawPunctuation && combiningMarkRe.test(ch))
+            continue;
+        return false;
+    }
+    return sawPunctuation;
+}
+function isCJKLineStartProhibitedSegment(segment) {
+    for (const ch of segment) {
+        if (!kinsokuStart.has(ch) && !leftStickyPunctuation.has(ch))
+            return false;
+    }
+    return segment.length > 0;
+}
+function isForwardStickyClusterSegment(segment) {
+    if (isEscapedQuoteClusterSegment(segment))
+        return true;
+    for (const ch of segment) {
+        if (!kinsokuEnd.has(ch) && !forwardStickyGlue.has(ch) && !combiningMarkRe.test(ch))
+            return false;
+    }
+    return segment.length > 0;
+}
+function isEscapedQuoteClusterSegment(segment) {
+    let sawQuote = false;
+    for (const ch of segment) {
+        if (ch === '\\' || combiningMarkRe.test(ch))
+            continue;
+        if (kinsokuEnd.has(ch) || leftStickyPunctuation.has(ch) || forwardStickyGlue.has(ch)) {
+            sawQuote = true;
+            continue;
+        }
+        return false;
+    }
+    return sawQuote;
+}
+function splitTrailingForwardStickyCluster(text) {
+    const chars = Array.from(text);
+    let splitIndex = chars.length;
+    while (splitIndex > 0) {
+        const ch = chars[splitIndex - 1];
+        if (combiningMarkRe.test(ch)) {
+            splitIndex--;
+            continue;
+        }
+        if (kinsokuEnd.has(ch) || forwardStickyGlue.has(ch)) {
+            splitIndex--;
+            continue;
+        }
+        break;
+    }
+    if (splitIndex <= 0 || splitIndex === chars.length)
+        return null;
+    return {
+        head: chars.slice(0, splitIndex).join(''),
+        tail: chars.slice(splitIndex).join(''),
+    };
+}
+function isRepeatedSingleCharRun(segment, ch) {
+    if (segment.length === 0)
+        return false;
+    for (const part of segment) {
+        if (part !== ch)
+            return false;
+    }
+    return true;
+}
+function endsWithArabicNoSpacePunctuation(segment) {
+    if (!containsArabicScript(segment) || segment.length === 0)
+        return false;
+    return arabicNoSpaceTrailingPunctuation.has(segment[segment.length - 1]);
+}
+function endsWithMyanmarMedialGlue(segment) {
+    if (segment.length === 0)
+        return false;
+    return myanmarMedialGlue.has(segment[segment.length - 1]);
+}
+function splitLeadingSpaceAndMarks(segment) {
+    if (segment.length < 2 || segment[0] !== ' ')
+        return null;
+    const marks = segment.slice(1);
+    if (/^\p{M}+$/u.test(marks)) {
+        return { space: ' ', marks };
+    }
+    return null;
+}
+function endsWithClosingQuote(text) {
+    for (let i = text.length - 1; i >= 0; i--) {
+        const ch = text[i];
+        if (closingQuoteChars.has(ch))
+            return true;
+        if (!leftStickyPunctuation.has(ch))
+            return false;
+    }
+    return false;
+}
+function classifySegmentBreakChar(ch, whiteSpaceProfile) {
+    if (whiteSpaceProfile.preserveOrdinarySpaces || whiteSpaceProfile.preserveHardBreaks) {
+        if (ch === ' ')
+            return 'preserved-space';
+        if (ch === '\t')
+            return 'tab';
+        if (whiteSpaceProfile.preserveHardBreaks && ch === '\n')
+            return 'hard-break';
+    }
+    if (ch === ' ')
+        return 'space';
+    if (ch === '\u00A0' || ch === '\u202F' || ch === '\u2060' || ch === '\uFEFF') {
+        return 'glue';
+    }
+    if (ch === '\u200B')
+        return 'zero-width-break';
+    if (ch === '\u00AD')
+        return 'soft-hyphen';
+    return 'text';
+}
+function joinTextParts(parts) {
+    return parts.length === 1 ? parts[0] : parts.join('');
+}
+function splitSegmentByBreakKind(segment, isWordLike, start, whiteSpaceProfile) {
+    const pieces = [];
+    let currentKind = null;
+    let currentTextParts = [];
+    let currentStart = start;
+    let currentWordLike = false;
+    let offset = 0;
+    for (const ch of segment) {
+        const kind = classifySegmentBreakChar(ch, whiteSpaceProfile);
+        const wordLike = kind === 'text' && isWordLike;
+        if (currentKind !== null && kind === currentKind && wordLike === currentWordLike) {
+            currentTextParts.push(ch);
+            offset += ch.length;
+            continue;
+        }
+        if (currentKind !== null) {
+            pieces.push({
+                text: joinTextParts(currentTextParts),
+                isWordLike: currentWordLike,
+                kind: currentKind,
+                start: currentStart,
+            });
+        }
+        currentKind = kind;
+        currentTextParts = [ch];
+        currentStart = start + offset;
+        currentWordLike = wordLike;
+        offset += ch.length;
+    }
+    if (currentKind !== null) {
+        pieces.push({
+            text: joinTextParts(currentTextParts),
+            isWordLike: currentWordLike,
+            kind: currentKind,
+            start: currentStart,
+        });
+    }
+    return pieces;
+}
+function isTextRunBoundary(kind) {
+    return (kind === 'space' ||
+        kind === 'preserved-space' ||
+        kind === 'zero-width-break' ||
+        kind === 'hard-break');
+}
+const urlSchemeSegmentRe = /^[A-Za-z][A-Za-z0-9+.-]*:$/;
+function isUrlLikeRunStart(segmentation, index) {
+    const text = segmentation.texts[index];
+    if (text.startsWith('www.'))
+        return true;
+    return (urlSchemeSegmentRe.test(text) &&
+        index + 1 < segmentation.len &&
+        segmentation.kinds[index + 1] === 'text' &&
+        segmentation.texts[index + 1] === '//');
+}
+function isUrlQueryBoundarySegment(text) {
+    return text.includes('?') && (text.includes('://') || text.startsWith('www.'));
+}
+function mergeUrlLikeRuns(segmentation) {
+    const texts = segmentation.texts.slice();
+    const isWordLike = segmentation.isWordLike.slice();
+    const kinds = segmentation.kinds.slice();
+    const starts = segmentation.starts.slice();
+    for (let i = 0; i < segmentation.len; i++) {
+        if (kinds[i] !== 'text' || !isUrlLikeRunStart(segmentation, i))
+            continue;
+        const mergedParts = [texts[i]];
+        let j = i + 1;
+        while (j < segmentation.len && !isTextRunBoundary(kinds[j])) {
+            mergedParts.push(texts[j]);
+            isWordLike[i] = true;
+            const endsQueryPrefix = texts[j].includes('?');
+            kinds[j] = 'text';
+            texts[j] = '';
+            j++;
+            if (endsQueryPrefix)
+                break;
+        }
+        texts[i] = joinTextParts(mergedParts);
+    }
+    let compactLen = 0;
+    for (let read = 0; read < texts.length; read++) {
+        const text = texts[read];
+        if (text.length === 0)
+            continue;
+        if (compactLen !== read) {
+            texts[compactLen] = text;
+            isWordLike[compactLen] = isWordLike[read];
+            kinds[compactLen] = kinds[read];
+            starts[compactLen] = starts[read];
+        }
+        compactLen++;
+    }
+    texts.length = compactLen;
+    isWordLike.length = compactLen;
+    kinds.length = compactLen;
+    starts.length = compactLen;
+    return {
+        len: compactLen,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function mergeUrlQueryRuns(segmentation) {
+    const texts = [];
+    const isWordLike = [];
+    const kinds = [];
+    const starts = [];
+    for (let i = 0; i < segmentation.len; i++) {
+        const text = segmentation.texts[i];
+        texts.push(text);
+        isWordLike.push(segmentation.isWordLike[i]);
+        kinds.push(segmentation.kinds[i]);
+        starts.push(segmentation.starts[i]);
+        if (!isUrlQueryBoundarySegment(text))
+            continue;
+        const nextIndex = i + 1;
+        if (nextIndex >= segmentation.len ||
+            isTextRunBoundary(segmentation.kinds[nextIndex])) {
+            continue;
+        }
+        const queryParts = [];
+        const queryStart = segmentation.starts[nextIndex];
+        let j = nextIndex;
+        while (j < segmentation.len && !isTextRunBoundary(segmentation.kinds[j])) {
+            queryParts.push(segmentation.texts[j]);
+            j++;
+        }
+        if (queryParts.length > 0) {
+            texts.push(joinTextParts(queryParts));
+            isWordLike.push(true);
+            kinds.push('text');
+            starts.push(queryStart);
+            i = j - 1;
+        }
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+const numericJoinerChars = new Set([
+    ':', '-', '/', '×', ',', '.', '+',
+    '\u2013',
+    '\u2014',
+]);
+const asciiPunctuationChainSegmentRe = /^[A-Za-z0-9_]+[,:;]*$/;
+const asciiPunctuationChainTrailingJoinersRe = /[,:;]+$/;
+function segmentContainsDecimalDigit(text) {
+    for (const ch of text) {
+        if (decimalDigitRe.test(ch))
+            return true;
+    }
+    return false;
+}
+function isNumericRunSegment(text) {
+    if (text.length === 0)
+        return false;
+    for (const ch of text) {
+        if (decimalDigitRe.test(ch) || numericJoinerChars.has(ch))
+            continue;
+        return false;
+    }
+    return true;
+}
+function mergeNumericRuns(segmentation) {
+    const texts = [];
+    const isWordLike = [];
+    const kinds = [];
+    const starts = [];
+    for (let i = 0; i < segmentation.len; i++) {
+        const text = segmentation.texts[i];
+        const kind = segmentation.kinds[i];
+        if (kind === 'text' && isNumericRunSegment(text) && segmentContainsDecimalDigit(text)) {
+            const mergedParts = [text];
+            let j = i + 1;
+            while (j < segmentation.len &&
+                segmentation.kinds[j] === 'text' &&
+                isNumericRunSegment(segmentation.texts[j])) {
+                mergedParts.push(segmentation.texts[j]);
+                j++;
+            }
+            texts.push(joinTextParts(mergedParts));
+            isWordLike.push(true);
+            kinds.push('text');
+            starts.push(segmentation.starts[i]);
+            i = j - 1;
+            continue;
+        }
+        texts.push(text);
+        isWordLike.push(segmentation.isWordLike[i]);
+        kinds.push(kind);
+        starts.push(segmentation.starts[i]);
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function mergeAsciiPunctuationChains(segmentation) {
+    const texts = [];
+    const isWordLike = [];
+    const kinds = [];
+    const starts = [];
+    for (let i = 0; i < segmentation.len; i++) {
+        const text = segmentation.texts[i];
+        const kind = segmentation.kinds[i];
+        const wordLike = segmentation.isWordLike[i];
+        if (kind === 'text' && wordLike && asciiPunctuationChainSegmentRe.test(text)) {
+            const mergedParts = [text];
+            let endsWithJoiners = asciiPunctuationChainTrailingJoinersRe.test(text);
+            let j = i + 1;
+            while (endsWithJoiners &&
+                j < segmentation.len &&
+                segmentation.kinds[j] === 'text' &&
+                segmentation.isWordLike[j] &&
+                asciiPunctuationChainSegmentRe.test(segmentation.texts[j])) {
+                const nextText = segmentation.texts[j];
+                mergedParts.push(nextText);
+                endsWithJoiners = asciiPunctuationChainTrailingJoinersRe.test(nextText);
+                j++;
+            }
+            texts.push(joinTextParts(mergedParts));
+            isWordLike.push(true);
+            kinds.push('text');
+            starts.push(segmentation.starts[i]);
+            i = j - 1;
+            continue;
+        }
+        texts.push(text);
+        isWordLike.push(wordLike);
+        kinds.push(kind);
+        starts.push(segmentation.starts[i]);
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function splitHyphenatedNumericRuns(segmentation) {
+    const texts = [];
+    const isWordLike = [];
+    const kinds = [];
+    const starts = [];
+    for (let i = 0; i < segmentation.len; i++) {
+        const text = segmentation.texts[i];
+        if (segmentation.kinds[i] === 'text' && text.includes('-')) {
+            const parts = text.split('-');
+            let shouldSplit = parts.length > 1;
+            for (let j = 0; j < parts.length; j++) {
+                const part = parts[j];
+                if (!shouldSplit)
+                    break;
+                if (part.length === 0 ||
+                    !segmentContainsDecimalDigit(part) ||
+                    !isNumericRunSegment(part)) {
+                    shouldSplit = false;
+                }
+            }
+            if (shouldSplit) {
+                let offset = 0;
+                for (let j = 0; j < parts.length; j++) {
+                    const part = parts[j];
+                    const splitText = j < parts.length - 1 ? `${part}-` : part;
+                    texts.push(splitText);
+                    isWordLike.push(true);
+                    kinds.push('text');
+                    starts.push(segmentation.starts[i] + offset);
+                    offset += splitText.length;
+                }
+                continue;
+            }
+        }
+        texts.push(text);
+        isWordLike.push(segmentation.isWordLike[i]);
+        kinds.push(segmentation.kinds[i]);
+        starts.push(segmentation.starts[i]);
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function mergeGlueConnectedTextRuns(segmentation) {
+    const texts = [];
+    const isWordLike = [];
+    const kinds = [];
+    const starts = [];
+    let read = 0;
+    while (read < segmentation.len) {
+        const textParts = [segmentation.texts[read]];
+        let wordLike = segmentation.isWordLike[read];
+        let kind = segmentation.kinds[read];
+        let start = segmentation.starts[read];
+        if (kind === 'glue') {
+            const glueParts = [textParts[0]];
+            const glueStart = start;
+            read++;
+            while (read < segmentation.len && segmentation.kinds[read] === 'glue') {
+                glueParts.push(segmentation.texts[read]);
+                read++;
+            }
+            const glueText = joinTextParts(glueParts);
+            if (read < segmentation.len && segmentation.kinds[read] === 'text') {
+                textParts[0] = glueText;
+                textParts.push(segmentation.texts[read]);
+                wordLike = segmentation.isWordLike[read];
+                kind = 'text';
+                start = glueStart;
+                read++;
+            }
+            else {
+                texts.push(glueText);
+                isWordLike.push(false);
+                kinds.push('glue');
+                starts.push(glueStart);
+                continue;
+            }
+        }
+        else {
+            read++;
+        }
+        if (kind === 'text') {
+            while (read < segmentation.len && segmentation.kinds[read] === 'glue') {
+                const glueParts = [];
+                while (read < segmentation.len && segmentation.kinds[read] === 'glue') {
+                    glueParts.push(segmentation.texts[read]);
+                    read++;
+                }
+                const glueText = joinTextParts(glueParts);
+                if (read < segmentation.len && segmentation.kinds[read] === 'text') {
+                    textParts.push(glueText, segmentation.texts[read]);
+                    wordLike = wordLike || segmentation.isWordLike[read];
+                    read++;
+                    continue;
+                }
+                textParts.push(glueText);
+            }
+        }
+        texts.push(joinTextParts(textParts));
+        isWordLike.push(wordLike);
+        kinds.push(kind);
+        starts.push(start);
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function carryTrailingForwardStickyAcrossCJKBoundary(segmentation) {
+    const texts = segmentation.texts.slice();
+    const isWordLike = segmentation.isWordLike.slice();
+    const kinds = segmentation.kinds.slice();
+    const starts = segmentation.starts.slice();
+    for (let i = 0; i < texts.length - 1; i++) {
+        if (kinds[i] !== 'text' || kinds[i + 1] !== 'text')
+            continue;
+        if (!isCJK(texts[i]) || !isCJK(texts[i + 1]))
+            continue;
+        const split = splitTrailingForwardStickyCluster(texts[i]);
+        if (split === null)
+            continue;
+        texts[i] = split.head;
+        texts[i + 1] = split.tail + texts[i + 1];
+        starts[i + 1] = starts[i] + split.head.length;
+    }
+    return {
+        len: texts.length,
+        texts,
+        isWordLike,
+        kinds,
+        starts,
+    };
+}
+function buildMergedSegmentation(normalized, profile, whiteSpaceProfile) {
+    const wordSegmenter = getSharedWordSegmenter();
+    let mergedLen = 0;
+    const mergedTexts = [];
+    const mergedWordLike = [];
+    const mergedKinds = [];
+    const mergedStarts = [];
+    for (const s of wordSegmenter.segment(normalized)) {
+        for (const piece of splitSegmentByBreakKind(s.segment, s.isWordLike ?? false, s.index, whiteSpaceProfile)) {
+            const isText = piece.kind === 'text';
+            if (profile.carryCJKAfterClosingQuote &&
+                isText &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                isCJK(piece.text) &&
+                isCJK(mergedTexts[mergedLen - 1]) &&
+                endsWithClosingQuote(mergedTexts[mergedLen - 1])) {
+                mergedTexts[mergedLen - 1] += piece.text;
+                mergedWordLike[mergedLen - 1] = mergedWordLike[mergedLen - 1] || piece.isWordLike;
+            }
+            else if (isText &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                isCJKLineStartProhibitedSegment(piece.text) &&
+                isCJK(mergedTexts[mergedLen - 1])) {
+                mergedTexts[mergedLen - 1] += piece.text;
+                mergedWordLike[mergedLen - 1] = mergedWordLike[mergedLen - 1] || piece.isWordLike;
+            }
+            else if (isText &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                endsWithMyanmarMedialGlue(mergedTexts[mergedLen - 1])) {
+                mergedTexts[mergedLen - 1] += piece.text;
+                mergedWordLike[mergedLen - 1] = mergedWordLike[mergedLen - 1] || piece.isWordLike;
+            }
+            else if (isText &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                piece.isWordLike &&
+                containsArabicScript(piece.text) &&
+                endsWithArabicNoSpacePunctuation(mergedTexts[mergedLen - 1])) {
+                mergedTexts[mergedLen - 1] += piece.text;
+                mergedWordLike[mergedLen - 1] = true;
+            }
+            else if (isText &&
+                !piece.isWordLike &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                piece.text.length === 1 &&
+                piece.text !== '-' &&
+                piece.text !== '—' &&
+                isRepeatedSingleCharRun(mergedTexts[mergedLen - 1], piece.text)) {
+                mergedTexts[mergedLen - 1] += piece.text;
+            }
+            else if (isText &&
+                !piece.isWordLike &&
+                mergedLen > 0 &&
+                mergedKinds[mergedLen - 1] === 'text' &&
+                (isLeftStickyPunctuationSegment(piece.text) ||
+                    (piece.text === '-' && mergedWordLike[mergedLen - 1]))) {
+                mergedTexts[mergedLen - 1] += piece.text;
+            }
+            else {
+                mergedTexts[mergedLen] = piece.text;
+                mergedWordLike[mergedLen] = piece.isWordLike;
+                mergedKinds[mergedLen] = piece.kind;
+                mergedStarts[mergedLen] = piece.start;
+                mergedLen++;
+            }
+        }
+    }
+    for (let i = 1; i < mergedLen; i++) {
+        if (mergedKinds[i] === 'text' &&
+            !mergedWordLike[i] &&
+            isEscapedQuoteClusterSegment(mergedTexts[i]) &&
+            mergedKinds[i - 1] === 'text') {
+            mergedTexts[i - 1] += mergedTexts[i];
+            mergedWordLike[i - 1] = mergedWordLike[i - 1] || mergedWordLike[i];
+            mergedTexts[i] = '';
+        }
+    }
+    for (let i = mergedLen - 2; i >= 0; i--) {
+        if (mergedKinds[i] === 'text' && !mergedWordLike[i] && isForwardStickyClusterSegment(mergedTexts[i])) {
+            let j = i + 1;
+            while (j < mergedLen && mergedTexts[j] === '')
+                j++;
+            if (j < mergedLen && mergedKinds[j] === 'text') {
+                mergedTexts[j] = mergedTexts[i] + mergedTexts[j];
+                mergedStarts[j] = mergedStarts[i];
+                mergedTexts[i] = '';
+            }
+        }
+    }
+    let compactLen = 0;
+    for (let read = 0; read < mergedLen; read++) {
+        const text = mergedTexts[read];
+        if (text.length === 0)
+            continue;
+        if (compactLen !== read) {
+            mergedTexts[compactLen] = text;
+            mergedWordLike[compactLen] = mergedWordLike[read];
+            mergedKinds[compactLen] = mergedKinds[read];
+            mergedStarts[compactLen] = mergedStarts[read];
+        }
+        compactLen++;
+    }
+    mergedTexts.length = compactLen;
+    mergedWordLike.length = compactLen;
+    mergedKinds.length = compactLen;
+    mergedStarts.length = compactLen;
+    const compacted = mergeGlueConnectedTextRuns({
+        len: compactLen,
+        texts: mergedTexts,
+        isWordLike: mergedWordLike,
+        kinds: mergedKinds,
+        starts: mergedStarts,
+    });
+    const withMergedUrls = carryTrailingForwardStickyAcrossCJKBoundary(mergeAsciiPunctuationChains(splitHyphenatedNumericRuns(mergeNumericRuns(mergeUrlQueryRuns(mergeUrlLikeRuns(compacted))))));
+    for (let i = 0; i < withMergedUrls.len - 1; i++) {
+        const split = splitLeadingSpaceAndMarks(withMergedUrls.texts[i]);
+        if (split === null)
+            continue;
+        if ((withMergedUrls.kinds[i] !== 'space' && withMergedUrls.kinds[i] !== 'preserved-space') ||
+            withMergedUrls.kinds[i + 1] !== 'text' ||
+            !containsArabicScript(withMergedUrls.texts[i + 1])) {
+            continue;
+        }
+        withMergedUrls.texts[i] = split.space;
+        withMergedUrls.isWordLike[i] = false;
+        withMergedUrls.kinds[i] = withMergedUrls.kinds[i] === 'preserved-space' ? 'preserved-space' : 'space';
+        withMergedUrls.texts[i + 1] = split.marks + withMergedUrls.texts[i + 1];
+        withMergedUrls.starts[i + 1] = withMergedUrls.starts[i] + split.space.length;
+    }
+    return withMergedUrls;
+}
+function compileAnalysisChunks(segmentation, whiteSpaceProfile) {
+    if (segmentation.len === 0)
+        return [];
+    if (!whiteSpaceProfile.preserveHardBreaks) {
+        return [{
+                startSegmentIndex: 0,
+                endSegmentIndex: segmentation.len,
+                consumedEndSegmentIndex: segmentation.len,
+            }];
+    }
+    const chunks = [];
+    let startSegmentIndex = 0;
+    for (let i = 0; i < segmentation.len; i++) {
+        if (segmentation.kinds[i] !== 'hard-break')
+            continue;
+        chunks.push({
+            startSegmentIndex,
+            endSegmentIndex: i,
+            consumedEndSegmentIndex: i + 1,
+        });
+        startSegmentIndex = i + 1;
+    }
+    if (startSegmentIndex < segmentation.len) {
+        chunks.push({
+            startSegmentIndex,
+            endSegmentIndex: segmentation.len,
+            consumedEndSegmentIndex: segmentation.len,
+        });
+    }
+    return chunks;
+}
+function analyzeText(text, profile, whiteSpace = 'normal') {
+    const whiteSpaceProfile = getWhiteSpaceProfile(whiteSpace);
+    const normalized = whiteSpaceProfile.mode === 'pre-wrap'
+        ? normalizeWhitespacePreWrap(text)
+        : normalizeWhitespaceNormal(text);
+    if (normalized.length === 0) {
+        return {
+            normalized,
+            chunks: [],
+            len: 0,
+            texts: [],
+            isWordLike: [],
+            kinds: [],
+            starts: [],
+        };
+    }
+    const segmentation = buildMergedSegmentation(normalized, profile, whiteSpaceProfile);
+    return {
+        normalized,
+        chunks: compileAnalysisChunks(segmentation, whiteSpaceProfile),
+        ...segmentation,
+    };
+}
+
+let measureContext = null;
+const segmentMetricCaches = new Map();
+let cachedEngineProfile = null;
+const emojiPresentationRe = /\p{Emoji_Presentation}/u;
+const maybeEmojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/u;
+let sharedGraphemeSegmenter$1 = null;
+const emojiCorrectionCache = new Map();
+function getMeasureContext() {
+    if (measureContext !== null)
+        return measureContext;
+    if (typeof OffscreenCanvas !== 'undefined') {
+        measureContext = new OffscreenCanvas(1, 1).getContext('2d');
+        return measureContext;
+    }
+    if (typeof document !== 'undefined') {
+        measureContext = document.createElement('canvas').getContext('2d');
+        return measureContext;
+    }
+    throw new Error('Text measurement requires OffscreenCanvas or a DOM canvas context.');
+}
+function getSegmentMetricCache(font) {
+    let cache = segmentMetricCaches.get(font);
+    if (!cache) {
+        cache = new Map();
+        segmentMetricCaches.set(font, cache);
+    }
+    return cache;
+}
+function getSegmentMetrics(seg, cache) {
+    let metrics = cache.get(seg);
+    if (metrics === undefined) {
+        const ctx = getMeasureContext();
+        metrics = {
+            width: ctx.measureText(seg).width,
+            containsCJK: isCJK(seg),
+        };
+        cache.set(seg, metrics);
+    }
+    return metrics;
+}
+function getEngineProfile() {
+    if (cachedEngineProfile !== null)
+        return cachedEngineProfile;
+    if (typeof navigator === 'undefined') {
+        cachedEngineProfile = {
+            lineFitEpsilon: 0.005,
+            carryCJKAfterClosingQuote: false,
+            preferPrefixWidthsForBreakableRuns: false,
+            preferEarlySoftHyphenBreak: false,
+        };
+        return cachedEngineProfile;
+    }
+    const ua = navigator.userAgent;
+    const vendor = navigator.vendor;
+    const isSafari = vendor === 'Apple Computer, Inc.' &&
+        ua.includes('Safari/') &&
+        !ua.includes('Chrome/') &&
+        !ua.includes('Chromium/') &&
+        !ua.includes('CriOS/') &&
+        !ua.includes('FxiOS/') &&
+        !ua.includes('EdgiOS/');
+    const isChromium = ua.includes('Chrome/') ||
+        ua.includes('Chromium/') ||
+        ua.includes('CriOS/') ||
+        ua.includes('Edg/');
+    cachedEngineProfile = {
+        lineFitEpsilon: isSafari ? 1 / 64 : 0.005,
+        carryCJKAfterClosingQuote: isChromium,
+        preferPrefixWidthsForBreakableRuns: isSafari,
+        preferEarlySoftHyphenBreak: isSafari,
+    };
+    return cachedEngineProfile;
+}
+function parseFontSize(font) {
+    const m = font.match(/(\d+(?:\.\d+)?)\s*px/);
+    return m ? parseFloat(m[1]) : 16;
+}
+function getSharedGraphemeSegmenter$1() {
+    if (sharedGraphemeSegmenter$1 === null) {
+        sharedGraphemeSegmenter$1 = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+    }
+    return sharedGraphemeSegmenter$1;
+}
+function isEmojiGrapheme(g) {
+    return emojiPresentationRe.test(g) || g.includes('\uFE0F');
+}
+function textMayContainEmoji(text) {
+    return maybeEmojiRe.test(text);
+}
+function getEmojiCorrection(font, fontSize) {
+    let correction = emojiCorrectionCache.get(font);
+    if (correction !== undefined)
+        return correction;
+    const ctx = getMeasureContext();
+    ctx.font = font;
+    const canvasW = ctx.measureText('\u{1F600}').width;
+    correction = 0;
+    if (canvasW > fontSize + 0.5 &&
+        typeof document !== 'undefined' &&
+        document.body !== null) {
+        const span = document.createElement('span');
+        span.style.font = font;
+        span.style.display = 'inline-block';
+        span.style.visibility = 'hidden';
+        span.style.position = 'absolute';
+        span.textContent = '\u{1F600}';
+        document.body.appendChild(span);
+        const domW = span.getBoundingClientRect().width;
+        document.body.removeChild(span);
+        if (canvasW - domW > 0.5) {
+            correction = canvasW - domW;
+        }
+    }
+    emojiCorrectionCache.set(font, correction);
+    return correction;
+}
+function countEmojiGraphemes(text) {
+    let count = 0;
+    const graphemeSegmenter = getSharedGraphemeSegmenter$1();
+    for (const g of graphemeSegmenter.segment(text)) {
+        if (isEmojiGrapheme(g.segment))
+            count++;
+    }
+    return count;
+}
+function getEmojiCount(seg, metrics) {
+    if (metrics.emojiCount === undefined) {
+        metrics.emojiCount = countEmojiGraphemes(seg);
+    }
+    return metrics.emojiCount;
+}
+function getCorrectedSegmentWidth(seg, metrics, emojiCorrection) {
+    if (emojiCorrection === 0)
+        return metrics.width;
+    return metrics.width - getEmojiCount(seg, metrics) * emojiCorrection;
+}
+function getSegmentGraphemeWidths(seg, metrics, cache, emojiCorrection) {
+    if (metrics.graphemeWidths !== undefined)
+        return metrics.graphemeWidths;
+    const widths = [];
+    const graphemeSegmenter = getSharedGraphemeSegmenter$1();
+    for (const gs of graphemeSegmenter.segment(seg)) {
+        const graphemeMetrics = getSegmentMetrics(gs.segment, cache);
+        widths.push(getCorrectedSegmentWidth(gs.segment, graphemeMetrics, emojiCorrection));
+    }
+    metrics.graphemeWidths = widths.length > 1 ? widths : null;
+    return metrics.graphemeWidths;
+}
+function getSegmentGraphemePrefixWidths(seg, metrics, cache, emojiCorrection) {
+    if (metrics.graphemePrefixWidths !== undefined)
+        return metrics.graphemePrefixWidths;
+    const prefixWidths = [];
+    const graphemeSegmenter = getSharedGraphemeSegmenter$1();
+    let prefix = '';
+    for (const gs of graphemeSegmenter.segment(seg)) {
+        prefix += gs.segment;
+        const prefixMetrics = getSegmentMetrics(prefix, cache);
+        prefixWidths.push(getCorrectedSegmentWidth(prefix, prefixMetrics, emojiCorrection));
+    }
+    metrics.graphemePrefixWidths = prefixWidths.length > 1 ? prefixWidths : null;
+    return metrics.graphemePrefixWidths;
+}
+function getFontMeasurementState(font, needsEmojiCorrection) {
+    const ctx = getMeasureContext();
+    ctx.font = font;
+    const cache = getSegmentMetricCache(font);
+    const fontSize = parseFontSize(font);
+    const emojiCorrection = needsEmojiCorrection ? getEmojiCorrection(font, fontSize) : 0;
+    return { cache, fontSize, emojiCorrection };
+}
+
+function canBreakAfter(kind) {
+    return (kind === 'space' ||
+        kind === 'preserved-space' ||
+        kind === 'tab' ||
+        kind === 'zero-width-break' ||
+        kind === 'soft-hyphen');
+}
+function normalizeSimpleLineStartSegmentIndex(prepared, segmentIndex) {
+    while (segmentIndex < prepared.widths.length) {
+        const kind = prepared.kinds[segmentIndex];
+        if (kind !== 'space' && kind !== 'zero-width-break' && kind !== 'soft-hyphen')
+            break;
+        segmentIndex++;
+    }
+    return segmentIndex;
+}
+function getTabAdvance(lineWidth, tabStopAdvance) {
+    if (tabStopAdvance <= 0)
+        return 0;
+    const remainder = lineWidth % tabStopAdvance;
+    if (Math.abs(remainder) <= 1e-6)
+        return tabStopAdvance;
+    return tabStopAdvance - remainder;
+}
+function getBreakableAdvance(graphemeWidths, graphemePrefixWidths, graphemeIndex, preferPrefixWidths) {
+    if (!preferPrefixWidths || graphemePrefixWidths === null) {
+        return graphemeWidths[graphemeIndex];
+    }
+    return graphemePrefixWidths[graphemeIndex] - (graphemeIndex > 0 ? graphemePrefixWidths[graphemeIndex - 1] : 0);
+}
+function fitSoftHyphenBreak(graphemeWidths, initialWidth, maxWidth, lineFitEpsilon, discretionaryHyphenWidth, cumulativeWidths) {
+    let fitCount = 0;
+    let fittedWidth = initialWidth;
+    while (fitCount < graphemeWidths.length) {
+        const nextWidth = cumulativeWidths
+            ? initialWidth + graphemeWidths[fitCount]
+            : fittedWidth + graphemeWidths[fitCount];
+        const nextLineWidth = fitCount + 1 < graphemeWidths.length
+            ? nextWidth + discretionaryHyphenWidth
+            : nextWidth;
+        if (nextLineWidth > maxWidth + lineFitEpsilon)
+            break;
+        fittedWidth = nextWidth;
+        fitCount++;
+    }
+    return { fitCount, fittedWidth };
+}
+function walkPreparedLinesSimple(prepared, maxWidth, onLine) {
+    const { widths, kinds, breakableWidths, breakablePrefixWidths } = prepared;
+    if (widths.length === 0)
+        return 0;
+    const engineProfile = getEngineProfile();
+    const lineFitEpsilon = engineProfile.lineFitEpsilon;
+    let lineCount = 0;
+    let lineW = 0;
+    let hasContent = false;
+    let lineStartSegmentIndex = 0;
+    let lineStartGraphemeIndex = 0;
+    let lineEndSegmentIndex = 0;
+    let lineEndGraphemeIndex = 0;
+    let pendingBreakSegmentIndex = -1;
+    let pendingBreakPaintWidth = 0;
+    function clearPendingBreak() {
+        pendingBreakSegmentIndex = -1;
+        pendingBreakPaintWidth = 0;
+    }
+    function emitCurrentLine(endSegmentIndex = lineEndSegmentIndex, endGraphemeIndex = lineEndGraphemeIndex, width = lineW) {
+        lineCount++;
+        onLine?.({
+            startSegmentIndex: lineStartSegmentIndex,
+            startGraphemeIndex: lineStartGraphemeIndex,
+            endSegmentIndex,
+            endGraphemeIndex,
+            width,
+        });
+        lineW = 0;
+        hasContent = false;
+        clearPendingBreak();
+    }
+    function startLineAtSegment(segmentIndex, width) {
+        hasContent = true;
+        lineStartSegmentIndex = segmentIndex;
+        lineStartGraphemeIndex = 0;
+        lineEndSegmentIndex = segmentIndex + 1;
+        lineEndGraphemeIndex = 0;
+        lineW = width;
+    }
+    function startLineAtGrapheme(segmentIndex, graphemeIndex, width) {
+        hasContent = true;
+        lineStartSegmentIndex = segmentIndex;
+        lineStartGraphemeIndex = graphemeIndex;
+        lineEndSegmentIndex = segmentIndex;
+        lineEndGraphemeIndex = graphemeIndex + 1;
+        lineW = width;
+    }
+    function appendWholeSegment(segmentIndex, width) {
+        if (!hasContent) {
+            startLineAtSegment(segmentIndex, width);
+            return;
+        }
+        lineW += width;
+        lineEndSegmentIndex = segmentIndex + 1;
+        lineEndGraphemeIndex = 0;
+    }
+    function updatePendingBreak(segmentIndex, segmentWidth) {
+        if (!canBreakAfter(kinds[segmentIndex]))
+            return;
+        pendingBreakSegmentIndex = segmentIndex + 1;
+        pendingBreakPaintWidth = lineW - segmentWidth;
+    }
+    function appendBreakableSegment(segmentIndex) {
+        appendBreakableSegmentFrom(segmentIndex, 0);
+    }
+    function appendBreakableSegmentFrom(segmentIndex, startGraphemeIndex) {
+        const gWidths = breakableWidths[segmentIndex];
+        const gPrefixWidths = breakablePrefixWidths[segmentIndex] ?? null;
+        for (let g = startGraphemeIndex; g < gWidths.length; g++) {
+            const gw = getBreakableAdvance(gWidths, gPrefixWidths, g, engineProfile.preferPrefixWidthsForBreakableRuns);
+            if (!hasContent) {
+                startLineAtGrapheme(segmentIndex, g, gw);
+                continue;
+            }
+            if (lineW + gw > maxWidth + lineFitEpsilon) {
+                emitCurrentLine();
+                startLineAtGrapheme(segmentIndex, g, gw);
+            }
+            else {
+                lineW += gw;
+                lineEndSegmentIndex = segmentIndex;
+                lineEndGraphemeIndex = g + 1;
+            }
+        }
+        if (hasContent && lineEndSegmentIndex === segmentIndex && lineEndGraphemeIndex === gWidths.length) {
+            lineEndSegmentIndex = segmentIndex + 1;
+            lineEndGraphemeIndex = 0;
+        }
+    }
+    let i = 0;
+    while (i < widths.length) {
+        if (!hasContent) {
+            i = normalizeSimpleLineStartSegmentIndex(prepared, i);
+            if (i >= widths.length)
+                break;
+        }
+        const w = widths[i];
+        const kind = kinds[i];
+        if (!hasContent) {
+            if (w > maxWidth && breakableWidths[i] !== null) {
+                appendBreakableSegment(i);
+            }
+            else {
+                startLineAtSegment(i, w);
+            }
+            updatePendingBreak(i, w);
+            i++;
+            continue;
+        }
+        const newW = lineW + w;
+        if (newW > maxWidth + lineFitEpsilon) {
+            if (canBreakAfter(kind)) {
+                appendWholeSegment(i, w);
+                emitCurrentLine(i + 1, 0, lineW - w);
+                i++;
+                continue;
+            }
+            if (pendingBreakSegmentIndex >= 0) {
+                if (lineEndSegmentIndex > pendingBreakSegmentIndex ||
+                    (lineEndSegmentIndex === pendingBreakSegmentIndex && lineEndGraphemeIndex > 0)) {
+                    emitCurrentLine();
+                    continue;
+                }
+                emitCurrentLine(pendingBreakSegmentIndex, 0, pendingBreakPaintWidth);
+                continue;
+            }
+            if (w > maxWidth && breakableWidths[i] !== null) {
+                emitCurrentLine();
+                appendBreakableSegment(i);
+                i++;
+                continue;
+            }
+            emitCurrentLine();
+            continue;
+        }
+        appendWholeSegment(i, w);
+        updatePendingBreak(i, w);
+        i++;
+    }
+    if (hasContent)
+        emitCurrentLine();
+    return lineCount;
+}
+function walkPreparedLines(prepared, maxWidth, onLine) {
+    if (prepared.simpleLineWalkFastPath) {
+        return walkPreparedLinesSimple(prepared, maxWidth, onLine);
+    }
+    const { widths, lineEndFitAdvances, lineEndPaintAdvances, kinds, breakableWidths, breakablePrefixWidths, discretionaryHyphenWidth, tabStopAdvance, chunks, } = prepared;
+    if (widths.length === 0 || chunks.length === 0)
+        return 0;
+    const engineProfile = getEngineProfile();
+    const lineFitEpsilon = engineProfile.lineFitEpsilon;
+    let lineCount = 0;
+    let lineW = 0;
+    let hasContent = false;
+    let lineStartSegmentIndex = 0;
+    let lineStartGraphemeIndex = 0;
+    let lineEndSegmentIndex = 0;
+    let lineEndGraphemeIndex = 0;
+    let pendingBreakSegmentIndex = -1;
+    let pendingBreakFitWidth = 0;
+    let pendingBreakPaintWidth = 0;
+    let pendingBreakKind = null;
+    function clearPendingBreak() {
+        pendingBreakSegmentIndex = -1;
+        pendingBreakFitWidth = 0;
+        pendingBreakPaintWidth = 0;
+        pendingBreakKind = null;
+    }
+    function emitCurrentLine(endSegmentIndex = lineEndSegmentIndex, endGraphemeIndex = lineEndGraphemeIndex, width = lineW) {
+        lineCount++;
+        onLine?.({
+            startSegmentIndex: lineStartSegmentIndex,
+            startGraphemeIndex: lineStartGraphemeIndex,
+            endSegmentIndex,
+            endGraphemeIndex,
+            width,
+        });
+        lineW = 0;
+        hasContent = false;
+        clearPendingBreak();
+    }
+    function startLineAtSegment(segmentIndex, width) {
+        hasContent = true;
+        lineStartSegmentIndex = segmentIndex;
+        lineStartGraphemeIndex = 0;
+        lineEndSegmentIndex = segmentIndex + 1;
+        lineEndGraphemeIndex = 0;
+        lineW = width;
+    }
+    function startLineAtGrapheme(segmentIndex, graphemeIndex, width) {
+        hasContent = true;
+        lineStartSegmentIndex = segmentIndex;
+        lineStartGraphemeIndex = graphemeIndex;
+        lineEndSegmentIndex = segmentIndex;
+        lineEndGraphemeIndex = graphemeIndex + 1;
+        lineW = width;
+    }
+    function appendWholeSegment(segmentIndex, width) {
+        if (!hasContent) {
+            startLineAtSegment(segmentIndex, width);
+            return;
+        }
+        lineW += width;
+        lineEndSegmentIndex = segmentIndex + 1;
+        lineEndGraphemeIndex = 0;
+    }
+    function updatePendingBreakForWholeSegment(segmentIndex, segmentWidth) {
+        if (!canBreakAfter(kinds[segmentIndex]))
+            return;
+        const fitAdvance = kinds[segmentIndex] === 'tab' ? 0 : lineEndFitAdvances[segmentIndex];
+        const paintAdvance = kinds[segmentIndex] === 'tab' ? segmentWidth : lineEndPaintAdvances[segmentIndex];
+        pendingBreakSegmentIndex = segmentIndex + 1;
+        pendingBreakFitWidth = lineW - segmentWidth + fitAdvance;
+        pendingBreakPaintWidth = lineW - segmentWidth + paintAdvance;
+        pendingBreakKind = kinds[segmentIndex];
+    }
+    function appendBreakableSegment(segmentIndex) {
+        appendBreakableSegmentFrom(segmentIndex, 0);
+    }
+    function appendBreakableSegmentFrom(segmentIndex, startGraphemeIndex) {
+        const gWidths = breakableWidths[segmentIndex];
+        const gPrefixWidths = breakablePrefixWidths[segmentIndex] ?? null;
+        for (let g = startGraphemeIndex; g < gWidths.length; g++) {
+            const gw = getBreakableAdvance(gWidths, gPrefixWidths, g, engineProfile.preferPrefixWidthsForBreakableRuns);
+            if (!hasContent) {
+                startLineAtGrapheme(segmentIndex, g, gw);
+                continue;
+            }
+            if (lineW + gw > maxWidth + lineFitEpsilon) {
+                emitCurrentLine();
+                startLineAtGrapheme(segmentIndex, g, gw);
+            }
+            else {
+                lineW += gw;
+                lineEndSegmentIndex = segmentIndex;
+                lineEndGraphemeIndex = g + 1;
+            }
+        }
+        if (hasContent && lineEndSegmentIndex === segmentIndex && lineEndGraphemeIndex === gWidths.length) {
+            lineEndSegmentIndex = segmentIndex + 1;
+            lineEndGraphemeIndex = 0;
+        }
+    }
+    function continueSoftHyphenBreakableSegment(segmentIndex) {
+        if (pendingBreakKind !== 'soft-hyphen')
+            return false;
+        const gWidths = breakableWidths[segmentIndex];
+        if (gWidths === null)
+            return false;
+        const fitWidths = engineProfile.preferPrefixWidthsForBreakableRuns
+            ? breakablePrefixWidths[segmentIndex] ?? gWidths
+            : gWidths;
+        const usesPrefixWidths = fitWidths !== gWidths;
+        const { fitCount, fittedWidth } = fitSoftHyphenBreak(fitWidths, lineW, maxWidth, lineFitEpsilon, discretionaryHyphenWidth, usesPrefixWidths);
+        if (fitCount === 0)
+            return false;
+        lineW = fittedWidth;
+        lineEndSegmentIndex = segmentIndex;
+        lineEndGraphemeIndex = fitCount;
+        clearPendingBreak();
+        if (fitCount === gWidths.length) {
+            lineEndSegmentIndex = segmentIndex + 1;
+            lineEndGraphemeIndex = 0;
+            return true;
+        }
+        emitCurrentLine(segmentIndex, fitCount, fittedWidth + discretionaryHyphenWidth);
+        appendBreakableSegmentFrom(segmentIndex, fitCount);
+        return true;
+    }
+    function emitEmptyChunk(chunk) {
+        lineCount++;
+        onLine?.({
+            startSegmentIndex: chunk.startSegmentIndex,
+            startGraphemeIndex: 0,
+            endSegmentIndex: chunk.consumedEndSegmentIndex,
+            endGraphemeIndex: 0,
+            width: 0,
+        });
+        clearPendingBreak();
+    }
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        const chunk = chunks[chunkIndex];
+        if (chunk.startSegmentIndex === chunk.endSegmentIndex) {
+            emitEmptyChunk(chunk);
+            continue;
+        }
+        hasContent = false;
+        lineW = 0;
+        lineStartSegmentIndex = chunk.startSegmentIndex;
+        lineStartGraphemeIndex = 0;
+        lineEndSegmentIndex = chunk.startSegmentIndex;
+        lineEndGraphemeIndex = 0;
+        clearPendingBreak();
+        let i = chunk.startSegmentIndex;
+        while (i < chunk.endSegmentIndex) {
+            const kind = kinds[i];
+            const w = kind === 'tab' ? getTabAdvance(lineW, tabStopAdvance) : widths[i];
+            if (kind === 'soft-hyphen') {
+                if (hasContent) {
+                    lineEndSegmentIndex = i + 1;
+                    lineEndGraphemeIndex = 0;
+                    pendingBreakSegmentIndex = i + 1;
+                    pendingBreakFitWidth = lineW + discretionaryHyphenWidth;
+                    pendingBreakPaintWidth = lineW + discretionaryHyphenWidth;
+                    pendingBreakKind = kind;
+                }
+                i++;
+                continue;
+            }
+            if (!hasContent) {
+                if (w > maxWidth && breakableWidths[i] !== null) {
+                    appendBreakableSegment(i);
+                }
+                else {
+                    startLineAtSegment(i, w);
+                }
+                updatePendingBreakForWholeSegment(i, w);
+                i++;
+                continue;
+            }
+            const newW = lineW + w;
+            if (newW > maxWidth + lineFitEpsilon) {
+                const currentBreakFitWidth = lineW + (kind === 'tab' ? 0 : lineEndFitAdvances[i]);
+                const currentBreakPaintWidth = lineW + (kind === 'tab' ? w : lineEndPaintAdvances[i]);
+                if (pendingBreakKind === 'soft-hyphen' &&
+                    engineProfile.preferEarlySoftHyphenBreak &&
+                    pendingBreakFitWidth <= maxWidth + lineFitEpsilon) {
+                    emitCurrentLine(pendingBreakSegmentIndex, 0, pendingBreakPaintWidth);
+                    continue;
+                }
+                if (pendingBreakKind === 'soft-hyphen' && continueSoftHyphenBreakableSegment(i)) {
+                    i++;
+                    continue;
+                }
+                if (canBreakAfter(kind) && currentBreakFitWidth <= maxWidth + lineFitEpsilon) {
+                    appendWholeSegment(i, w);
+                    emitCurrentLine(i + 1, 0, currentBreakPaintWidth);
+                    i++;
+                    continue;
+                }
+                if (pendingBreakSegmentIndex >= 0 && pendingBreakFitWidth <= maxWidth + lineFitEpsilon) {
+                    if (lineEndSegmentIndex > pendingBreakSegmentIndex ||
+                        (lineEndSegmentIndex === pendingBreakSegmentIndex && lineEndGraphemeIndex > 0)) {
+                        emitCurrentLine();
+                        continue;
+                    }
+                    const nextSegmentIndex = pendingBreakSegmentIndex;
+                    emitCurrentLine(nextSegmentIndex, 0, pendingBreakPaintWidth);
+                    i = nextSegmentIndex;
+                    continue;
+                }
+                if (w > maxWidth && breakableWidths[i] !== null) {
+                    emitCurrentLine();
+                    appendBreakableSegment(i);
+                    i++;
+                    continue;
+                }
+                emitCurrentLine();
+                continue;
+            }
+            appendWholeSegment(i, w);
+            updatePendingBreakForWholeSegment(i, w);
+            i++;
+        }
+        if (hasContent) {
+            const finalPaintWidth = pendingBreakSegmentIndex === chunk.consumedEndSegmentIndex
+                ? pendingBreakPaintWidth
+                : lineW;
+            emitCurrentLine(chunk.consumedEndSegmentIndex, 0, finalPaintWidth);
+        }
+    }
+    return lineCount;
+}
+
+// Text measurement for browser environments using canvas measureText.
+//
+// Problem: DOM-based text measurement (getBoundingClientRect, offsetHeight)
+// forces synchronous layout reflow. When components independently measure text,
+// each measurement triggers a reflow of the entire document. This creates
+// read/write interleaving that can cost 30ms+ per frame for 500 text blocks.
+//
+// Solution: two-phase measurement centered around canvas measureText.
+//   prepare(text, font) — segments text via Intl.Segmenter, measures each word
+//     via canvas, caches widths, and does one cached DOM calibration read per
+//     font when emoji correction is needed. Call once when text first appears.
+//   layout(prepared, maxWidth, lineHeight) — walks cached word widths with pure
+//     arithmetic to count lines and compute height. Call on every resize.
+//     ~0.0002ms per text.
+//
+// i18n: Intl.Segmenter handles CJK (per-character breaking), Thai, Arabic, etc.
+//   Bidi: simplified rich-path metadata for mixed LTR/RTL custom rendering.
+//   Punctuation merging: "better." measured as one unit (matches CSS behavior).
+//   Trailing whitespace: hangs past line edge without triggering breaks (CSS behavior).
+//   overflow-wrap: pre-measured grapheme widths enable character-level word breaking.
+//
+// Emoji correction: Chrome/Firefox canvas measures emoji wider than DOM at font
+//   sizes <24px on macOS (Apple Color Emoji). The inflation is constant per emoji
+//   grapheme at a given size, font-independent. Auto-detected by comparing canvas
+//   vs actual DOM emoji width (one cached DOM read per font). Safari canvas and
+//   DOM agree (both wider than fontSize), so correction = 0 there.
+//
+// Limitations:
+//   - system-ui font: canvas resolves to different optical variants than DOM on macOS.
+//     Use named fonts (Helvetica, Inter, etc.) for guaranteed accuracy.
+//     See RESEARCH.md "Discovery: system-ui font resolution mismatch".
+//
+// Based on Sebastian Markbage's text-layout research (github.com/chenglou/text-layout).
+let sharedGraphemeSegmenter = null;
+// Rich-path only. Reuses grapheme splits while materializing multiple lines
+// from the same prepared handle, without pushing that cache into the API.
+let sharedLineTextCaches = new WeakMap();
+function getSharedGraphemeSegmenter() {
+    if (sharedGraphemeSegmenter === null) {
+        sharedGraphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+    }
+    return sharedGraphemeSegmenter;
+}
+// --- Public API ---
+function createEmptyPrepared(includeSegments) {
+    {
+        return {
+            widths: [],
+            lineEndFitAdvances: [],
+            lineEndPaintAdvances: [],
+            kinds: [],
+            simpleLineWalkFastPath: true,
+            segLevels: null,
+            breakableWidths: [],
+            breakablePrefixWidths: [],
+            discretionaryHyphenWidth: 0,
+            tabStopAdvance: 0,
+            chunks: [],
+            segments: [],
+        };
+    }
+}
+function measureAnalysis(analysis, font, includeSegments) {
+    const graphemeSegmenter = getSharedGraphemeSegmenter();
+    const engineProfile = getEngineProfile();
+    const { cache, emojiCorrection } = getFontMeasurementState(font, textMayContainEmoji(analysis.normalized));
+    const discretionaryHyphenWidth = getCorrectedSegmentWidth('-', getSegmentMetrics('-', cache), emojiCorrection);
+    const spaceWidth = getCorrectedSegmentWidth(' ', getSegmentMetrics(' ', cache), emojiCorrection);
+    const tabStopAdvance = spaceWidth * 8;
+    if (analysis.len === 0)
+        return createEmptyPrepared();
+    const widths = [];
+    const lineEndFitAdvances = [];
+    const lineEndPaintAdvances = [];
+    const kinds = [];
+    let simpleLineWalkFastPath = analysis.chunks.length <= 1;
+    const segStarts = [] ;
+    const breakableWidths = [];
+    const breakablePrefixWidths = [];
+    const segments = includeSegments ? [] : null;
+    const preparedStartByAnalysisIndex = Array.from({ length: analysis.len });
+    const preparedEndByAnalysisIndex = Array.from({ length: analysis.len });
+    function pushMeasuredSegment(text, width, lineEndFitAdvance, lineEndPaintAdvance, kind, start, breakable, breakablePrefix) {
+        if (kind !== 'text' && kind !== 'space' && kind !== 'zero-width-break') {
+            simpleLineWalkFastPath = false;
+        }
+        widths.push(width);
+        lineEndFitAdvances.push(lineEndFitAdvance);
+        lineEndPaintAdvances.push(lineEndPaintAdvance);
+        kinds.push(kind);
+        segStarts?.push(start);
+        breakableWidths.push(breakable);
+        breakablePrefixWidths.push(breakablePrefix);
+        if (segments !== null)
+            segments.push(text);
+    }
+    for (let mi = 0; mi < analysis.len; mi++) {
+        preparedStartByAnalysisIndex[mi] = widths.length;
+        const segText = analysis.texts[mi];
+        const segWordLike = analysis.isWordLike[mi];
+        const segKind = analysis.kinds[mi];
+        const segStart = analysis.starts[mi];
+        if (segKind === 'soft-hyphen') {
+            pushMeasuredSegment(segText, 0, discretionaryHyphenWidth, discretionaryHyphenWidth, segKind, segStart, null, null);
+            preparedEndByAnalysisIndex[mi] = widths.length;
+            continue;
+        }
+        if (segKind === 'hard-break') {
+            pushMeasuredSegment(segText, 0, 0, 0, segKind, segStart, null, null);
+            preparedEndByAnalysisIndex[mi] = widths.length;
+            continue;
+        }
+        if (segKind === 'tab') {
+            pushMeasuredSegment(segText, 0, 0, 0, segKind, segStart, null, null);
+            preparedEndByAnalysisIndex[mi] = widths.length;
+            continue;
+        }
+        const segMetrics = getSegmentMetrics(segText, cache);
+        if (segKind === 'text' && segMetrics.containsCJK) {
+            let unitText = '';
+            let unitStart = 0;
+            for (const gs of graphemeSegmenter.segment(segText)) {
+                const grapheme = gs.segment;
+                if (unitText.length === 0) {
+                    unitText = grapheme;
+                    unitStart = gs.index;
+                    continue;
+                }
+                if (kinsokuEnd.has(unitText) ||
+                    kinsokuStart.has(grapheme) ||
+                    leftStickyPunctuation.has(grapheme) ||
+                    (engineProfile.carryCJKAfterClosingQuote &&
+                        isCJK(grapheme) &&
+                        endsWithClosingQuote(unitText))) {
+                    unitText += grapheme;
+                    continue;
+                }
+                const unitMetrics = getSegmentMetrics(unitText, cache);
+                const w = getCorrectedSegmentWidth(unitText, unitMetrics, emojiCorrection);
+                pushMeasuredSegment(unitText, w, w, w, 'text', segStart + unitStart, null, null);
+                unitText = grapheme;
+                unitStart = gs.index;
+            }
+            if (unitText.length > 0) {
+                const unitMetrics = getSegmentMetrics(unitText, cache);
+                const w = getCorrectedSegmentWidth(unitText, unitMetrics, emojiCorrection);
+                pushMeasuredSegment(unitText, w, w, w, 'text', segStart + unitStart, null, null);
+            }
+            preparedEndByAnalysisIndex[mi] = widths.length;
+            continue;
+        }
+        const w = getCorrectedSegmentWidth(segText, segMetrics, emojiCorrection);
+        const lineEndFitAdvance = segKind === 'space' || segKind === 'preserved-space' || segKind === 'zero-width-break'
+            ? 0
+            : w;
+        const lineEndPaintAdvance = segKind === 'space' || segKind === 'zero-width-break'
+            ? 0
+            : w;
+        if (segWordLike && segText.length > 1) {
+            const graphemeWidths = getSegmentGraphemeWidths(segText, segMetrics, cache, emojiCorrection);
+            const graphemePrefixWidths = engineProfile.preferPrefixWidthsForBreakableRuns
+                ? getSegmentGraphemePrefixWidths(segText, segMetrics, cache, emojiCorrection)
+                : null;
+            pushMeasuredSegment(segText, w, lineEndFitAdvance, lineEndPaintAdvance, segKind, segStart, graphemeWidths, graphemePrefixWidths);
+        }
+        else {
+            pushMeasuredSegment(segText, w, lineEndFitAdvance, lineEndPaintAdvance, segKind, segStart, null, null);
+        }
+        preparedEndByAnalysisIndex[mi] = widths.length;
+    }
+    const chunks = mapAnalysisChunksToPreparedChunks(analysis.chunks, preparedStartByAnalysisIndex, preparedEndByAnalysisIndex);
+    const segLevels = segStarts === null ? null : computeSegmentLevels(analysis.normalized, segStarts);
+    if (segments !== null) {
+        return {
+            widths,
+            lineEndFitAdvances,
+            lineEndPaintAdvances,
+            kinds,
+            simpleLineWalkFastPath,
+            segLevels,
+            breakableWidths,
+            breakablePrefixWidths,
+            discretionaryHyphenWidth,
+            tabStopAdvance,
+            chunks,
+            segments,
+        };
+    }
+    return {
+        widths,
+        lineEndFitAdvances,
+        lineEndPaintAdvances,
+        kinds,
+        simpleLineWalkFastPath,
+        segLevels,
+        breakableWidths,
+        breakablePrefixWidths,
+        discretionaryHyphenWidth,
+        tabStopAdvance,
+        chunks,
+    };
+}
+function mapAnalysisChunksToPreparedChunks(chunks, preparedStartByAnalysisIndex, preparedEndByAnalysisIndex) {
+    const preparedChunks = [];
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const startSegmentIndex = chunk.startSegmentIndex < preparedStartByAnalysisIndex.length
+            ? preparedStartByAnalysisIndex[chunk.startSegmentIndex]
+            : preparedEndByAnalysisIndex[preparedEndByAnalysisIndex.length - 1] ?? 0;
+        const endSegmentIndex = chunk.endSegmentIndex < preparedStartByAnalysisIndex.length
+            ? preparedStartByAnalysisIndex[chunk.endSegmentIndex]
+            : preparedEndByAnalysisIndex[preparedEndByAnalysisIndex.length - 1] ?? 0;
+        const consumedEndSegmentIndex = chunk.consumedEndSegmentIndex < preparedStartByAnalysisIndex.length
+            ? preparedStartByAnalysisIndex[chunk.consumedEndSegmentIndex]
+            : preparedEndByAnalysisIndex[preparedEndByAnalysisIndex.length - 1] ?? 0;
+        preparedChunks.push({
+            startSegmentIndex,
+            endSegmentIndex,
+            consumedEndSegmentIndex,
+        });
+    }
+    return preparedChunks;
+}
+function prepareInternal(text, font, includeSegments, options) {
+    const analysis = analyzeText(text, getEngineProfile(), options?.whiteSpace);
+    return measureAnalysis(analysis, font, includeSegments);
+}
+// Rich variant used by callers that need enough information to render the
+// laid-out lines themselves.
+function prepareWithSegments(text, font, options) {
+    return prepareInternal(text, font, true, options);
+}
+function getInternalPrepared(prepared) {
+    return prepared;
+}
+function getSegmentGraphemes(segmentIndex, segments, cache) {
+    let graphemes = cache.get(segmentIndex);
+    if (graphemes !== undefined)
+        return graphemes;
+    graphemes = [];
+    const graphemeSegmenter = getSharedGraphemeSegmenter();
+    for (const gs of graphemeSegmenter.segment(segments[segmentIndex])) {
+        graphemes.push(gs.segment);
+    }
+    cache.set(segmentIndex, graphemes);
+    return graphemes;
+}
+function getLineTextCache(prepared) {
+    let cache = sharedLineTextCaches.get(prepared);
+    if (cache !== undefined)
+        return cache;
+    cache = new Map();
+    sharedLineTextCaches.set(prepared, cache);
+    return cache;
+}
+function lineHasDiscretionaryHyphen(kinds, startSegmentIndex, startGraphemeIndex, endSegmentIndex) {
+    return (endSegmentIndex > 0 &&
+        kinds[endSegmentIndex - 1] === 'soft-hyphen' &&
+        !(startSegmentIndex === endSegmentIndex && startGraphemeIndex > 0));
+}
+function buildLineTextFromRange(segments, kinds, cache, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) {
+    let text = '';
+    const endsWithDiscretionaryHyphen = lineHasDiscretionaryHyphen(kinds, startSegmentIndex, startGraphemeIndex, endSegmentIndex);
+    for (let i = startSegmentIndex; i < endSegmentIndex; i++) {
+        if (kinds[i] === 'soft-hyphen' || kinds[i] === 'hard-break')
+            continue;
+        if (i === startSegmentIndex && startGraphemeIndex > 0) {
+            text += getSegmentGraphemes(i, segments, cache).slice(startGraphemeIndex).join('');
+        }
+        else {
+            text += segments[i];
+        }
+    }
+    if (endGraphemeIndex > 0) {
+        if (endsWithDiscretionaryHyphen)
+            text += '-';
+        text += getSegmentGraphemes(endSegmentIndex, segments, cache).slice(startSegmentIndex === endSegmentIndex ? startGraphemeIndex : 0, endGraphemeIndex).join('');
+    }
+    else if (endsWithDiscretionaryHyphen) {
+        text += '-';
+    }
+    return text;
+}
+function createLayoutLine(prepared, cache, width, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex) {
+    return {
+        text: buildLineTextFromRange(prepared.segments, prepared.kinds, cache, startSegmentIndex, startGraphemeIndex, endSegmentIndex, endGraphemeIndex),
+        width,
+        start: {
+            segmentIndex: startSegmentIndex,
+            graphemeIndex: startGraphemeIndex,
+        },
+        end: {
+            segmentIndex: endSegmentIndex,
+            graphemeIndex: endGraphemeIndex,
+        },
+    };
+}
+function materializeLayoutLine(prepared, cache, line) {
+    return createLayoutLine(prepared, cache, line.width, line.startSegmentIndex, line.startGraphemeIndex, line.endSegmentIndex, line.endGraphemeIndex);
+}
+function toLayoutLineRange(line) {
+    return {
+        width: line.width,
+        start: {
+            segmentIndex: line.startSegmentIndex,
+            graphemeIndex: line.startGraphemeIndex,
+        },
+        end: {
+            segmentIndex: line.endSegmentIndex,
+            graphemeIndex: line.endGraphemeIndex,
+        },
+    };
+}
+// Batch low-level line geometry pass. This is the non-materializing counterpart
+// to layoutWithLines(), useful for shrinkwrap and other aggregate geometry work.
+function walkLineRanges(prepared, maxWidth, onLine) {
+    if (prepared.widths.length === 0)
+        return 0;
+    return walkPreparedLines(getInternalPrepared(prepared), maxWidth, line => {
+        onLine(toLayoutLineRange(line));
+    });
+}
+// Rich layout API for callers that want the actual line contents and widths.
+// Caller still supplies lineHeight at layout time. Mirrors layout()'s break
+// decisions, but keeps extra per-line bookkeeping so it should stay off the
+// resize hot path.
+function layoutWithLines(prepared, maxWidth, lineHeight) {
+    const lines = [];
+    if (prepared.widths.length === 0)
+        return { lineCount: 0, height: 0, lines };
+    const graphemeCache = getLineTextCache(prepared);
+    const lineCount = walkPreparedLines(getInternalPrepared(prepared), maxWidth, line => {
+        lines.push(materializeLayoutLine(prepared, graphemeCache, line));
+    });
+    return { lineCount, height: lineCount * lineHeight, lines };
+}
+
+// ============================================================
+// sketchmark — Text Measurement (pretext-powered)
+//
+// Standalone module with no dependency on layout or renderer,
+// safe to import from any layer without circular deps.
+// ============================================================
+/** Build a CSS font shorthand from fontSize, fontWeight and fontFamily */
+function buildFontStr(fontSize, fontWeight, fontFamily) {
+    return `${fontWeight} ${fontSize}px ${fontFamily}`;
+}
+/** Measure the natural (unwrapped) width of text using pretext */
+function measureTextWidth(text, font) {
+    const prepared = prepareWithSegments(text, font);
+    let maxW = 0;
+    walkLineRanges(prepared, 1e6, line => { if (line.width > maxW)
+        maxW = line.width; });
+    return maxW;
+}
+/** Word-wrap text using pretext, with fallback to character approximation */
+function wrapText(text, maxWidth, fontSize, font) {
+    if (font) {
+        try {
+            const prepared = prepareWithSegments(text, font);
+            const lineHeight = fontSize * 1.5;
+            const { lines } = layoutWithLines(prepared, maxWidth, lineHeight);
+            return lines.length ? lines.map(l => l.text) : [text];
+        }
+        catch (_) {
+            // fall through to approximation
+        }
+    }
+    // Fallback: character-width approximation
+    const charWidth = fontSize * 0.55;
+    const maxChars = Math.floor(maxWidth / charWidth);
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (test.length > maxChars && current) {
+            lines.push(current);
+            current = word;
+        }
+        else {
+            current = test;
+        }
+    }
+    if (current)
+        lines.push(current);
+    return lines.length ? lines : [text];
+}
+
+// ============================================================
+// sketchmark — Font Registry
+// ============================================================
+// built-in named fonts — user can reference these by short name
+const BUILTIN_FONTS = {
+    // hand-drawn
+    caveat: {
+        family: "'Caveat', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&display=swap',
+    },
+    handlee: {
+        family: "'Handlee', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Handlee&display=swap',
+    },
+    'indie-flower': {
+        family: "'Indie Flower', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap',
+    },
+    'patrick-hand': {
+        family: "'Patrick Hand', cursive",
+        url: 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap',
+    },
+    // clean / readable
+    'dm-mono': {
+        family: "'DM Mono', monospace",
+        url: 'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap',
+    },
+    'jetbrains': {
+        family: "'JetBrains Mono', monospace",
+        url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap',
+    },
+    'instrument': {
+        family: "'Instrument Serif', serif",
+        url: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap',
+    },
+    'playfair': {
+        family: "'Playfair Display', serif",
+        url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap',
+    },
+    // system fallbacks (no URL needed)
+    system: { family: 'system-ui, sans-serif' },
+    mono: { family: "'Courier New', monospace" },
+    serif: { family: 'Georgia, serif' },
+};
+// default — what renders when no font is specified
+const DEFAULT_FONT = 'system-ui, sans-serif';
+// resolve a short name or pass-through a quoted CSS family
+function resolveFont(nameOrFamily) {
+    const key = nameOrFamily.toLowerCase().trim();
+    if (BUILTIN_FONTS[key])
+        return BUILTIN_FONTS[key].family;
+    return nameOrFamily; // treat as raw CSS font-family
+}
+// inject a <link> into <head> for a built-in font (browser only)
+function loadFont(name) {
+    if (typeof document === 'undefined')
+        return;
+    const key = name.toLowerCase().trim();
+    const def = BUILTIN_FONTS[key];
+    if (!def?.url || def.loaded)
+        return;
+    if (document.querySelector(`link[data-sketchmark-font="${key}"]`))
+        return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = def.url;
+    link.setAttribute('data-sketchmark-font', key);
+    document.head.appendChild(link);
+    def.loaded = true;
+}
+// user registers their own font (already loaded via CSS/link)
+function registerFont(name, family, url) {
+    BUILTIN_FONTS[name.toLowerCase()] = { family, url };
+    if (url)
+        loadFont(name);
+}
 
 // ============================================================
 // sketchmark — Markdown inline parser
@@ -1448,6 +3544,20 @@ function calcMarkdownHeight(lines, pad = MARKDOWN.defaultPad) {
     for (const line of lines)
         h += LINE_SPACING[line.kind];
     return h;
+}
+// ── Calculate natural width of a parsed block using pretext ──
+function calcMarkdownWidth(lines, fontFamily = DEFAULT_FONT, pad = MARKDOWN.defaultPad) {
+    let maxW = 0;
+    for (const line of lines) {
+        if (line.kind === 'blank')
+            continue;
+        const text = line.runs.map(r => r.text).join('');
+        const font = buildFontStr(LINE_FONT_SIZE[line.kind], LINE_FONT_WEIGHT[line.kind], fontFamily);
+        const w = measureTextWidth(text, font);
+        if (w > maxW)
+            maxW = w;
+    }
+    return Math.ceil(maxW) + pad * 2;
 }
 
 // ============================================================
@@ -1642,8 +3752,20 @@ function getShape(name) {
 
 const boxShape = {
     size(n, labelW) {
-        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-        n.h = n.h || 52;
+        const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.w = w;
+        if (!n.h) {
+            // If label overflows width, estimate extra height for wrapped lines
+            if (labelW > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lineH = fontSize * 1.5;
+                const lines = Math.ceil(labelW / (w - 16)); // 16px inner padding
+                n.h = Math.max(52, lines * lineH + 20);
+            }
+            else {
+                n.h = 52;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
@@ -1656,7 +3778,18 @@ const boxShape = {
 const circleShape = {
     size(n, labelW) {
         n.w = n.w || Math.max(84, Math.min(MAX_W, labelW));
-        n.h = n.h || n.w;
+        if (!n.h) {
+            if (labelW > n.w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lineH = fontSize * 1.5;
+                const innerW = n.w * 0.65;
+                const lines = Math.ceil(labelW / innerW);
+                n.h = Math.max(n.w, lines * lineH + 30);
+            }
+            else {
+                n.h = n.w;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
@@ -1671,7 +3804,19 @@ const circleShape = {
 const diamondShape = {
     size(n, labelW) {
         n.w = n.w || Math.max(SHAPES.diamond.minW, Math.min(MAX_W, labelW + SHAPES.diamond.labelPad));
-        n.h = n.h || Math.max(SHAPES.diamond.minH, n.w * SHAPES.diamond.aspect);
+        if (!n.h) {
+            const baseH = Math.max(SHAPES.diamond.minH, n.w * SHAPES.diamond.aspect);
+            const innerW = n.w * 0.45;
+            if (labelW > innerW) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lineH = fontSize * 1.5;
+                const lines = Math.ceil(labelW / innerW);
+                n.h = Math.max(baseH, lines * lineH + 30);
+            }
+            else {
+                n.h = baseH;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
@@ -1688,7 +3833,19 @@ const diamondShape = {
 const hexagonShape = {
     size(n, labelW) {
         n.w = n.w || Math.max(SHAPES.hexagon.minW, Math.min(MAX_W, labelW + SHAPES.hexagon.labelPad));
-        n.h = n.h || Math.max(SHAPES.hexagon.minH, n.w * SHAPES.hexagon.aspect);
+        if (!n.h) {
+            const baseH = Math.max(SHAPES.hexagon.minH, n.w * SHAPES.hexagon.aspect);
+            const innerW = n.w * 0.55;
+            if (labelW > innerW) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lineH = fontSize * 1.5;
+                const lines = Math.ceil(labelW / innerW);
+                n.h = Math.max(baseH, lines * lineH + 20);
+            }
+            else {
+                n.h = baseH;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
@@ -1713,7 +3870,19 @@ const hexagonShape = {
 const triangleShape = {
     size(n, labelW) {
         n.w = n.w || Math.max(SHAPES.triangle.minW, Math.min(MAX_W, labelW + SHAPES.triangle.labelPad));
-        n.h = n.h || Math.max(SHAPES.triangle.minH, n.w * SHAPES.triangle.aspect);
+        if (!n.h) {
+            const baseH = Math.max(SHAPES.triangle.minH, n.w * SHAPES.triangle.aspect);
+            const innerW = n.w * 0.40;
+            if (labelW > innerW) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lineH = fontSize * 1.5;
+                const lines = Math.ceil(labelW / innerW);
+                n.h = Math.max(baseH, lines * lineH + 30);
+            }
+            else {
+                n.h = baseH;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const cx = n.x + n.w / 2;
@@ -1735,8 +3904,18 @@ const triangleShape = {
 
 const cylinderShape = {
     size(n, labelW) {
-        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-        n.h = n.h || SHAPES.cylinder.defaultH;
+        const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.w = w;
+        if (!n.h) {
+            if (labelW > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lines = Math.ceil(labelW / (w - 16));
+                n.h = Math.max(SHAPES.cylinder.defaultH, lines * fontSize * 1.5 + 20);
+            }
+            else {
+                n.h = SHAPES.cylinder.defaultH;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const cx = n.x + n.w / 2;
@@ -1758,8 +3937,18 @@ const cylinderShape = {
 
 const parallelogramShape = {
     size(n, labelW) {
-        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + SHAPES.parallelogram.labelPad));
-        n.h = n.h || SHAPES.parallelogram.defaultH;
+        const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW + SHAPES.parallelogram.labelPad));
+        n.w = w;
+        if (!n.h) {
+            if (labelW + SHAPES.parallelogram.labelPad > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lines = Math.ceil(labelW / (w - SHAPES.parallelogram.labelPad));
+                n.h = Math.max(SHAPES.parallelogram.defaultH, lines * fontSize * 1.5 + 20);
+            }
+            else {
+                n.h = SHAPES.parallelogram.defaultH;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         return [rc.polygon([
@@ -1778,18 +3967,35 @@ const parallelogramShape = {
 const textShape = {
     size(n, _labelW) {
         const fontSize = Number(n.style?.fontSize ?? 13);
-        const charWidth = fontSize * 0.55;
-        const pad = Number(n.style?.padding ?? 8) * 2;
+        const fontWeight = n.style?.fontWeight ?? 400;
+        const fontFamily = String(n.style?.font ?? DEFAULT_FONT);
+        const font = buildFontStr(fontSize, fontWeight, fontFamily);
+        const pad = Number(n.style?.padding ?? 0) * 2;
+        const lineHeight = fontSize * 1.5;
         if (n.width) {
-            const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
+            const lines = n.label.includes("\\n")
+                ? n.label.split("\\n")
+                : wrapText(n.label, Math.max(1, n.width - pad), fontSize, font);
             n.w = n.width;
-            n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
+            n.h = n.height ?? Math.max(24, lines.length * lineHeight + pad);
         }
         else {
-            const lines = n.label.split("\\n");
-            const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
-            n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
-            n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
+            if (n.label.includes("\\n")) {
+                const lines = n.label.split("\\n");
+                let maxW = 0;
+                for (const line of lines) {
+                    const w = measureTextWidth(line, font);
+                    if (w > maxW)
+                        maxW = w;
+                }
+                n.w = Math.ceil(maxW) + pad;
+                n.h = n.height ?? Math.max(24, lines.length * lineHeight + pad);
+            }
+            else {
+                const textW = measureTextWidth(n.label, font);
+                n.w = Math.ceil(textW) + pad;
+                n.h = n.height ?? Math.max(24, lineHeight + pad);
+            }
         }
     },
     renderSVG(_rc, _n, _palette, _opts) {
@@ -1902,8 +4108,18 @@ const iconShape = {
 
 const imageShape = {
     size(n, labelW) {
-        n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-        n.h = n.h || 52;
+        const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+        n.w = w;
+        if (!n.h) {
+            if (labelW > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lines = Math.ceil(labelW / (w - 16));
+                n.h = Math.max(52, lines * fontSize * 1.5 + 20);
+            }
+            else {
+                n.h = 52;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const s = n.style ?? {};
@@ -1975,83 +4191,6 @@ const imageShape = {
 };
 
 // ============================================================
-// sketchmark — Font Registry
-// ============================================================
-// built-in named fonts — user can reference these by short name
-const BUILTIN_FONTS = {
-    // hand-drawn
-    caveat: {
-        family: "'Caveat', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600&display=swap',
-    },
-    handlee: {
-        family: "'Handlee', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Handlee&display=swap',
-    },
-    'indie-flower': {
-        family: "'Indie Flower', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap',
-    },
-    'patrick-hand': {
-        family: "'Patrick Hand', cursive",
-        url: 'https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap',
-    },
-    // clean / readable
-    'dm-mono': {
-        family: "'DM Mono', monospace",
-        url: 'https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap',
-    },
-    'jetbrains': {
-        family: "'JetBrains Mono', monospace",
-        url: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap',
-    },
-    'instrument': {
-        family: "'Instrument Serif', serif",
-        url: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap',
-    },
-    'playfair': {
-        family: "'Playfair Display', serif",
-        url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap',
-    },
-    // system fallbacks (no URL needed)
-    system: { family: 'system-ui, sans-serif' },
-    mono: { family: "'Courier New', monospace" },
-    serif: { family: 'Georgia, serif' },
-};
-// default — what renders when no font is specified
-const DEFAULT_FONT = 'system-ui, sans-serif';
-// resolve a short name or pass-through a quoted CSS family
-function resolveFont(nameOrFamily) {
-    const key = nameOrFamily.toLowerCase().trim();
-    if (BUILTIN_FONTS[key])
-        return BUILTIN_FONTS[key].family;
-    return nameOrFamily; // treat as raw CSS font-family
-}
-// inject a <link> into <head> for a built-in font (browser only)
-function loadFont(name) {
-    if (typeof document === 'undefined')
-        return;
-    const key = name.toLowerCase().trim();
-    const def = BUILTIN_FONTS[key];
-    if (!def?.url || def.loaded)
-        return;
-    if (document.querySelector(`link[data-sketchmark-font="${key}"]`))
-        return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = def.url;
-    link.setAttribute('data-sketchmark-font', key);
-    document.head.appendChild(link);
-    def.loaded = true;
-}
-// user registers their own font (already loaded via CSS/link)
-function registerFont(name, family, url) {
-    BUILTIN_FONTS[name.toLowerCase()] = { family, url };
-    if (url)
-        loadFont(name);
-}
-
-// ============================================================
 // sketchmark — Shared Renderer Utilities
 //
 // Functions used by both SVG and Canvas renderers, extracted
@@ -2080,26 +4219,18 @@ function resolveStyleFont(style, fallback) {
     loadFont(raw);
     return resolveFont(raw);
 }
-// ── Soft word-wrap ───────────────────────────────────────────────────────
-function wrapText(text, maxWidth, fontSize) {
-    const charWidth = fontSize * 0.55;
-    const maxChars = Math.floor(maxWidth / charWidth);
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > maxChars && current) {
-            lines.push(current);
-            current = word;
-        }
-        else {
-            current = test;
-        }
-    }
-    if (current)
-        lines.push(current);
-    return lines.length ? lines : [text];
+// ── Inner text width per shape (for wrapping inside non-rectangular shapes)
+const SHAPE_TEXT_RATIO = {
+    circle: 0.65,
+    diamond: 0.45,
+    hexagon: 0.55,
+    triangle: 0.40,
+};
+function shapeInnerTextWidth(shape, w, padding) {
+    const ratio = SHAPE_TEXT_RATIO[shape];
+    if (ratio)
+        return w * ratio;
+    return w - padding * 2;
 }
 // ── Arrow direction from connector ───────────────────────────────────────
 function connMeta(connector) {
@@ -2154,9 +4285,18 @@ const noteShape = {
     idPrefix: "note",
     cssClass: "ntg",
     size(n, _labelW) {
+        const fontSize = Number(n.style?.fontSize ?? 12);
+        const fontWeight = n.style?.fontWeight ?? 400;
+        const fontFamily = String(n.style?.font ?? DEFAULT_FONT);
+        const font = buildFontStr(fontSize, fontWeight, fontFamily);
         const lines = n.label.split("\n");
-        const maxChars = Math.max(...lines.map((l) => l.length));
-        n.w = n.w || Math.max(NOTE.minW, Math.ceil(maxChars * NOTE.fontPxPerChar) + NOTE.padX * 2);
+        let maxLineW = 0;
+        for (const line of lines) {
+            const w = measureTextWidth(line, font);
+            if (w > maxLineW)
+                maxLineW = w;
+        }
+        n.w = n.w || Math.max(NOTE.minW, Math.ceil(maxLineW) + NOTE.padX * 2);
         n.h = n.h || lines.length * NOTE.lineH + NOTE.padY * 2;
         if (n.width && n.w < n.width)
             n.w = n.width;
@@ -2229,8 +4369,18 @@ const lineShape = {
 const pathShape = {
     size(n, labelW) {
         // User should provide width/height; defaults to 100x100
-        n.w = n.width ?? Math.max(100, labelW + 20);
-        n.h = n.height ?? 100;
+        const w = n.width ?? Math.max(100, Math.min(300, labelW + 20));
+        n.w = w;
+        if (!n.h) {
+            if (!n.width && labelW + 20 > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lines = Math.ceil(labelW / (w - 20));
+                n.h = Math.max(100, lines * fontSize * 1.5 + 20);
+            }
+            else {
+                n.h = n.height ?? 100;
+            }
+        }
     },
     renderSVG(rc, n, _palette, opts) {
         const d = n.pathData;
@@ -2302,14 +4452,19 @@ function sizeNode(n) {
         n.w = n.width;
     if (n.height && n.height > 0)
         n.h = n.height;
-    const labelW = Math.round(n.label.length * NODE.fontPxPerChar + NODE.basePad);
+    // Use pretext for accurate label measurement
+    const fontSize = Number(n.style?.fontSize ?? 14);
+    const fontWeight = n.style?.fontWeight ?? 500;
+    const fontFamily = String(n.style?.font ?? DEFAULT_FONT);
+    const font = buildFontStr(fontSize, fontWeight, fontFamily);
+    const labelW = Math.round(measureTextWidth(n.label, font) + NODE.basePad);
     const shape = getShape(n.shape);
     if (shape) {
         shape.size(n, labelW);
     }
     else {
         // fallback for unknown shapes — box-like default
-        n.w = n.w || Math.max(90, Math.min(180, labelW));
+        n.w = n.w || Math.max(90, Math.min(300, labelW));
         n.h = n.h || 52;
     }
 }
@@ -2338,8 +4493,9 @@ function sizeChart(_c) {
     // defaults already applied in buildSceneGraph
 }
 function sizeMarkdown(m) {
-    const pad = Number(m.style?.padding ?? 16);
-    m.w = m.width ?? 400;
+    const pad = Number(m.style?.padding ?? 0);
+    const fontFamily = String(m.style?.font ?? DEFAULT_FONT);
+    m.w = m.width ?? calcMarkdownWidth(m.lines, fontFamily, pad);
     m.h = m.height ?? calcMarkdownHeight(m.lines, pad);
 }
 // ── Item size helpers (entity-map based) ─────────────────
@@ -5788,9 +7944,9 @@ function renderToSVG(sg, container, options = {}) {
             fontSize: isText ? 13 : isNote ? 12 : 14,
             fontWeight: isText || isNote ? 400 : 500,
             textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
-            textAlign: isNote ? "left" : undefined,
+            textAlign: isText || isNote ? "left" : undefined,
             lineHeight: isNote ? 1.4 : undefined,
-            padding: isNote ? 12 : undefined,
+            padding: isText ? 0 : isNote ? 12 : undefined,
             verticalAlign: isNote ? "top" : undefined,
         }, diagramFont, palette.nodeText);
         // Note textX accounts for fold corner
@@ -5800,8 +7956,11 @@ function renderToSVG(sg, container, options = {}) {
                 : typo.textAlign === "center" ? n.x + (n.w - FOLD) / 2
                     : n.x + typo.padding)
             : computeTextX(typo, n.x, n.w);
-        const lines = n.shape === 'text' && !n.label.includes('\n')
-            ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
+        const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
+        const shouldWrap = !isMediaShape && !n.label.includes('\n');
+        const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
+        const lines = shouldWrap
+            ? wrapText(n.label, innerW, typo.fontSize, fontStr)
             : n.label.split('\n');
         const textCY = isMediaShape
             ? n.y + n.h - 10
@@ -5937,7 +8096,7 @@ function renderToSVG(sg, container, options = {}) {
         const anchor = textAlign === 'right' ? 'end'
             : textAlign === 'center' ? 'middle'
                 : 'start';
-        const PAD = Number(gs.padding ?? 16);
+        const PAD = Number(gs.padding ?? 0);
         const mLetterSpacing = gs.letterSpacing;
         if (gs.opacity != null)
             mg.setAttribute('opacity', String(gs.opacity));
@@ -6476,9 +8635,9 @@ function renderToCanvas(sg, canvas, options = {}) {
             fontSize: isText ? 13 : isNote ? 12 : 14,
             fontWeight: isText || isNote ? 400 : 500,
             textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
-            textAlign: isNote ? "left" : undefined,
+            textAlign: isText || isNote ? "left" : undefined,
             lineHeight: isNote ? 1.4 : undefined,
-            padding: isNote ? 12 : undefined,
+            padding: isText ? 0 : isNote ? 12 : undefined,
             verticalAlign: isNote ? "top" : undefined,
         }, diagramFont, palette.nodeText);
         // Note textX accounts for fold corner
@@ -6488,9 +8647,12 @@ function renderToCanvas(sg, canvas, options = {}) {
                 : typo.textAlign === 'center' ? n.x + (n.w - FOLD) / 2
                     : n.x + typo.padding)
             : computeTextX(typo, n.x, n.w);
+        const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
+        const shouldWrap = !isMediaShape && !n.label.includes('\n');
+        const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
         const rawLines = n.label.split('\n');
-        const lines = n.shape === 'text' && rawLines.length === 1
-            ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
+        const lines = shouldWrap && rawLines.length === 1
+            ? wrapText(n.label, innerW, typo.fontSize, fontStr)
             : rawLines;
         const textCY = isMediaShape
             ? n.y + n.h - 10
@@ -6585,7 +8747,7 @@ function renderToCanvas(sg, canvas, options = {}) {
         const mFont = resolveStyleFont(gs, diagramFont);
         const baseColor = String(gs.color ?? palette.nodeText);
         const textAlign = String(gs.textAlign ?? 'left');
-        const PAD = Number(gs.padding ?? 16);
+        const PAD = Number(gs.padding ?? 0);
         const mLetterSpacing = gs.letterSpacing;
         if (gs.opacity != null)
             ctx.globalAlpha = Number(gs.opacity);
@@ -7360,7 +9522,8 @@ class AnimationController {
             minNeeded = Math.max(typingMs, ttsMs);
         }
         else if (step.action === "circle" || step.action === "underline" ||
-            step.action === "crossout" || step.action === "bracket") {
+            step.action === "crossout" || step.action === "bracket" ||
+            step.action === "tick" || step.action === "strikeoff") {
             // Annotation guide draw + rough reveal + pointer fade
             minNeeded = ANIMATION.annotationStrokeDur + 120 + 200;
         }
@@ -7597,6 +9760,12 @@ class AnimationController {
                 break;
             case "bracket":
                 this._doAnnotationBracket(s.target, s.target2 ?? "", silent);
+                break;
+            case "tick":
+                this._doAnnotationTick(s.target, silent);
+                break;
+            case "strikeoff":
+                this._doAnnotationStrikeoff(s.target, silent);
                 break;
         }
     }
@@ -8124,6 +10293,62 @@ class AnimationController {
         const guideD = `M ${m.x - pad} ${m.y - pad} L ${m.x + m.w + pad} ${m.y + m.h + pad} ` +
             `M ${m.x + m.w + pad} ${m.y - pad} L ${m.x - pad} ${m.y + m.h + pad}`;
         this._animateAnnotation(roughG, guideD, silent);
+    }
+    _doAnnotationTick(target, silent) {
+        const el = resolveEl(this.svg, target);
+        if (!el || !this._rc || !this._annotationLayer)
+            return;
+        const m = this._nodeMetrics(el);
+        if (!m)
+            return;
+        // Tick mark on the left side of the node, like a teacher's check mark (✓)
+        // The tick sits just to the left of the node, vertically centered
+        const tickH = m.h * 0.5; // total tick height
+        const tickW = tickH * 0.7; // total tick width
+        const gap = 8; // gap between tick and node
+        // Key points of the tick: start (top-left), valley (bottom), end (top-right)
+        const endX = m.x - gap; // tip of the long upstroke (closest to node)
+        const endY = m.y + m.h * 0.25; // top of the long stroke
+        const valleyX = endX - tickW * 0.4; // bottom of the V
+        const valleyY = m.y + m.h * 0.75; // bottom of the V
+        const startX = valleyX - tickW * 0.3; // top of the short downstroke
+        const startY = valleyY - tickH * 0.3; // slightly above valley
+        const roughG = document.createElementNS(SVG_NS$1, "g");
+        // Short down-stroke
+        const line1 = this._rc.line(startX, startY, valleyX, valleyY, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+        });
+        // Long up-stroke
+        const line2 = this._rc.line(valleyX, valleyY, endX, endY, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now() + 1,
+        });
+        roughG.appendChild(line1);
+        roughG.appendChild(line2);
+        this._annotationLayer.appendChild(roughG);
+        this._annotations.push(roughG);
+        // Guide path: short stroke down then long stroke up (single continuous path)
+        const guideD = `M ${startX} ${startY} L ${valleyX} ${valleyY} L ${endX} ${endY}`;
+        this._animateAnnotation(roughG, guideD, silent);
+    }
+    _doAnnotationStrikeoff(target, silent) {
+        const el = resolveEl(this.svg, target);
+        if (!el || !this._rc || !this._annotationLayer)
+            return;
+        const m = this._nodeMetrics(el);
+        if (!m)
+            return;
+        const pad = 6;
+        const lineY = m.y + m.h / 2;
+        const roughEl = this._rc.line(m.x - pad, lineY, m.x + m.w + pad, lineY, {
+            roughness: 1.5, stroke: ANIMATION.annotationColor,
+            strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+        });
+        this._annotationLayer.appendChild(roughEl);
+        this._annotations.push(roughEl);
+        const guideD = `M ${m.x - pad} ${lineY} L ${m.x + m.w + pad} ${lineY}`;
+        this._animateAnnotation(roughEl, guideD, silent);
     }
     _doAnnotationBracket(target1, target2, silent) {
         const el1 = resolveEl(this.svg, target1);

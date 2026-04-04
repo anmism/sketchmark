@@ -3,7 +3,7 @@ export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 export type LayoutType = 'row' | 'column' | 'grid';
 export type AlignItems = 'start' | 'center' | 'end';
 export type JustifyContent = 'start' | 'center' | 'end' | 'space-between' | 'space-around';
-export type AnimationAction = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate' | 'narrate' | 'circle' | 'underline' | 'crossout' | 'bracket';
+export type AnimationAction = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate' | 'narrate' | 'circle' | 'underline' | 'crossout' | 'bracket' | 'tick' | 'strikeoff';
 export type AnimationTrigger = 'on-click';
 export type StepPace = 'slow' | 'fast' | 'pause';
 export interface StyleProps {

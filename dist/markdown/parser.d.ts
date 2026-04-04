@@ -13,4 +13,5 @@ export declare const LINE_FONT_WEIGHT: Record<LineKind, number>;
 export declare const LINE_SPACING: Record<LineKind, number>;
 export declare function parseMarkdownContent(content: string): MarkdownLine[];
 export declare function calcMarkdownHeight(lines: MarkdownLine[], pad?: number): number;
+export declare function calcMarkdownWidth(lines: MarkdownLine[], fontFamily?: string, pad?: number): number;
 //# sourceMappingURL=parser.d.ts.map

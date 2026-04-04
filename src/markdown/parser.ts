@@ -17,6 +17,8 @@ export interface MarkdownLine {
 }
 
 import { MARKDOWN } from "../config";
+import { measureTextWidth, buildFontStr } from "../utils/text-measure";
+import { DEFAULT_FONT } from "../fonts";
 
 // ── Font sizes per line kind (re-exported from config) ───
 export const LINE_FONT_SIZE: Record<LineKind, number>   = { ...MARKDOWN.fontSize };
@@ -77,4 +79,17 @@ export function calcMarkdownHeight(lines: MarkdownLine[], pad: number = MARKDOWN
   let h = pad * 2;   // top + bottom
   for (const line of lines) h += LINE_SPACING[line.kind];
   return h;
+}
+
+// ── Calculate natural width of a parsed block using pretext ──
+export function calcMarkdownWidth(lines: MarkdownLine[], fontFamily: string = DEFAULT_FONT, pad: number = MARKDOWN.defaultPad): number {
+  let maxW = 0;
+  for (const line of lines) {
+    if (line.kind === 'blank') continue;
+    const text = line.runs.map(r => r.text).join('');
+    const font = buildFontStr(LINE_FONT_SIZE[line.kind], LINE_FONT_WEIGHT[line.kind], fontFamily);
+    const w = measureTextWidth(text, font);
+    if (w > maxW) maxW = w;
+  }
+  return Math.ceil(maxW) + pad * 2;
 }

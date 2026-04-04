@@ -3,8 +3,17 @@ import { MIN_W, MAX_W, SVG_NS } from "./types";
 
 export const imageShape: ShapeDefinition = {
   size(n, labelW) {
-    n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-    n.h = n.h || 52;
+    const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+    n.w = w;
+    if (!n.h) {
+      if (labelW > w) {
+        const fontSize = Number(n.style?.fontSize ?? 14);
+        const lines = Math.ceil(labelW / (w - 16));
+        n.h = Math.max(52, lines * fontSize * 1.5 + 20);
+      } else {
+        n.h = 52;
+      }
+    }
   },
 
   renderSVG(rc, n, _palette, opts) {

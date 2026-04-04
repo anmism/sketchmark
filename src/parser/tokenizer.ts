@@ -106,6 +106,8 @@ export const KEYWORDS = new Set([
   "underline",
   "crossout",
   "bracket",
+  "tick",
+  "strikeoff",
 ]);
 
 const ARROW_PATTERNS = ["<-->", "<->", "-->", "<--", "->", "<-", "---", "--"];

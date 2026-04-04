@@ -1,7 +1,7 @@
 import type { SceneNode } from "../../scene";
 import type { DiagramPalette } from "../../theme";
 export declare const MIN_W: 90;
-export declare const MAX_W: 180;
+export declare const MAX_W: 300;
 export declare const FONT_PX_PER_CHAR: 8.6;
 export declare const BASE_PAD: 26;
 export declare const SVG_NS = "http://www.w3.org/2000/svg";

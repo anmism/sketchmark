@@ -40,6 +40,9 @@
     "deploy": "wrangler deploy",
     "preview": "wrangler dev"
   },
+  "dependencies": {
+    "@chenglou/pretext": "^0.0.4"
+  },
   "peerDependencies": {
     "roughjs": "^4.6.0"
   },

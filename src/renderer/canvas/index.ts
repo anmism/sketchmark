@@ -20,7 +20,7 @@ import {
 import rough from 'roughjs/bin/rough';
 
 import {
-  hashStr, darkenHex, resolveStyleFont, wrapText,
+  hashStr, darkenHex, resolveStyleFont, wrapText, buildFontStr, shapeInnerTextWidth,
   connMeta, resolveEndpoint, getConnPoint, groupDepth,
 } from '../shared';
 import { getShape } from '../shapes';
@@ -324,9 +324,9 @@ export function renderToCanvas(
         fontSize: isText ? 13 : isNote ? 12 : 14,
         fontWeight: isText || isNote ? 400 : 500,
         textColor: isText ? palette.edgeLabelText : isNote ? palette.noteText : palette.nodeText,
-        textAlign: isNote ? "left" : undefined,
+        textAlign: isText || isNote ? "left" : undefined,
         lineHeight: isNote ? 1.4 : undefined,
-        padding: isNote ? 12 : undefined,
+        padding: isText ? 0 : isNote ? 12 : undefined,
         verticalAlign: isNote ? "top" : undefined,
       },
       diagramFont, palette.nodeText,
@@ -340,11 +340,14 @@ export function renderToCanvas(
        : n.x + typo.padding)
       : computeTextX(typo, n.x, n.w);
 
-    const rawLines = n.label.split('\n');
-    const lines = n.shape === 'text' && rawLines.length === 1
-      ? wrapText(n.label, n.w - typo.padding * 2, typo.fontSize)
-      : rawLines;
+    const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
+    const shouldWrap = !isMediaShape && !n.label.includes('\n');
 
+    const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
+    const rawLines = n.label.split('\n');
+    const lines = shouldWrap && rawLines.length === 1
+      ? wrapText(n.label, innerW, typo.fontSize, fontStr)
+      : rawLines;
     const textCY = isMediaShape
       ? n.y + n.h - 10
       : isNote
@@ -458,7 +461,7 @@ export function renderToCanvas(
     const mFont     = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const baseColor = String(gs.color ?? palette.nodeText);
     const textAlign = String(gs.textAlign ?? 'left') as 'left'|'center'|'right';
-    const PAD       = Number(gs.padding ?? 16);
+    const PAD       = Number(gs.padding ?? 0);
     const mLetterSpacing = gs.letterSpacing as number | undefined;
 
     if (gs.opacity != null) ctx.globalAlpha = Number(gs.opacity);

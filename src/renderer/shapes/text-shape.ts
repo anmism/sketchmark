@@ -1,21 +1,37 @@
 import type { ShapeDefinition } from "./types";
-import { MIN_W } from "./types";
+import { wrapText, measureTextWidth, buildFontStr } from "../../utils/text-measure";
+import { DEFAULT_FONT } from "../../fonts";
 
 export const textShape: ShapeDefinition = {
   size(n, _labelW) {
     const fontSize = Number(n.style?.fontSize ?? 13);
-    const charWidth = fontSize * 0.55;
-    const pad = Number(n.style?.padding ?? 8) * 2;
+    const fontWeight = n.style?.fontWeight ?? 400;
+    const fontFamily = String(n.style?.font ?? DEFAULT_FONT);
+    const font = buildFontStr(fontSize, fontWeight, fontFamily);
+    const pad = Number(n.style?.padding ?? 0) * 2;
+    const lineHeight = fontSize * 1.5;
 
     if (n.width) {
-      const approxLines = Math.ceil((n.label.length * charWidth) / (n.width - pad));
+      const lines = n.label.includes("\\n")
+        ? n.label.split("\\n")
+        : wrapText(n.label, Math.max(1, n.width - pad), fontSize, font);
       n.w = n.width;
-      n.h = n.height ?? Math.max(24, approxLines * fontSize * 1.5 + pad);
+      n.h = n.height ?? Math.max(24, lines.length * lineHeight + pad);
     } else {
-      const lines = n.label.split("\\n");
-      const longest = lines.reduce((a, b) => (a.length > b.length ? a : b), "");
-      n.w = Math.max(MIN_W, Math.round(longest.length * charWidth + pad));
-      n.h = n.height ?? Math.max(24, lines.length * fontSize * 1.5 + pad);
+      if (n.label.includes("\\n")) {
+        const lines = n.label.split("\\n");
+        let maxW = 0;
+        for (const line of lines) {
+          const w = measureTextWidth(line, font);
+          if (w > maxW) maxW = w;
+        }
+        n.w = Math.ceil(maxW) + pad;
+        n.h = n.height ?? Math.max(24, lines.length * lineHeight + pad);
+      } else {
+        const textW = measureTextWidth(n.label, font);
+        n.w = Math.ceil(textW) + pad;
+        n.h = n.height ?? Math.max(24, lineHeight + pad);
+      }
     }
   },
   renderSVG(_rc, _n, _palette, _opts) {

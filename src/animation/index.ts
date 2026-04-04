@@ -835,7 +835,8 @@ export class AnimationController {
       const ttsMs = this._tts ? wordCount * 150 + 500 : 0;
       minNeeded = Math.max(typingMs, ttsMs);
     } else if (step.action === "circle" || step.action === "underline" ||
-               step.action === "crossout" || step.action === "bracket") {
+               step.action === "crossout" || step.action === "bracket" ||
+               step.action === "tick" || step.action === "strikeoff") {
       // Annotation guide draw + rough reveal + pointer fade
       minNeeded = ANIMATION.annotationStrokeDur + 120 + 200;
     } else if (step.action === "draw") {
@@ -1071,6 +1072,12 @@ export class AnimationController {
         break;
       case "bracket":
         this._doAnnotationBracket(s.target, s.target2 ?? "", silent);
+        break;
+      case "tick":
+        this._doAnnotationTick(s.target, silent);
+        break;
+      case "strikeoff":
+        this._doAnnotationStrikeoff(s.target, silent);
         break;
     }
   }
@@ -1635,6 +1642,63 @@ export class AnimationController {
     const guideD = `M ${m.x - pad} ${m.y - pad} L ${m.x + m.w + pad} ${m.y + m.h + pad} ` +
                    `M ${m.x + m.w + pad} ${m.y - pad} L ${m.x - pad} ${m.y + m.h + pad}`;
     this._animateAnnotation(roughG, guideD, silent);
+  }
+
+  private _doAnnotationTick(target: string, silent: boolean): void {
+    const el = resolveEl(this.svg, target);
+    if (!el || !this._rc || !this._annotationLayer) return;
+    const m = this._nodeMetrics(el);
+    if (!m) return;
+
+    // Tick mark on the left side of the node, like a teacher's check mark (✓)
+    // The tick sits just to the left of the node, vertically centered
+    const tickH = m.h * 0.5;                  // total tick height
+    const tickW = tickH * 0.7;                // total tick width
+    const gap = 8;                            // gap between tick and node
+
+    // Key points of the tick: start (top-left), valley (bottom), end (top-right)
+    const endX   = m.x - gap;                 // tip of the long upstroke (closest to node)
+    const endY   = m.y + m.h * 0.25;          // top of the long stroke
+    const valleyX = endX - tickW * 0.4;       // bottom of the V
+    const valleyY = m.y + m.h * 0.75;         // bottom of the V
+    const startX  = valleyX - tickW * 0.3;    // top of the short downstroke
+    const startY  = valleyY - tickH * 0.3;    // slightly above valley
+
+    const roughG = document.createElementNS(SVG_NS, "g") as SVGGElement;
+    // Short down-stroke
+    const line1 = this._rc.line(startX, startY, valleyX, valleyY, {
+      roughness: 1.5, stroke: ANIMATION.annotationColor,
+      strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+    });
+    // Long up-stroke
+    const line2 = this._rc.line(valleyX, valleyY, endX, endY, {
+      roughness: 1.5, stroke: ANIMATION.annotationColor,
+      strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now() + 1,
+    });
+    roughG.appendChild(line1);
+    roughG.appendChild(line2);
+    this._annotationLayer.appendChild(roughG);
+    this._annotations.push(roughG);
+    // Guide path: short stroke down then long stroke up (single continuous path)
+    const guideD = `M ${startX} ${startY} L ${valleyX} ${valleyY} L ${endX} ${endY}`;
+    this._animateAnnotation(roughG, guideD, silent);
+  }
+
+  private _doAnnotationStrikeoff(target: string, silent: boolean): void {
+    const el = resolveEl(this.svg, target);
+    if (!el || !this._rc || !this._annotationLayer) return;
+    const m = this._nodeMetrics(el);
+    if (!m) return;
+    const pad = 6;
+    const lineY = m.y + m.h / 2;
+    const roughEl = this._rc.line(m.x - pad, lineY, m.x + m.w + pad, lineY, {
+      roughness: 1.5, stroke: ANIMATION.annotationColor,
+      strokeWidth: ANIMATION.annotationStrokeW, seed: Date.now(),
+    });
+    this._annotationLayer.appendChild(roughEl);
+    this._annotations.push(roughEl);
+    const guideD = `M ${m.x - pad} ${lineY} L ${m.x + m.w + pad} ${lineY}`;
+    this._animateAnnotation(roughEl, guideD, silent);
   }
 
   private _doAnnotationBracket(target1: string, target2: string, silent: boolean): void {

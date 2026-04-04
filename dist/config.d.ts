@@ -7,7 +7,7 @@ export declare const LAYOUT: {
 };
 export declare const NODE: {
     readonly minW: 90;
-    readonly maxW: 180;
+    readonly maxW: 300;
     readonly defaultH: 52;
     readonly fontPxPerChar: 8.6;
     readonly basePad: 26;
@@ -106,7 +106,7 @@ export declare const MARKDOWN: {
         readonly p: 22;
         readonly blank: 10;
     };
-    readonly defaultPad: 16;
+    readonly defaultPad: 0;
 };
 export declare const ROUGH: {
     readonly roughness: 1.3;

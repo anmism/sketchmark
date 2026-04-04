@@ -4,8 +4,17 @@ import { SHAPES } from "../../config";
 
 export const cylinderShape: ShapeDefinition = {
   size(n, labelW) {
-    n.w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
-    n.h = n.h || SHAPES.cylinder.defaultH;
+    const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
+    n.w = w;
+    if (!n.h) {
+      if (labelW > w) {
+        const fontSize = Number(n.style?.fontSize ?? 14);
+        const lines = Math.ceil(labelW / (w - 16));
+        n.h = Math.max(SHAPES.cylinder.defaultH, lines * fontSize * 1.5 + 20);
+      } else {
+        n.h = SHAPES.cylinder.defaultH;
+      }
+    }
   },
   renderSVG(rc, n, _palette, opts) {
     const cx = n.x + n.w / 2;
