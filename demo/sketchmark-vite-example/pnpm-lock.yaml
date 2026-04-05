@@ -10,13 +10,16 @@ importers:
     dependencies:
       sketchmark:
         specifier: latest
-        version: 0.1.8(roughjs@4.6.6)
+        version: 1.1.1(roughjs@4.6.6)
     devDependencies:
       vite:
         specifier: ^5.0.0
         version: 5.4.21
 
 packages:
+
+  '@chenglou/pretext@0.0.4':
+    resolution: {integrity: sha512-FnPAFMid1/p1j2V2gRPUVBarGUIb2PhkkC9YNnTOfPtTDgHKh8siO8PP9pCxpFfYlcodWPJpE1UbSHGQqt8pQQ==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -326,8 +329,8 @@ packages:
   roughjs@4.6.6:
     resolution: {integrity: sha512-ZUz/69+SYpFN/g/lUlo2FXcIjRkSu3nDarreVdGGndHEBJ6cXPdKguS8JGxwj5HA5xIbVKSmLgr5b3AWxtRfvQ==}
 
-  sketchmark@0.1.8:
-    resolution: {integrity: sha512-K7GRoID5JTi55AHSV8a11zyKDNSRrLQa/dfNUOZ7KGdxRRCjhp5j9xheicZomZoL45YI5Ny6uaSR66tExDhSUA==}
+  sketchmark@1.1.1:
+    resolution: {integrity: sha512-+TB1qUu3rizeiypu1qepqUc1ly6nhOswf+4EqI9f8H7MikQqJuOGDY0e7ji2LRBcVvcr9Zwdx5E5NoCMm7UnVw==}
     peerDependencies:
       roughjs: ^4.6.0
 
@@ -367,6 +370,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@chenglou/pretext@0.0.4': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
@@ -602,8 +607,9 @@ snapshots:
       points-on-curve: 0.2.0
       points-on-path: 0.2.1
 
-  sketchmark@0.1.8(roughjs@4.6.6):
+  sketchmark@1.1.1(roughjs@4.6.6):
     dependencies:
+      '@chenglou/pretext': 0.0.4
       roughjs: 4.6.6
 
   source-map-js@1.2.1: {}

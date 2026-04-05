@@ -1,8 +1,5 @@
-import { render } from 'sketchmark';
+import { SketchmarkEmbed } from "sketchmark";
 
-// ── DSL string — keep it at the top level of the file,
-//   NOT indented inside render({}) or you get leading spaces
-//   that confuse the parser.
 const dsl = `
 diagram
 title label="System Architecture"
@@ -39,58 +36,28 @@ step highlight db
 end
 `.trim();
 
-// ── Render ────────────────────────────────────────────────
-const instance = render({
-  container:  document.getElementById('diagram') as HTMLElement,
+const embed = new SketchmarkEmbed({
+  container: document.getElementById("embed-root") as HTMLElement,
   dsl,
-  renderer:   'svg',
+  width: "min(100%, 920px)",
+  height: 540,
+  playStepDelay: 700,
+  focusPadding: 28,
+  focusDuration: 240,
+  showControls: true,
+  theme: "light",
   svgOptions: {
-    showTitle:   true,
+    showTitle: true,
     interactive: true,
-    theme:       'light',
+    theme: "light",
     transparent: true,
-    onNodeClick: (id) => console.log('clicked:', id),
   },
 });
 
-// ── Wire up the animation controls ───────────────────────
-const { anim } = instance;
-
-const stepInfo = document.getElementById('step-info')!;
-const btnPrev  = document.getElementById('btn-prev')  as HTMLButtonElement;
-const btnNext  = document.getElementById('btn-next')  as HTMLButtonElement;
-const btnPlay  = document.getElementById('btn-play')  as HTMLButtonElement;
-const btnReset = document.getElementById('btn-reset') as HTMLButtonElement;
-
-function syncUI() {
-  btnPrev.disabled = !anim.canPrev;
-  btnNext.disabled = !anim.canNext;
-
-  if (!anim.total) {
-    stepInfo.textContent = 'no steps';
-  } else if (anim.currentStep < 0) {
-    stepInfo.textContent = `${anim.total} steps`;
-  } else {
-    stepInfo.textContent = `${anim.currentStep + 1} / ${anim.total}`;
-  }
-}
-
-syncUI();
-
-btnReset.addEventListener('click', () => { anim.reset(); syncUI(); });
-btnPrev .addEventListener('click', () => { anim.prev();  syncUI(); });
-btnNext .addEventListener('click', () => { anim.next();  syncUI(); });
-
-btnPlay.addEventListener('click', async () => {
-  btnPlay.disabled = true;
-  btnPlay.textContent = '⏳ Playing';
-  await anim.play(700);   // 700ms per step
-  syncUI();
-  btnPlay.disabled    = false;
-  btnPlay.textContent = '▶ Play';
+document.getElementById("btn-svg")?.addEventListener("click", () => {
+  embed.exportSVG("vite-example.svg");
 });
 
-// optional — listen to step events
-anim.on((event) => {
-  console.log(event.type, event.stepIndex, event.step);
+document.getElementById("btn-png")?.addEventListener("click", () => {
+  void embed.exportPNG("vite-example.png");
 });

@@ -1,6 +1,6 @@
-# sketchmark — Vite example
+# sketchmark - Vite example
 
-Minimal working example of sketchmark in a Vite project.
+Minimal working example of sketchmark in a Vite project using `SketchmarkEmbed`.
 
 ## Run it
 
@@ -13,21 +13,25 @@ Open http://localhost:5173
 
 ## Key points
 
-### 1. rough.js loads via script tag, not import
-
-```html
-<!-- index.html — before your module script -->
-<script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-```
-
-rough.js puts itself on `window.rough`. sketchmark reads it from there.
-If you try to `import rough from 'roughjs'` in your module it won't work
-because sketchmark expects the bundled global, not the ESM build.
-
-### 2. DSL string must not be indented
+### 1. Import the reusable widget from sketchmark
 
 ```ts
-// ✓ correct — no leading spaces on DSL lines
+import { SketchmarkEmbed } from "sketchmark";
+
+const embed = new SketchmarkEmbed({
+  container: document.getElementById("embed-root") as HTMLElement,
+  dsl,
+  width: "min(100%, 920px)",
+  height: 540,
+});
+```
+
+The widget includes playback controls and automatically follows the active step inside its fixed frame.
+
+### 2. DSL strings must not be indented
+
+```ts
+// correct - no leading spaces on DSL lines
 const dsl = `
 diagram
 box a label="Hello"
@@ -36,21 +40,22 @@ a --> b
 end
 `.trim();
 
-// ✗ wrong — leading spaces cause parse errors
-render({
-  dsl: `diagram
-    box a label="Hello"   ← these spaces are part of the string
-    box b label="World"
-  end`,
-});
+// wrong - leading spaces cause parse errors
+const dsl = `
+  diagram
+  box a label="Hello"
+  box b label="World"
+  a --> b
+  end
+`.trim();
 ```
 
 ### 3. Pass the container element, not a selector string
 
 ```ts
-// ✓
-container: document.getElementById('diagram') as HTMLElement,
+// preferred
+container: document.getElementById("embed-root") as HTMLElement,
 
-// ✗ — may not work depending on sketchmark version
-container: '#diagram',
+// avoid relying on selector lookup in example apps
+container: "#embed-root",
 ```
