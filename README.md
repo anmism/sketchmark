@@ -100,10 +100,13 @@ const embed = new SketchmarkEmbed({
   width: 960,
   height: 540,
   playStepDelay: 700,
+  fitPadding: 24,
+  zoomMin: 0.08,
+  zoomMax: 4,
 });
 ```
 
-Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow and follow animation targets as steps advance.
+Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, and expose built-in `+`, `-`, and reset-to-fit controls alongside step playback.
 
 ---
 
@@ -114,10 +117,6 @@ Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmb
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <!-- rough.js MUST load before sketchmark -->
-  <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
-</head>
 <body>
   <div id="diagram"></div>
 
@@ -676,8 +675,6 @@ step underline sun         # underline below "sun" node
 step crossout wrong        # X through "wrong" node
 step bracket sun leaf      # curly brace spanning "sun" and "leaf"
 ```
-
-Annotations require rough.js to be loaded. They are drawn into a dedicated SVG layer on top of the diagram.
 
 ### Parallel Steps (Beat)
 

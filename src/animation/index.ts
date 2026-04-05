@@ -91,6 +91,7 @@ function clearDashOverridesAfter(el: SVGGElement, delayMs: number): void {
 }
 
 const NODE_DRAW_GUIDE_ATTR = "data-node-draw-guide";
+const TEXT_REVEAL_CLIP_ATTR = "data-text-reveal-clip-id";
 const GUIDED_NODE_SHAPES = new Set([
   "box",
   "circle",
@@ -234,6 +235,7 @@ function clearNodeDrawStyles(el: SVGGElement): void {
   });
   const text = nodeText(el);
   if (text) {
+    clearTextReveal(text);
     text.style.opacity = text.style.transition = "";
   }
 }
@@ -288,8 +290,24 @@ function revealNodeInstant(el: SVGGElement): void {
 }
 
 // ── Text writing reveal (clipPath) ───────────────────────
+function clearTextReveal(textEl: SVGElement, clipId?: string): void {
+  const activeClipId = textEl.getAttribute(TEXT_REVEAL_CLIP_ATTR);
+  const shouldClearCurrentClip = !clipId || activeClipId === clipId;
+
+  if (shouldClearCurrentClip) {
+    textEl.removeAttribute("clip-path");
+    textEl.removeAttribute(TEXT_REVEAL_CLIP_ATTR);
+  }
+
+  const clipIdToRemove = clipId ?? activeClipId;
+  if (clipIdToRemove) {
+    textEl.ownerSVGElement?.querySelector(`#${clipIdToRemove}`)?.remove();
+  }
+}
+
 function animateTextReveal(textEl: SVGElement, delayMs: number, durationMs: number = ANIMATION.textRevealMs): void {
   const ownerSvg = textEl.ownerSVGElement;
+  clearTextReveal(textEl);
   if (!ownerSvg) {
     // fallback: just fade
     textEl.style.transition = `opacity ${ANIMATION.textFade}ms ease ${delayMs}ms`;
@@ -297,55 +315,64 @@ function animateTextReveal(textEl: SVGElement, delayMs: number, durationMs: numb
     return;
   }
 
-  // Make text visible but clipped to zero width
+  const bbox = (textEl as SVGTextElement).getBBox?.();
+  if (!bbox || bbox.width === 0) {
+    // fallback if can't measure
+    textEl.style.transition = `opacity ${ANIMATION.textFade}ms ease ${delayMs}ms`;
+    textEl.style.opacity = "1";
+    return;
+  }
+
+  let defs = ownerSvg.querySelector("defs");
+  if (!defs) {
+    defs = document.createElementNS(SVG_NS, "defs");
+    ownerSvg.insertBefore(defs, ownerSvg.firstChild);
+  }
+
+  const clipId = `skm-clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const clipPath = document.createElementNS(SVG_NS, "clipPath");
+  clipPath.setAttribute("id", clipId);
+  const rect = document.createElementNS(SVG_NS, "rect");
+  rect.setAttribute("x", String(bbox.x - 2));
+  rect.setAttribute("y", String(bbox.y - 2));
+  rect.setAttribute("width", "0");
+  rect.setAttribute("height", String(bbox.height + 4));
+  clipPath.appendChild(rect);
+  defs.appendChild(clipPath);
+  textEl.setAttribute("clip-path", `url(#${clipId})`);
+  textEl.setAttribute(TEXT_REVEAL_CLIP_ATTR, clipId);
   textEl.style.opacity = "1";
 
-  // We need to wait for text to be visible before we can measure it
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      rect.style.transition = `width ${durationMs}ms cubic-bezier(.4,0,.2,1) ${delayMs}ms`;
+      rect.setAttribute("width", String(bbox.width + 4));
+    }),
+  );
+
+  // Cleanup after animation
   setTimeout(() => {
-    const bbox = (textEl as SVGTextElement).getBBox?.();
-    if (!bbox || bbox.width === 0) {
-      // fallback if can't measure
-      return;
-    }
-
-    let defs = ownerSvg.querySelector("defs");
-    if (!defs) {
-      defs = document.createElementNS(SVG_NS, "defs");
-      ownerSvg.insertBefore(defs, ownerSvg.firstChild);
-    }
-
-    const clipId = `skm-clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const clipPath = document.createElementNS(SVG_NS, "clipPath");
-    clipPath.setAttribute("id", clipId);
-    const rect = document.createElementNS(SVG_NS, "rect");
-    rect.setAttribute("x", String(bbox.x - 2));
-    rect.setAttribute("y", String(bbox.y - 2));
-    rect.setAttribute("width", "0");
-    rect.setAttribute("height", String(bbox.height + 4));
-    clipPath.appendChild(rect);
-    defs.appendChild(clipPath);
-    textEl.setAttribute("clip-path", `url(#${clipId})`);
-
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        rect.style.transition = `width ${durationMs}ms cubic-bezier(.4,0,.2,1)`;
-        rect.setAttribute("width", String(bbox.width + 4));
-      }),
-    );
-
-    // Cleanup after animation
-    setTimeout(() => {
-      textEl.removeAttribute("clip-path");
-      clipPath.remove();
-    }, durationMs + 50);
-  }, delayMs);
+    clearTextReveal(textEl, clipId);
+  }, delayMs + durationMs + 50);
 }
 
-function animateNodeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStrokeDur): void {
+function animateNodeDraw(
+  el: SVGGElement,
+  strokeDur: number = ANIMATION.nodeStrokeDur,
+  textOnlyDur: number = ANIMATION.textRevealMs,
+): void {
   showDrawEl(el);
   const guide = nodeGuidePathEl(el);
   if (!guide) {
     const firstPath = el.querySelector("path");
+    const text = nodeText(el);
+    if (!firstPath && el.dataset.nodeShape === "text" && text) {
+      animateTextReveal(text, 0, textOnlyDur);
+      setTimeout(() => {
+        clearNodeDrawStyles(el);
+      }, textOnlyDur + 80);
+      return;
+    }
     if (!firstPath?.style.strokeDasharray) prepareForDraw(el);
     animateShapeDraw(el, strokeDur, ANIMATION.nodeStagger);
     const nodePathCount = el.querySelectorAll("path").length;
@@ -1528,7 +1555,11 @@ export class AnimationController {
       if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
         prepareNodeForDraw(nodeEl);
       }
-      animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur);
+      animateNodeDraw(
+        nodeEl,
+        step.duration ?? ANIMATION.nodeStrokeDur,
+        step.duration ?? ANIMATION.textRevealMs,
+      );
     }
   }
 

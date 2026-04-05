@@ -8807,6 +8807,7 @@ function clearDashOverridesAfter(el, delayMs) {
     }, delayMs);
 }
 const NODE_DRAW_GUIDE_ATTR = "data-node-draw-guide";
+const TEXT_REVEAL_CLIP_ATTR = "data-text-reveal-clip-id";
 const GUIDED_NODE_SHAPES = new Set([
     "box",
     "circle",
@@ -8935,6 +8936,7 @@ function clearNodeDrawStyles(el) {
     });
     const text = nodeText(el);
     if (text) {
+        clearTextReveal(text);
         text.style.opacity = text.style.transition = "";
     }
 }
@@ -8980,55 +8982,74 @@ function revealNodeInstant(el) {
     clearNodeDrawStyles(el);
 }
 // ── Text writing reveal (clipPath) ───────────────────────
+function clearTextReveal(textEl, clipId) {
+    const activeClipId = textEl.getAttribute(TEXT_REVEAL_CLIP_ATTR);
+    const shouldClearCurrentClip = !clipId || activeClipId === clipId;
+    if (shouldClearCurrentClip) {
+        textEl.removeAttribute("clip-path");
+        textEl.removeAttribute(TEXT_REVEAL_CLIP_ATTR);
+    }
+    const clipIdToRemove = clipId ?? activeClipId;
+    if (clipIdToRemove) {
+        textEl.ownerSVGElement?.querySelector(`#${clipIdToRemove}`)?.remove();
+    }
+}
 function animateTextReveal(textEl, delayMs, durationMs = ANIMATION.textRevealMs) {
     const ownerSvg = textEl.ownerSVGElement;
+    clearTextReveal(textEl);
     if (!ownerSvg) {
         // fallback: just fade
         textEl.style.transition = `opacity ${ANIMATION.textFade}ms ease ${delayMs}ms`;
         textEl.style.opacity = "1";
         return;
     }
-    // Make text visible but clipped to zero width
+    const bbox = textEl.getBBox?.();
+    if (!bbox || bbox.width === 0) {
+        // fallback if can't measure
+        textEl.style.transition = `opacity ${ANIMATION.textFade}ms ease ${delayMs}ms`;
+        textEl.style.opacity = "1";
+        return;
+    }
+    let defs = ownerSvg.querySelector("defs");
+    if (!defs) {
+        defs = document.createElementNS(SVG_NS$1, "defs");
+        ownerSvg.insertBefore(defs, ownerSvg.firstChild);
+    }
+    const clipId = `skm-clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const clipPath = document.createElementNS(SVG_NS$1, "clipPath");
+    clipPath.setAttribute("id", clipId);
+    const rect = document.createElementNS(SVG_NS$1, "rect");
+    rect.setAttribute("x", String(bbox.x - 2));
+    rect.setAttribute("y", String(bbox.y - 2));
+    rect.setAttribute("width", "0");
+    rect.setAttribute("height", String(bbox.height + 4));
+    clipPath.appendChild(rect);
+    defs.appendChild(clipPath);
+    textEl.setAttribute("clip-path", `url(#${clipId})`);
+    textEl.setAttribute(TEXT_REVEAL_CLIP_ATTR, clipId);
     textEl.style.opacity = "1";
-    // We need to wait for text to be visible before we can measure it
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        rect.style.transition = `width ${durationMs}ms cubic-bezier(.4,0,.2,1) ${delayMs}ms`;
+        rect.setAttribute("width", String(bbox.width + 4));
+    }));
+    // Cleanup after animation
     setTimeout(() => {
-        const bbox = textEl.getBBox?.();
-        if (!bbox || bbox.width === 0) {
-            // fallback if can't measure
-            return;
-        }
-        let defs = ownerSvg.querySelector("defs");
-        if (!defs) {
-            defs = document.createElementNS(SVG_NS$1, "defs");
-            ownerSvg.insertBefore(defs, ownerSvg.firstChild);
-        }
-        const clipId = `skm-clip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        const clipPath = document.createElementNS(SVG_NS$1, "clipPath");
-        clipPath.setAttribute("id", clipId);
-        const rect = document.createElementNS(SVG_NS$1, "rect");
-        rect.setAttribute("x", String(bbox.x - 2));
-        rect.setAttribute("y", String(bbox.y - 2));
-        rect.setAttribute("width", "0");
-        rect.setAttribute("height", String(bbox.height + 4));
-        clipPath.appendChild(rect);
-        defs.appendChild(clipPath);
-        textEl.setAttribute("clip-path", `url(#${clipId})`);
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            rect.style.transition = `width ${durationMs}ms cubic-bezier(.4,0,.2,1)`;
-            rect.setAttribute("width", String(bbox.width + 4));
-        }));
-        // Cleanup after animation
-        setTimeout(() => {
-            textEl.removeAttribute("clip-path");
-            clipPath.remove();
-        }, durationMs + 50);
-    }, delayMs);
+        clearTextReveal(textEl, clipId);
+    }, delayMs + durationMs + 50);
 }
-function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur) {
+function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur, textOnlyDur = ANIMATION.textRevealMs) {
     showDrawEl(el);
     const guide = nodeGuidePathEl(el);
     if (!guide) {
         const firstPath = el.querySelector("path");
+        const text = nodeText(el);
+        if (!firstPath && el.dataset.nodeShape === "text" && text) {
+            animateTextReveal(text, 0, textOnlyDur);
+            setTimeout(() => {
+                clearNodeDrawStyles(el);
+            }, textOnlyDur + 80);
+            return;
+        }
         if (!firstPath?.style.strokeDasharray)
             prepareForDraw(el);
         animateShapeDraw(el, strokeDur, ANIMATION.nodeStagger);
@@ -10049,7 +10070,7 @@ class AnimationController {
             if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
                 prepareNodeForDraw(nodeEl);
             }
-            animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur);
+            animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur, step.duration ?? ANIMATION.textRevealMs);
         }
     }
     // ── erase ─────────────────────────────────────────────────
@@ -11850,6 +11871,7 @@ const EMBED_CSS = `
 
 .skm-embed__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
@@ -11865,6 +11887,13 @@ const EMBED_CSS = `
 
 .skm-embed__controls.is-hidden {
   display: none;
+}
+
+.skm-embed__controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .skm-embed__button {
@@ -11902,6 +11931,17 @@ const EMBED_CSS = `
   cursor: default;
 }
 
+.skm-embed__zoom {
+  min-width: 48px;
+  text-align: center;
+  color: #8a6040;
+  font-size: 11px;
+}
+
+.skm-embed--dark .skm-embed__zoom {
+  color: #d0b176;
+}
+
 .skm-embed__step {
   margin-left: auto;
   min-width: 96px;
@@ -11920,8 +11960,10 @@ class SketchmarkEmbed {
         this.emitter = new EventEmitter();
         this.animUnsub = null;
         this.playInFlight = false;
+        this.zoom = 1;
         this.offsetX = 0;
         this.offsetY = 0;
+        this.autoFitEnabled = true;
         this.motionFrame = null;
         this.resizeObserver = null;
         this.options = options;
@@ -11942,10 +11984,18 @@ class SketchmarkEmbed {
       </div>
       <div class="skm-embed__error"></div>
       <div class="skm-embed__controls">
-        <button type="button" class="skm-embed__button" data-action="reset">Reset</button>
-        <button type="button" class="skm-embed__button" data-action="prev">Prev</button>
-        <button type="button" class="skm-embed__button" data-action="next">Next</button>
-        <button type="button" class="skm-embed__button" data-action="play">Play</button>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="zoom-out">-</button>
+          <span class="skm-embed__zoom">100%</span>
+          <button type="button" class="skm-embed__button" data-action="zoom-in">+</button>
+          <button type="button" class="skm-embed__button" data-action="fit">Reset</button>
+        </div>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="restart">Restart</button>
+          <button type="button" class="skm-embed__button" data-action="prev">Prev</button>
+          <button type="button" class="skm-embed__button" data-action="next">Next</button>
+          <button type="button" class="skm-embed__button" data-action="play">Play</button>
+        </div>
         <span class="skm-embed__step">No steps</span>
       </div>
     `;
@@ -11955,12 +12005,19 @@ class SketchmarkEmbed {
         this.errorElement = this.root.querySelector(".skm-embed__error");
         this.controlsElement = this.root.querySelector(".skm-embed__controls");
         this.stepInfoElement = this.root.querySelector(".skm-embed__step");
-        this.btnReset = this.root.querySelector('[data-action="reset"]');
+        this.zoomInfoElement = this.root.querySelector(".skm-embed__zoom");
+        this.btnFit = this.root.querySelector('[data-action="fit"]');
+        this.btnZoomIn = this.root.querySelector('[data-action="zoom-in"]');
+        this.btnZoomOut = this.root.querySelector('[data-action="zoom-out"]');
+        this.btnRestart = this.root.querySelector('[data-action="restart"]');
         this.btnPrev = this.root.querySelector('[data-action="prev"]');
         this.btnNext = this.root.querySelector('[data-action="next"]');
         this.btnPlay = this.root.querySelector('[data-action="play"]');
         this.controlsElement.classList.toggle("is-hidden", options.showControls === false);
-        this.btnReset.addEventListener("click", () => this.resetAnimation());
+        this.btnFit.addEventListener("click", () => this.resetView());
+        this.btnZoomIn.addEventListener("click", () => this.zoomIn());
+        this.btnZoomOut.addEventListener("click", () => this.zoomOut());
+        this.btnRestart.addEventListener("click", () => this.resetAnimation());
         this.btnPrev.addEventListener("click", () => this.prevStep());
         this.btnNext.addEventListener("click", () => this.nextStep());
         this.btnPlay.addEventListener("click", () => {
@@ -12006,7 +12063,12 @@ class SketchmarkEmbed {
         this.animUnsub = null;
         this.instance?.anim?.destroy();
         this.instance = null;
+        this.autoFitEnabled = true;
+        this.zoom = 1;
+        this.offsetX = 0;
+        this.offsetY = 0;
         this.diagramWrap.innerHTML = "";
+        this.applyTransform();
         try {
             const instance = render({
                 container: this.diagramWrap,
@@ -12087,6 +12149,21 @@ class SketchmarkEmbed {
         this.syncControls();
         this.positionViewport(true);
     }
+    fitToViewport(animated = false) {
+        if (!this.instance?.svg)
+            return;
+        this.autoFitEnabled = true;
+        this.positionViewport(animated);
+    }
+    resetView(animated = false) {
+        this.fitToViewport(animated);
+    }
+    zoomIn() {
+        this.zoomAroundViewportCenter(1.2);
+    }
+    zoomOut() {
+        this.zoomAroundViewportCenter(0.8);
+    }
     exportSVG(filename) {
         this.instance?.exportSVG(filename);
     }
@@ -12109,10 +12186,14 @@ class SketchmarkEmbed {
         return typeof value === "number" ? `${value}px` : value;
     }
     syncControls() {
+        this.syncAnimationControls();
+        this.syncViewControls();
+    }
+    syncAnimationControls() {
         const anim = this.instance?.anim;
         if (!anim || !anim.total) {
             this.stepInfoElement.textContent = "No steps";
-            this.btnReset.disabled = true;
+            this.btnRestart.disabled = true;
             this.btnPrev.disabled = true;
             this.btnNext.disabled = true;
             this.btnPlay.disabled = true;
@@ -12120,56 +12201,69 @@ class SketchmarkEmbed {
         }
         this.stepInfoElement.textContent =
             anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
-        this.btnReset.disabled = false;
+        this.btnRestart.disabled = false;
         this.btnPrev.disabled = !anim.canPrev;
         this.btnNext.disabled = !anim.canNext;
         this.btnPlay.disabled = this.playInFlight || !anim.canNext;
     }
+    syncViewControls() {
+        const hasView = !!this.instance?.svg;
+        const zoomMin = this.getZoomMin();
+        const zoomMax = this.getZoomMax();
+        this.zoomInfoElement.textContent = `${Math.round(this.zoom * 100)}%`;
+        this.btnFit.disabled = !hasView;
+        this.btnZoomOut.disabled = !hasView || this.zoom <= zoomMin + 0.001;
+        this.btnZoomIn.disabled = !hasView || this.zoom >= zoomMax - 0.001;
+    }
     positionViewport(animated) {
-        if (!this.instance?.svg)
+        const size = this.getContentSize();
+        if (!size)
             return;
-        const svg = this.instance.svg;
-        const svgWidth = parseFloat(svg.getAttribute("width") || "0");
-        const svgHeight = parseFloat(svg.getAttribute("height") || "0");
-        if (!svgWidth || !svgHeight)
-            return;
+        const { width: svgWidth, height: svgHeight } = size;
         const viewportRect = this.viewport.getBoundingClientRect();
         const viewWidth = viewportRect.width || this.viewport.clientWidth;
         const viewHeight = viewportRect.height || this.viewport.clientHeight;
         if (!viewWidth || !viewHeight)
             return;
-        const sceneIsLarge = svgWidth > viewWidth || svgHeight > viewHeight;
+        if (this.autoFitEnabled) {
+            this.zoom = this.getFitZoom(svgWidth, svgHeight, viewWidth, viewHeight);
+        }
+        this.syncViewControls();
+        const scaledWidth = svgWidth * this.zoom;
+        const scaledHeight = svgHeight * this.zoom;
+        const focusTarget = this.getFocusTarget();
+        const sceneIsLarge = scaledWidth > viewWidth || scaledHeight > viewHeight;
         const shouldFocus = sceneIsLarge &&
             this.options.autoFocus !== false &&
-            !!this.getFocusTarget();
+            !!focusTarget;
         if (!shouldFocus) {
-            this.animateTo(svgWidth <= viewWidth ? (viewWidth - svgWidth) / 2 : 0, svgHeight <= viewHeight ? (viewHeight - svgHeight) / 2 : 0, animated);
+            this.animateTo(scaledWidth <= viewWidth ? (viewWidth - scaledWidth) / 2 : 0, scaledHeight <= viewHeight ? (viewHeight - scaledHeight) / 2 : 0, animated);
             return;
         }
-        const target = this.findTargetElement(this.getFocusTarget());
+        const target = this.findTargetElement(focusTarget);
         if (!target) {
             this.animateTo(0, 0, animated);
             return;
         }
-        const currentRect = target.getBoundingClientRect();
-        const sceneX = currentRect.left - viewportRect.left - this.offsetX;
-        const sceneY = currentRect.top - viewportRect.top - this.offsetY;
-        const targetCenterX = sceneX + currentRect.width / 2;
-        const targetCenterY = sceneY + currentRect.height / 2;
-        let nextX = viewWidth / 2 - targetCenterX;
-        let nextY = viewHeight / 2 - targetCenterY;
+        const targetBox = this.getTargetBox(target, viewportRect);
+        if (!targetBox) {
+            this.animateTo(0, 0, animated);
+            return;
+        }
+        let nextX = viewWidth / 2 - targetBox.centerX;
+        let nextY = viewHeight / 2 - targetBox.centerY;
         const padding = this.options.focusPadding ?? 24;
-        if (svgWidth <= viewWidth) {
-            nextX = (viewWidth - svgWidth) / 2;
+        if (scaledWidth <= viewWidth) {
+            nextX = (viewWidth - scaledWidth) / 2;
         }
         else {
-            nextX = clamp(nextX, viewWidth - svgWidth - padding, padding);
+            nextX = clamp(nextX, viewWidth - scaledWidth - padding, padding);
         }
-        if (svgHeight <= viewHeight) {
-            nextY = (viewHeight - svgHeight) / 2;
+        if (scaledHeight <= viewHeight) {
+            nextY = (viewHeight - scaledHeight) / 2;
         }
         else {
-            nextY = clamp(nextY, viewHeight - svgHeight - padding, padding);
+            nextY = clamp(nextY, viewHeight - scaledHeight - padding, padding);
         }
         this.animateTo(nextX, nextY, animated);
     }
@@ -12201,7 +12295,78 @@ class SketchmarkEmbed {
         this.motionFrame = requestAnimationFrame(frame);
     }
     applyTransform() {
-        this.world.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px)`;
+        this.world.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.zoom})`;
+        this.zoomInfoElement.textContent = `${Math.round(this.zoom * 100)}%`;
+    }
+    getContentSize() {
+        if (!this.instance?.svg)
+            return null;
+        const svg = this.instance.svg;
+        const width = parseFloat(svg.getAttribute("width") || "0");
+        const height = parseFloat(svg.getAttribute("height") || "0");
+        if (!width || !height)
+            return null;
+        return { width, height };
+    }
+    getFitZoom(svgWidth, svgHeight, viewWidth, viewHeight) {
+        const padding = this.getFitPadding(viewWidth, viewHeight);
+        const availableWidth = Math.max(viewWidth - padding * 2, 1);
+        const availableHeight = Math.max(viewHeight - padding * 2, 1);
+        const nextZoom = Math.min(availableWidth / svgWidth, availableHeight / svgHeight, 1);
+        return clamp(nextZoom || 1, this.getZoomMin(), this.getZoomMax());
+    }
+    getFitPadding(viewWidth, viewHeight) {
+        if (typeof this.options.fitPadding === "number") {
+            return Math.max(0, this.options.fitPadding);
+        }
+        return Math.max(16, Math.min(40, Math.round(Math.min(viewWidth, viewHeight) * 0.08)));
+    }
+    getZoomMin() {
+        return this.options.zoomMin ?? 0.08;
+    }
+    getZoomMax() {
+        return this.options.zoomMax ?? 4;
+    }
+    zoomAroundViewportCenter(factor) {
+        if (!this.instance?.svg)
+            return;
+        const pivotX = this.viewport.clientWidth / 2;
+        const pivotY = this.viewport.clientHeight / 2;
+        this.zoomTo(this.zoom * factor, pivotX, pivotY);
+    }
+    zoomTo(nextZoom, pivotX, pivotY) {
+        const clampedZoom = clamp(nextZoom, this.getZoomMin(), this.getZoomMax());
+        const ratio = clampedZoom / this.zoom;
+        if (!Number.isFinite(ratio) || ratio === 1) {
+            this.syncViewControls();
+            return;
+        }
+        this.stopMotion();
+        this.autoFitEnabled = false;
+        this.offsetX = pivotX - (pivotX - this.offsetX) * ratio;
+        this.offsetY = pivotY - (pivotY - this.offsetY) * ratio;
+        this.zoom = clampedZoom;
+        this.applyTransform();
+        this.syncViewControls();
+    }
+    getTargetBox(target, viewportRect) {
+        if (target instanceof SVGGraphicsElement) {
+            try {
+                const bounds = target.getBBox();
+                return {
+                    centerX: (bounds.x + bounds.width / 2) * this.zoom,
+                    centerY: (bounds.y + bounds.height / 2) * this.zoom,
+                };
+            }
+            catch {
+                // Ignore and fall back to layout-based bounds below.
+            }
+        }
+        const currentRect = target.getBoundingClientRect();
+        return {
+            centerX: currentRect.left - viewportRect.left - this.offsetX + currentRect.width / 2,
+            centerY: currentRect.top - viewportRect.top - this.offsetY + currentRect.height / 2,
+        };
     }
     getFocusTarget() {
         const anim = this.instance?.anim;

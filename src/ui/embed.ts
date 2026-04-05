@@ -64,6 +64,7 @@ const EMBED_CSS = `
 
 .skm-embed__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
@@ -79,6 +80,13 @@ const EMBED_CSS = `
 
 .skm-embed__controls.is-hidden {
   display: none;
+}
+
+.skm-embed__controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .skm-embed__button {
@@ -116,6 +124,17 @@ const EMBED_CSS = `
   cursor: default;
 }
 
+.skm-embed__zoom {
+  min-width: 48px;
+  text-align: center;
+  color: #8a6040;
+  font-size: 11px;
+}
+
+.skm-embed--dark .skm-embed__zoom {
+  color: #d0b176;
+}
+
 .skm-embed__step {
   margin-left: auto;
   min-width: 96px;
@@ -140,6 +159,9 @@ export interface SketchmarkEmbedOptions {
   theme?: EmbedTheme;
   showControls?: boolean;
   playStepDelay?: number;
+  fitPadding?: number;
+  zoomMin?: number;
+  zoomMax?: number;
   focusPadding?: number;
   focusDuration?: number;
   autoFocus?: boolean;
@@ -163,20 +185,26 @@ export class SketchmarkEmbed {
   readonly errorElement: HTMLDivElement;
   readonly controlsElement: HTMLDivElement;
   readonly stepInfoElement: HTMLSpanElement;
+  readonly zoomInfoElement: HTMLSpanElement;
   instance: DiagramInstance | null = null;
 
   private readonly emitter = new EventEmitter<SketchmarkEmbedEvents>();
   private readonly options: SketchmarkEmbedOptions;
-  private readonly btnReset: HTMLButtonElement;
+  private readonly btnRestart: HTMLButtonElement;
   private readonly btnPrev: HTMLButtonElement;
   private readonly btnNext: HTMLButtonElement;
   private readonly btnPlay: HTMLButtonElement;
+  private readonly btnFit: HTMLButtonElement;
+  private readonly btnZoomIn: HTMLButtonElement;
+  private readonly btnZoomOut: HTMLButtonElement;
   private animUnsub: (() => void) | null = null;
   private playInFlight = false;
   private dsl: string;
   private theme: EmbedTheme;
+  private zoom = 1;
   private offsetX = 0;
   private offsetY = 0;
+  private autoFitEnabled = true;
   private motionFrame: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -203,10 +231,18 @@ export class SketchmarkEmbed {
       </div>
       <div class="skm-embed__error"></div>
       <div class="skm-embed__controls">
-        <button type="button" class="skm-embed__button" data-action="reset">Reset</button>
-        <button type="button" class="skm-embed__button" data-action="prev">Prev</button>
-        <button type="button" class="skm-embed__button" data-action="next">Next</button>
-        <button type="button" class="skm-embed__button" data-action="play">Play</button>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="zoom-out">-</button>
+          <span class="skm-embed__zoom">100%</span>
+          <button type="button" class="skm-embed__button" data-action="zoom-in">+</button>
+          <button type="button" class="skm-embed__button" data-action="fit">Reset</button>
+        </div>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="restart">Restart</button>
+          <button type="button" class="skm-embed__button" data-action="prev">Prev</button>
+          <button type="button" class="skm-embed__button" data-action="next">Next</button>
+          <button type="button" class="skm-embed__button" data-action="play">Play</button>
+        </div>
         <span class="skm-embed__step">No steps</span>
       </div>
     `;
@@ -217,14 +253,21 @@ export class SketchmarkEmbed {
     this.errorElement = this.root.querySelector(".skm-embed__error") as HTMLDivElement;
     this.controlsElement = this.root.querySelector(".skm-embed__controls") as HTMLDivElement;
     this.stepInfoElement = this.root.querySelector(".skm-embed__step") as HTMLSpanElement;
-    this.btnReset = this.root.querySelector('[data-action="reset"]') as HTMLButtonElement;
+    this.zoomInfoElement = this.root.querySelector(".skm-embed__zoom") as HTMLSpanElement;
+    this.btnFit = this.root.querySelector('[data-action="fit"]') as HTMLButtonElement;
+    this.btnZoomIn = this.root.querySelector('[data-action="zoom-in"]') as HTMLButtonElement;
+    this.btnZoomOut = this.root.querySelector('[data-action="zoom-out"]') as HTMLButtonElement;
+    this.btnRestart = this.root.querySelector('[data-action="restart"]') as HTMLButtonElement;
     this.btnPrev = this.root.querySelector('[data-action="prev"]') as HTMLButtonElement;
     this.btnNext = this.root.querySelector('[data-action="next"]') as HTMLButtonElement;
     this.btnPlay = this.root.querySelector('[data-action="play"]') as HTMLButtonElement;
 
     this.controlsElement.classList.toggle("is-hidden", options.showControls === false);
 
-    this.btnReset.addEventListener("click", () => this.resetAnimation());
+    this.btnFit.addEventListener("click", () => this.resetView());
+    this.btnZoomIn.addEventListener("click", () => this.zoomIn());
+    this.btnZoomOut.addEventListener("click", () => this.zoomOut());
+    this.btnRestart.addEventListener("click", () => this.resetAnimation());
     this.btnPrev.addEventListener("click", () => this.prevStep());
     this.btnNext.addEventListener("click", () => this.nextStep());
     this.btnPlay.addEventListener("click", () => {
@@ -281,7 +324,12 @@ export class SketchmarkEmbed {
     this.animUnsub = null;
     this.instance?.anim?.destroy();
     this.instance = null;
+    this.autoFitEnabled = true;
+    this.zoom = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
     this.diagramWrap.innerHTML = "";
+    this.applyTransform();
 
     try {
       const instance = render({
@@ -364,6 +412,24 @@ export class SketchmarkEmbed {
     this.positionViewport(true);
   }
 
+  fitToViewport(animated = false): void {
+    if (!this.instance?.svg) return;
+    this.autoFitEnabled = true;
+    this.positionViewport(animated);
+  }
+
+  resetView(animated = false): void {
+    this.fitToViewport(animated);
+  }
+
+  zoomIn(): void {
+    this.zoomAroundViewportCenter(1.2);
+  }
+
+  zoomOut(): void {
+    this.zoomAroundViewportCenter(0.8);
+  }
+
   exportSVG(filename?: string): void {
     this.instance?.exportSVG(filename);
   }
@@ -391,10 +457,15 @@ export class SketchmarkEmbed {
   }
 
   private syncControls(): void {
+    this.syncAnimationControls();
+    this.syncViewControls();
+  }
+
+  private syncAnimationControls(): void {
     const anim = this.instance?.anim;
     if (!anim || !anim.total) {
       this.stepInfoElement.textContent = "No steps";
-      this.btnReset.disabled = true;
+      this.btnRestart.disabled = true;
       this.btnPrev.disabled = true;
       this.btnNext.disabled = true;
       this.btnPlay.disabled = true;
@@ -403,66 +474,83 @@ export class SketchmarkEmbed {
 
     this.stepInfoElement.textContent =
       anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
-    this.btnReset.disabled = false;
+    this.btnRestart.disabled = false;
     this.btnPrev.disabled = !anim.canPrev;
     this.btnNext.disabled = !anim.canNext;
     this.btnPlay.disabled = this.playInFlight || !anim.canNext;
   }
 
-  private positionViewport(animated: boolean): void {
-    if (!this.instance?.svg) return;
+  private syncViewControls(): void {
+    const hasView = !!this.instance?.svg;
+    const zoomMin = this.getZoomMin();
+    const zoomMax = this.getZoomMax();
 
-    const svg = this.instance.svg;
-    const svgWidth = parseFloat(svg.getAttribute("width") || "0");
-    const svgHeight = parseFloat(svg.getAttribute("height") || "0");
-    if (!svgWidth || !svgHeight) return;
+    this.zoomInfoElement.textContent = `${Math.round(this.zoom * 100)}%`;
+    this.btnFit.disabled = !hasView;
+    this.btnZoomOut.disabled = !hasView || this.zoom <= zoomMin + 0.001;
+    this.btnZoomIn.disabled = !hasView || this.zoom >= zoomMax - 0.001;
+  }
+
+  private positionViewport(animated: boolean): void {
+    const size = this.getContentSize();
+    if (!size) return;
+
+    const { width: svgWidth, height: svgHeight } = size;
 
     const viewportRect = this.viewport.getBoundingClientRect();
     const viewWidth = viewportRect.width || this.viewport.clientWidth;
     const viewHeight = viewportRect.height || this.viewport.clientHeight;
     if (!viewWidth || !viewHeight) return;
 
-    const sceneIsLarge = svgWidth > viewWidth || svgHeight > viewHeight;
+    if (this.autoFitEnabled) {
+      this.zoom = this.getFitZoom(svgWidth, svgHeight, viewWidth, viewHeight);
+    }
+    this.syncViewControls();
+
+    const scaledWidth = svgWidth * this.zoom;
+    const scaledHeight = svgHeight * this.zoom;
+    const focusTarget = this.getFocusTarget();
+    const sceneIsLarge = scaledWidth > viewWidth || scaledHeight > viewHeight;
     const shouldFocus =
       sceneIsLarge &&
       this.options.autoFocus !== false &&
-      !!this.getFocusTarget();
+      !!focusTarget;
 
     if (!shouldFocus) {
       this.animateTo(
-        svgWidth <= viewWidth ? (viewWidth - svgWidth) / 2 : 0,
-        svgHeight <= viewHeight ? (viewHeight - svgHeight) / 2 : 0,
+        scaledWidth <= viewWidth ? (viewWidth - scaledWidth) / 2 : 0,
+        scaledHeight <= viewHeight ? (viewHeight - scaledHeight) / 2 : 0,
         animated,
       );
       return;
     }
 
-    const target = this.findTargetElement(this.getFocusTarget()!);
+    const target = this.findTargetElement(focusTarget!);
     if (!target) {
       this.animateTo(0, 0, animated);
       return;
     }
 
-    const currentRect = target.getBoundingClientRect();
-    const sceneX = currentRect.left - viewportRect.left - this.offsetX;
-    const sceneY = currentRect.top - viewportRect.top - this.offsetY;
-    const targetCenterX = sceneX + currentRect.width / 2;
-    const targetCenterY = sceneY + currentRect.height / 2;
-
-    let nextX = viewWidth / 2 - targetCenterX;
-    let nextY = viewHeight / 2 - targetCenterY;
-    const padding = this.options.focusPadding ?? 24;
-
-    if (svgWidth <= viewWidth) {
-      nextX = (viewWidth - svgWidth) / 2;
-    } else {
-      nextX = clamp(nextX, viewWidth - svgWidth - padding, padding);
+    const targetBox = this.getTargetBox(target, viewportRect);
+    if (!targetBox) {
+      this.animateTo(0, 0, animated);
+      return;
     }
 
-    if (svgHeight <= viewHeight) {
-      nextY = (viewHeight - svgHeight) / 2;
+    let nextX = viewWidth / 2 - targetBox.centerX;
+    let nextY = viewHeight / 2 - targetBox.centerY;
+    const padding = this.options.focusPadding ?? 24;
+
+    if (scaledWidth <= viewWidth) {
+      nextX = (viewWidth - scaledWidth) / 2;
     } else {
-      nextY = clamp(nextY, viewHeight - svgHeight - padding, padding);
+      nextX = clamp(nextX, viewWidth - scaledWidth - padding, padding);
+    }
+
+    if (scaledHeight <= viewHeight) {
+      nextY = (viewHeight - scaledHeight) / 2;
+    } else {
+      nextY = clamp(nextY, viewHeight - scaledHeight - padding, padding);
     }
 
     this.animateTo(nextX, nextY, animated);
@@ -500,7 +588,88 @@ export class SketchmarkEmbed {
   }
 
   private applyTransform(): void {
-    this.world.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px)`;
+    this.world.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px) scale(${this.zoom})`;
+    this.zoomInfoElement.textContent = `${Math.round(this.zoom * 100)}%`;
+  }
+
+  private getContentSize(): { width: number; height: number } | null {
+    if (!this.instance?.svg) return null;
+
+    const svg = this.instance.svg;
+    const width = parseFloat(svg.getAttribute("width") || "0");
+    const height = parseFloat(svg.getAttribute("height") || "0");
+    if (!width || !height) return null;
+    return { width, height };
+  }
+
+  private getFitZoom(svgWidth: number, svgHeight: number, viewWidth: number, viewHeight: number): number {
+    const padding = this.getFitPadding(viewWidth, viewHeight);
+    const availableWidth = Math.max(viewWidth - padding * 2, 1);
+    const availableHeight = Math.max(viewHeight - padding * 2, 1);
+    const nextZoom = Math.min(availableWidth / svgWidth, availableHeight / svgHeight, 1);
+    return clamp(nextZoom || 1, this.getZoomMin(), this.getZoomMax());
+  }
+
+  private getFitPadding(viewWidth: number, viewHeight: number): number {
+    if (typeof this.options.fitPadding === "number") {
+      return Math.max(0, this.options.fitPadding);
+    }
+    return Math.max(16, Math.min(40, Math.round(Math.min(viewWidth, viewHeight) * 0.08)));
+  }
+
+  private getZoomMin(): number {
+    return this.options.zoomMin ?? 0.08;
+  }
+
+  private getZoomMax(): number {
+    return this.options.zoomMax ?? 4;
+  }
+
+  private zoomAroundViewportCenter(factor: number): void {
+    if (!this.instance?.svg) return;
+    const pivotX = this.viewport.clientWidth / 2;
+    const pivotY = this.viewport.clientHeight / 2;
+    this.zoomTo(this.zoom * factor, pivotX, pivotY);
+  }
+
+  private zoomTo(nextZoom: number, pivotX: number, pivotY: number): void {
+    const clampedZoom = clamp(nextZoom, this.getZoomMin(), this.getZoomMax());
+    const ratio = clampedZoom / this.zoom;
+    if (!Number.isFinite(ratio) || ratio === 1) {
+      this.syncViewControls();
+      return;
+    }
+
+    this.stopMotion();
+    this.autoFitEnabled = false;
+    this.offsetX = pivotX - (pivotX - this.offsetX) * ratio;
+    this.offsetY = pivotY - (pivotY - this.offsetY) * ratio;
+    this.zoom = clampedZoom;
+    this.applyTransform();
+    this.syncViewControls();
+  }
+
+  private getTargetBox(
+    target: Element,
+    viewportRect: DOMRect,
+  ): { centerX: number; centerY: number } | null {
+    if (target instanceof SVGGraphicsElement) {
+      try {
+        const bounds = target.getBBox();
+        return {
+          centerX: (bounds.x + bounds.width / 2) * this.zoom,
+          centerY: (bounds.y + bounds.height / 2) * this.zoom,
+        };
+      } catch {
+        // Ignore and fall back to layout-based bounds below.
+      }
+    }
+
+    const currentRect = target.getBoundingClientRect();
+    return {
+      centerX: currentRect.left - viewportRect.left - this.offsetX + currentRect.width / 2,
+      centerY: currentRect.top - viewportRect.top - this.offsetY + currentRect.height / 2,
+    };
   }
 
   private getFocusTarget(): string | null {
