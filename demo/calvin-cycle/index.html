@@ -114,42 +114,37 @@ theme o2       fill="#e8eaf6" stroke="#283593" color="#1a237e"
 theme carbon   fill="#fce4ec" stroke="#880e4f" color="#880e4f"
 
 # === PHASE 1: INPUTS ===
-group inputs label="Inputs" layout=row gap=30 fill="#fafafa" stroke="#bdbdbd" padding=20 {
-  box h2o    label="6 H₂O\n(from soil)" theme=water width=110 height=55
-  box light  label="Photons\nof Light"   theme=light width=110 height=55
-  box co2in  label="6 CO₂\n(from air)"  theme=co2   width=110 height=55
-  box stomata label="Stomata"            theme=neutral width=100 height=45
-}
+box h2o     label="6 H₂O\n(from soil)" theme=water width=110 height=55
+box light   label="Photons\nof Light" theme=light width=110 height=55
+box co2in   label="6 CO₂\n(from air)" theme=co2 width=110 height=55
+box stomata label="Stomata" theme=neutral width=100 height=45
+group inputs label="Inputs" layout=row gap=30 fill="#fafafa" stroke="#bdbdbd" padding=20 items=[h2o,light,co2in,stomata]
 
 # === PHASE 2: CARBON FIXATION ===
-group fixation label="Phase 1 — Carbon Fixation" layout=row gap=30 fill="#fff8e1" stroke="#ffb300" padding=20 {
-  box rubp    label="6 RuBP\n(5-carbon)" theme=cycle  width=130 height=55
-  box rubisco label="RuBisCO\n(enzyme)"  theme=enzyme width=130 height=55
-  box inter   label="6 Intermediate\n(6-carbon)" theme=cycle width=160 height=55
-}
+box rubp    label="6 RuBP\n(5-carbon)" theme=cycle width=130 height=55
+box rubisco label="RuBisCO\n(enzyme)" theme=enzyme width=130 height=55
+box inter   label="6 Intermediate\n(6-carbon)" theme=cycle width=160 height=55
+group fixation label="Phase 1 — Carbon Fixation" layout=row gap=30 fill="#fff8e1" stroke="#ffb300" padding=20 items=[rubp,rubisco,inter]
 
 # === PHASE 3: REDUCTION ===
-group reduction label="Phase 2 — Reduction" layout=row gap=30 fill="#e8f5e9" stroke="#66bb6a" padding=20 {
-  box pga     label="12 PGA\n(3-carbon)" theme=cycle   width=130 height=55
-  box atp1    label="12 ATP"              theme=energy  width=90  height=45
-  box nadph   label="12 NADPH"            theme=energy  width=110 height=45
-  box pgal    label="12 PGAL\n(3-carbon)" theme=cycle   width=130 height=55
-}
+box pga   label="12 PGA\n(3-carbon)" theme=cycle width=130 height=55
+box atp1  label="12 ATP" theme=energy width=90 height=45
+box nadph label="12 NADPH" theme=energy width=110 height=45
+box pgal  label="12 PGAL\n(3-carbon)" theme=cycle width=130 height=55
+group reduction label="Phase 2 — Reduction" layout=row gap=30 fill="#e8f5e9" stroke="#66bb6a" padding=20 items=[pga,atp1,nadph,pgal]
 
 # === LIGHT REACTIONS ===
-group lightdep label="Light-Dependent Reactions\n(in thylakoids)" layout=column gap=15 fill="#e3f2fd" stroke="#1565c0" padding=20 {
-  box o2out  label="O₂\n(released)" theme=o2     width=110 height=50
-  box adp    label="12 ADP"         theme=neutral width=100 height=40
-  box nadp   label="12 NADP⁺"      theme=neutral width=110 height=40
-}
+box o2out label="O₂\n(released)" theme=o2 width=110 height=50
+box adp   label="12 ADP" theme=neutral width=100 height=40
+box nadp  label="12 NADP⁺" theme=neutral width=110 height=40
+group lightdep label="Light-Dependent Reactions\n(in thylakoids)" layout=column gap=15 fill="#e3f2fd" stroke="#1565c0" padding=20 items=[o2out,adp,nadp]
 
 # === PHASE 4: REGENERATION & OUTPUT ===
-group output label="Phase 3 — Regeneration & Output" layout=row gap=30 fill="#f3e5f5" stroke="#ab47bc" padding=20 {
-  box pgal10 label="10 PGAL\n(recycled)"  theme=cycle   width=140 height=55
-  box atp2   label="6 ATP\n(used)"        theme=energy  width=100 height=50
-  box pgal2  label="2 PGAL"               theme=product width=100 height=50
-  box glucose label="1 Glucose\n(C₆H₁₂O₆)" theme=product width=150 height=55
-}
+box pgal10  label="10 PGAL\n(recycled)" theme=cycle width=140 height=55
+box atp2    label="6 ATP\n(used)" theme=energy width=100 height=50
+box pgal2   label="2 PGAL" theme=product width=100 height=50
+box glucose label="1 Glucose\n(C₆H₁₂O₆)" theme=product width=150 height=55
+group output label="Phase 3 — Regeneration & Output" layout=row gap=30 fill="#f3e5f5" stroke="#ab47bc" padding=20 items=[pgal10,atp2,pgal2,glucose]
 
 # === CARBON FIXATION NOTE ===
 markdown carbonnote width=220

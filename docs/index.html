@@ -666,28 +666,23 @@ gateway --> db    label=<span class="st">"lookup"</span>
   <div class="showcase-inner reverse" style="max-width:1200px;margin:0 auto">
     <div class="showcase-text reveal">
       <span class="showcase-tag">Layout</span>
-      <h2 class="showcase-title">Flexbox-style groups, nested infinitely</h2>
+      <h2 class="showcase-title">Flexbox-style groups, without deep nesting</h2>
       <p class="showcase-desc">
         Groups are flex containers. Set <code>layout=row</code>, <code>layout=column</code>, or <code>layout=grid</code>.
-        Nest groups inside groups. Justify content with <code>space-between</code> or <code>center</code>.
-        The engine measures and places everything — you just describe structure.
+        Keep nodes flat at the top level, then compose layouts with <code>items=[...]</code>.
+        Groups can reference other groups, so the structure stays easy to read, diff, and update.
       </p>
       <div class="dsl-example">
         <div class="dsl-example-bar">layout.sketchmark</div>
-        <pre><span class="kw">group</span> services layout=<span class="th">column</span> gap=<span class="nu">16</span>
-{
-  <span class="kw">group</span> tier1 layout=<span class="th">row</span> justify=<span class="th">space-between</span>
-  {
-    <span class="kw">box</span> auth  label=<span class="st">"Auth"</span>
-    <span class="kw">box</span> api   label=<span class="st">"API"</span>
-    <span class="kw">box</span> cache label=<span class="st">"Cache"</span>
-  }
-  <span class="kw">group</span> dbs layout=<span class="th">grid</span> columns=<span class="nu">2</span>
-  {
-    <span class="kw">cylinder</span> pg    label=<span class="st">"Postgres"</span>
-    <span class="kw">cylinder</span> redis label=<span class="st">"Redis"</span>
-  }
-}</pre>
+        <pre><span class="kw">box</span> auth  label=<span class="st">"Auth"</span>
+<span class="kw">box</span> api   label=<span class="st">"API"</span>
+<span class="kw">box</span> cache label=<span class="st">"Cache"</span>
+<span class="kw">cylinder</span> pg    label=<span class="st">"Postgres"</span>
+<span class="kw">cylinder</span> redis label=<span class="st">"Redis"</span>
+
+<span class="kw">group</span> tier1 layout=<span class="th">row</span> justify=<span class="th">space-between</span> items=[auth,api,cache]
+<span class="kw">group</span> dbs layout=<span class="th">grid</span> columns=<span class="nu">2</span> items=[pg,redis]
+<span class="kw">group</span> services layout=<span class="th">column</span> gap=<span class="nu">16</span> items=[tier1,dbs]</pre>
       </div>
     </div>
     <div class="showcase-diagram reveal" id="layout-showcase"></div>
@@ -883,20 +878,15 @@ theme success fill="#e8ffe8" stroke="#007700" color="#004400"
 theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
 theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
-group root layout=row gap=50 padding=0
-{
-  box client  label="Client App"   theme=primary width=130 height=50
-  box gateway label="API Gateway"  theme=warning width=130 height=50
+box client  label="Client App"   theme=primary width=130 height=50
+box gateway label="API Gateway"  theme=warning width=130 height=50
+box auth    label="Auth"         theme=primary width=120 height=48
+box billing label="Billing"      theme=primary width=120 height=48
+box notify  label="Notify"       theme=success width=120 height=48
+cylinder db label="PostgreSQL" theme=success width=130 height=62
 
-  group services label="Services" layout=column gap=14 padding=26 theme=muted
-  {
-    box auth    label="Auth"    theme=primary width=120 height=48
-    box billing label="Billing" theme=primary width=120 height=48
-    box notify  label="Notify"  theme=success width=120 height=48
-  }
-
-  cylinder db label="PostgreSQL" theme=success width=130 height=62
-}
+group services label="Services" layout=column gap=14 padding=26 theme=muted items=[auth,billing,notify]
+group root layout=row gap=50 padding=0 items=[client,gateway,services,db]
 
 client  --> gateway  label="HTTPS"
 gateway --> auth
@@ -936,17 +926,12 @@ theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
 box lb label="Load Balancer" theme=warning width=140 height=52
 
-group blue label="Blue (live)" layout=column gap=14 padding=24 theme=primary
-{
-  box b1 label="API v1"    theme=primary width=115 height=46
-  box b2 label="Worker v1" theme=primary width=115 height=46
-}
-
-group green label="Green (new)" layout=column gap=14 padding=24 theme=success
-{
-  box g1 label="API v2"    theme=success width=115 height=46
-  box g2 label="Worker v2" theme=success width=115 height=46
-}
+box b1 label="API v1"    theme=primary width=115 height=46
+box b2 label="Worker v1" theme=primary width=115 height=46
+box g1 label="API v2"    theme=success width=115 height=46
+box g2 label="Worker v2" theme=success width=115 height=46
+group blue label="Blue (live)" layout=column gap=14 padding=24 theme=primary items=[b1,b2]
+group green label="Green (new)" layout=column gap=14 padding=24 theme=success items=[g1,g2]
 
 lb --> b1 label="100%"
 lb --> g1 label="0%"
@@ -986,27 +971,20 @@ theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
 theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 theme purple  fill="#f3e8ff" stroke="#7700cc" color="#4400aa"
 
-group platform label="Platform" layout=column gap=20 padding=26 theme=muted
-{
-  group frontend label="Frontend" layout=row gap=12 padding=18 theme=primary
-  {
-    box react label="React"   width=88 height=44
-    box next  label="Next.js" width=88 height=44
-    box vite  label="Vite"    width=88 height=44
-  }
-  group backend label="Backend" layout=row gap=12 padding=18 theme=success
-  {
-    box api  label="REST"  width=88 height=44
-    box grpc label="gRPC"  width=88 height=44
-    box ws   label="WS"    width=88 height=44
-  }
-  group data label="Data" layout=grid columns=3 gap=12 padding=18 theme=warning
-  {
-    cylinder pg    label="PG"     width=88 height=56
-    cylinder redis label="Redis"  width=88 height=56
-    cylinder es    label="Elastic" width=88 height=56
-  }
-}
+box react label="React" width=88 height=44
+box next  label="Next.js" width=88 height=44
+box vite  label="Vite" width=88 height=44
+box api   label="REST" width=88 height=44
+box grpc  label="gRPC" width=88 height=44
+box ws    label="WS" width=88 height=44
+cylinder pg    label="PG" width=88 height=56
+cylinder redis label="Redis" width=88 height=56
+cylinder es    label="Elastic" width=88 height=56
+
+group frontend label="Frontend" layout=row gap=12 padding=18 theme=primary items=[react,next,vite]
+group backend label="Backend" layout=row gap=12 padding=18 theme=success items=[api,grpc,ws]
+group data label="Data" layout=grid columns=3 gap=12 padding=18 theme=warning items=[pg,redis,es]
+group platform label="Platform" layout=column gap=20 padding=26 theme=muted items=[frontend,backend,data]
 
 react --> api
 next  --> api
@@ -1026,21 +1004,15 @@ layout row
 config gap=40
 config theme=${t}
 
-group g layout=column gap=16 padding=26
-{
-  group r1 layout=row gap=14 padding=0
-  {
-    box a label="Service A" width=110 height=48
-    box b label="Service B" width=110 height=48
-    box c label="Service C" width=110 height=48
-  }
-  group r2 layout=row gap=14 padding=0
-  {
-    cylinder d label="Database" width=110 height=58
-    cylinder e label="Cache"    width=110 height=58
-    box f label="Queue"         width=110 height=48
-  }
-}
+box a label="Service A" width=110 height=48
+box b label="Service B" width=110 height=48
+box c label="Service C" width=110 height=48
+cylinder d label="Database" width=110 height=58
+cylinder e label="Cache" width=110 height=58
+box f label="Queue" width=110 height=48
+group r1 layout=row gap=14 padding=0 items=[a,b,c]
+group r2 layout=row gap=14 padding=0 items=[d,e,f]
+group g layout=column gap=16 padding=26 items=[r1,r2]
 
 a --> d label="write"
 b --> d

@@ -518,20 +518,17 @@
         <div class="sidebar-inner">
           <!-- example tabs -->
           <div id="example-tabs">
-            <button class="ex-tab active" data-example="arch">🏗 arch</button>
-            <button class="ex-tab" data-example="auth">🔐 auth</button>
-            <button class="ex-tab" data-example="micro">⚙ micro</button>
-            <button class="ex-tab" data-example="nested">📦 nested</button>
-            <button class="ex-tab" data-example="pyramid">🔺 pyramid</button>
-            <button class="ex-tab" data-example="network">🌐 osi</button>
-            <button class="ex-tab" data-example="deploy">🚀 deploy</button>
-            <button class="ex-tab" data-example="charts">📊 charts</button>
-            <button class="ex-tab" data-example="tables">📋 tables</button>
-            <button class="ex-tab" data-example="notes">📝 notes</button>
-            <button class="ex-tab" data-example="shapes">⬡ shapes</button>
-            <button class="ex-tab" data-example="sketch">✏ sketch</button>
+            <button class="ex-tab active" data-example="shapes">⬡ shapes</button>
+            <button class="ex-tab" data-example="image">🖼 image</button>
+            <button class="ex-tab" data-example="icon">🔣 icon</button>
+            <button class="ex-tab" data-example="paths">✒ paths</button>
+            <button class="ex-tab" data-example="groups">🧩 groups</button>
+            <button class="ex-tab" data-example="animation">🎬 animation</button>
+            <button class="ex-tab" data-example="narration">🗣 narration</button>
+            <button class="ex-tab" data-example="edges">↔ edges</button>
             <button class="ex-tab" data-example="markdown">📄 markdown</button>
-            <button class="ex-tab" data-example="notes">📝 notes</button>
+            <button class="ex-tab" data-example="table">📋 table</button>
+            <button class="ex-tab" data-example="charts">📊 charts</button>
           </div>
 
           <!-- toolbar -->
@@ -628,658 +625,192 @@
       import { render } from '../dist/index.js';
 
       // ── Examples ────────────────────────────────────────────────────────────
-      const EXAMPLES = {
-        arch: `diagram
-title label="System Architecture"
-layout row
-config gap=60
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-group root layout=row gap=60 padding=0
-{
-  box client  label="Client App"   theme=primary width=140 height=55
-  box gateway label="API Gateway"  theme=warning width=140 height=55
-
-  group services label="Microservices" layout=column gap=16 padding=30 theme=muted
-  {
-    box auth    label="Auth Service"    theme=primary width=140 height=55
-    box billing label="Billing Service" theme=primary width=140 height=55
-  }
-
-  box database label="PostgreSQL" theme=success width=140 height=55
-}
-
-client  --> gateway  label="HTTPS"
-gateway --> auth
-gateway --> billing
-auth    --> database label="SQL"
-billing --> database label="SQL"
-
-step highlight client
-step draw client-->gateway
-step highlight gateway
-step draw gateway-->auth
-step draw gateway-->billing
-step highlight auth
-step draw auth-->database
-step highlight database
-end`,
-
-        auth: `diagram
-title label="Authentication Flow"
-layout row
-config gap=50
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-group root layout=row gap=50 padding=0
-{
-  group col1 layout=column gap=20 padding=0
-  {
-    box user   label="User Browser"  theme=primary width=150 height=58
-    box mobile label="Mobile App"    theme=primary width=150 height=58
-  }
-
-  group gateway label="API Gateway" layout=column gap=16 padding=30 theme=muted
-  {
-    box waf       label="WAF"           theme=danger  width=160 height=55
-    box ratelimit label="Rate Limiter"  theme=warning width=160 height=55
-    box router    label="Router"        theme=primary width=160 height=55
-  }
-
-  group authsvc label="Auth Service" layout=column gap=16 padding=30 theme=muted
-  {
-    box validate label="Validate Creds"  theme=primary width=160 height=55
-    box mfa      label="MFA Check"       theme=warning width=160 height=55
-    box tokengen label="Token Generator" theme=success width=160 height=55
-  }
-
-  group col4 layout=column gap=30 padding=0
-  {
-    group datastores label="Data Stores" layout=column gap=16 padding=30 theme=muted
-    {
-      cylinder userdb   label="Users DB"    theme=primary width=150 height=65
-      cylinder sessions label="Sessions"    theme=warning width=150 height=65
-      cylinder cache    label="Redis Cache" theme=danger  width=150 height=65
-    }
-    box audit label="Audit Log" theme=muted width=150 height=55
-  }
-}
-
-user      --> waf        label="POST /login"
-mobile    --> waf        label="POST /login"
-waf       --> ratelimit
-ratelimit --> router
-router    --> validate   label="credentials"
-validate  --> userdb     label="lookup"
-validate  --> mfa        label="if enabled"
-mfa       --> cache      label="OTP store"
-validate  --> tokengen   label="on success"
-tokengen  --> sessions   label="store token"
-tokengen  --> cache      label="cache token"
-tokengen  --> user       label="JWT"
-tokengen  --> mobile     label="JWT"
-validate  --> audit      label="log attempt"
-tokengen  --> audit      label="log success"
-
-step highlight user
-step draw user-->waf
-step highlight waf
-step draw waf-->ratelimit
-step draw ratelimit-->router
-step draw router-->validate
-step highlight validate
-step draw validate-->userdb
-step draw validate-->mfa
-step highlight mfa
-step draw mfa-->cache
-step draw validate-->tokengen
-step highlight tokengen
-step draw tokengen-->user
-step pulse tokengen
-step draw validate-->audit
-step draw tokengen-->audit
-step highlight audit
-end`,
-
-        micro: `diagram
-title label="E-Commerce Microservices"
-layout row
-config gap=60
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-group root layout=row gap=60 padding=0
-{
-  group left layout=column gap=20 padding=0
-  {
-    circle user    label="User"         theme=primary width=90  height=90
-    box    mobile  label="Mobile"       theme=primary width=120 height=55
-    box    partner label="Partner API"  theme=muted   width=120 height=55
-  }
-
-  group middle layout=column gap=30 padding=0
-  {
-    group gateway label="Gateway" layout=column gap=16 padding=30 theme=muted
-    {
-      box lb      label="Load Balancer" theme=warning width=140 height=55
-      box auth_gw label="Auth"          theme=danger  width=140 height=55
-    }
-
-    group services label="Core Services" layout=grid columns=2 gap=16 padding=30 theme=muted
-    {
-      box svc_order   label="Orders"   theme=primary width=120 height=55
-      box svc_product label="Products" theme=primary width=120 height=55
-      box svc_payment label="Payments" theme=danger  width=120 height=55
-      box svc_notify  label="Notify"   theme=success width=120 height=55
-    }
-  }
-
-  group right layout=column gap=30 padding=0
-  {
-    group messaging label="Messaging" layout=column gap=16 padding=30 theme=muted
-    {
-      cylinder kafka label="Kafka" theme=warning width=140 height=65
-      cylinder redis label="Redis" theme=danger  width=140 height=65
-    }
-
-    group dbs label="Databases" layout=grid columns=2 gap=16 padding=30 theme=muted
-    {
-      cylinder db_order   label="Orders DB"   theme=primary width=120 height=65
-      cylinder db_product label="Products DB" theme=primary width=120 height=65
-      cylinder db_payment label="Payments DB" theme=danger  width=120 height=65
-      cylinder db_user    label="Users DB"    theme=muted   width=120 height=65
-    }
-  }
-}
-
-user        --> lb           label="HTTP"
-mobile      --> lb
-partner     --> lb           label="API Key"
-lb          --> auth_gw
-auth_gw     --> svc_order    label="route"
-auth_gw     --> svc_product  label="route"
-auth_gw     --> svc_payment  label="route"
-auth_gw     --> svc_notify   label="route"
-svc_order   --> kafka        label="OrderPlaced"
-svc_payment --> kafka        label="PaymentDone"
-kafka       --> svc_notify   label="consume"
-svc_order   --> db_order
-svc_product --> db_product
-svc_payment --> db_payment
-svc_order   --> redis        label="cache"
-end`,
-
-        nested: `diagram
-title label="Nested Groups Demo"
-layout row
-config gap=50
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-theme purple  fill="#f3e8ff" stroke="#7700cc" color="#4400aa"
-
-group page layout=row gap=50 padding=0
-{
-  group platform label="Platform" layout=column gap=30 padding=30 theme=muted
-  {
-    group frontend label="Frontend" layout=row gap=16 padding=24 theme=primary
-    {
-      box react  label="React"      width=100 height=50
-      box next   label="Next.js"    width=100 height=50
-      box vite   label="Vite"       width=100 height=50
-    }
-
-    group backend label="Backend" layout=row gap=16 padding=24 theme=success
-    {
-      box api    label="REST API"   width=100 height=50
-      box grpc   label="gRPC"       width=100 height=50
-      box ws     label="WebSocket"  width=100 height=50
-    }
-
-    group workers label="Workers" layout=row gap=16 padding=24 theme=warning
-    {
-      box queue  label="Queue"      width=100 height=50
-      box cron   label="Cron"       width=100 height=50
-      box events label="Events"     width=100 height=50
-    }
-  }
-
-  group data label="Data" layout=column gap=30 padding=30 theme=muted
-  {
-    group primary_db label="Primary" layout=column gap=16 padding=24 theme=primary
-    {
-      cylinder pg    label="Postgres" width=130 height=65
-      cylinder mongo label="MongoDB"  width=130 height=65
-    }
-
-    group cache_layer label="Cache" layout=column gap=16 padding=24 theme=danger
-    {
-      cylinder redis    label="Redis"    width=130 height=65
-      cylinder memcache label="Memcache" width=130 height=65
-    }
-
-    group search_layer label="Search" layout=column gap=16 padding=24 theme=purple
-    {
-      cylinder elastic label="Elastic" width=130 height=65
-    }
-  }
-}
-
-react  --> api
-next   --> api
-api    --> pg
-api    --> redis    label="cache"
-api    --> elastic  label="search"
-grpc   --> mongo
-queue  --> pg
-events --> redis
-end`,
-
-        pyramid: `diagram
-title label="Org Chart Pyramid"
-layout column
-config gap=40
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-group page layout=column gap=40 padding=0 align=center
-{
-  box top label="CEO" theme=danger width=120 height=55
-
-  group row2 layout=row gap=30 padding=0 justify=center
-  {
-    box cto label="CTO" theme=warning width=120 height=55
-    box cfo label="CFO" theme=warning width=120 height=55
-    box coo label="COO" theme=warning width=120 height=55
-  }
-
-  group row3 layout=row gap=30 padding=0 justify=center
-  {
-    box eng    label="Engineering" theme=primary width=130 height=55
-    box design label="Design"      theme=primary width=130 height=55
-    box fin    label="Finance"     theme=primary width=130 height=55
-    box ops    label="Operations"  theme=primary width=130 height=55
-  }
-
-  group row4 layout=row gap=20 padding=0 justify=center
-  {
-    box fe   label="Frontend" theme=success width=110 height=50
-    box be   label="Backend"  theme=success width=110 height=50
-    box qa   label="QA"       theme=success width=110 height=50
-    box ui   label="UI/UX"    theme=success width=110 height=50
-    box data label="Data"     theme=success width=110 height=50
-    box sec  label="Security" theme=success width=110 height=50
-  }
-
-  box bottom label="All Teams" theme=muted width=200 height=55
-}
-
-top    --> cto
-top    --> cfo
-top    --> coo
-cto    --> eng
-cto    --> design
-cfo    --> fin
-coo    --> ops
-eng    --> fe
-eng    --> be
-eng    --> qa
-design --> ui
-fin    --> data
-ops    --> sec
-end`,
-
-        network: `diagram
-title label="OSI Network Stack"
-layout column
-config gap=30
-
-theme l7 fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme l6 fill="#e8f0ff" stroke="#2200cc" color="#1100aa"
-theme l5 fill="#ede8ff" stroke="#4400cc" color="#2200aa"
-theme l4 fill="#f3e8ff" stroke="#6600cc" color="#4400aa"
-theme l3 fill="#f8e8ff" stroke="#8800cc" color="#5500aa"
-theme l2 fill="#ffe8ff" stroke="#aa00cc" color="#770088"
-theme l1 fill="#ffe8f8" stroke="#cc0088" color="#880055"
-
-group stack layout=column gap=0 padding=20
-{
-  box app       label="7 · Application"  theme=l7 width=280 height=52
-  box pres      label="6 · Presentation" theme=l6 width=280 height=52
-  box session   label="5 · Session"      theme=l5 width=280 height=52
-  box transport label="4 · Transport"    theme=l4 width=280 height=52
-  box network   label="3 · Network"      theme=l3 width=280 height=52
-  box datalink  label="2 · Data Link"    theme=l2 width=280 height=52
-  box physical  label="1 · Physical"     theme=l1 width=280 height=52
-}
-
-app       --> pres      label="data"
-pres      --> session   label="encoded"
-session   --> transport label="established"
-transport --> network   label="segment"
-network   --> datalink  label="packet"
-datalink  --> physical  label="frame"
-
-step highlight app
-step draw app-->pres
-step highlight pres
-step draw pres-->session
-step highlight session
-step draw session-->transport
-step highlight transport
-step draw transport-->network
-step highlight network
-step draw network-->datalink
-step highlight datalink
-step draw datalink-->physical
-step highlight physical
-end`,
-
-        deploy: `diagram
-title label="Blue-Green Deployment"
-layout row
-config gap=50
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-box lb label="Load Balancer" theme=warning width=150 height=55
-
-group blue label="Blue (live)" layout=column gap=16 padding=26 theme=primary
-{
-  box b1 label="API v1"    theme=primary width=120 height=50
-  box b2 label="Worker v1" theme=primary width=120 height=50
-}
-
-group green label="Green (new)" layout=column gap=16 padding=26 theme=success
-{
-  box g1 label="API v2"    theme=success width=120 height=50
-  box g2 label="Worker v2" theme=success width=120 height=50
-}
-
-cylinder db label="Shared DB" theme=muted width=140 height=65
-
-lb --> b1 label="100%"
-lb --> g1 label="0%"
-b1 --> db
-g1 --> db
-
-step highlight lb
-step draw lb-->b1
-step highlight b1
-step move g1 dx=0 dy=60
-step move g2 dx=0 dy=60
-step draw g1
-step move g1 dx=0 dy=-60 duration=500
-step draw g2
-step move g2 dx=0 dy=-60 duration=500
-step fade b1
-step fade b2
-step draw lb-->g1
-step highlight g1
-step draw g1-->db
-end`,
-
-        charts: `diagram
-title label="Dashboard Charts"
-layout row
-config gap=40
-
-bar-chart revenue label="Monthly Revenue" width=320 height=220
-data
-[
-  ["Month", "2023", "2024"],
-  ["Jan",   42000,  58000 ],
-  ["Feb",   38000,  61000 ],
-  ["Mar",   51000,  67000 ],
-  ["Apr",   46000,  72000 ],
-  ["May",   53000,  69000 ]
-]
-
-pie-chart share label="Market Share" width=260 height=220
-data
-[
-  ["Product A", 42],
-  ["Product B", 31],
-  ["Product C", 27]
-]
-
-line-chart growth title="User Growth" width=300 height=220
-data
-[
-  ["Week", "Signups", "Active"],
-  ["W1",   120,       80      ],
-  ["W2",   145,       98      ],
-  ["W3",   180,       130     ],
-  ["W4",   220,       175     ],
-  ["W5",   195,       160     ]
-]
-
-end`,
-
-        tables: `diagram
-title label="Pricing Comparison"
-layout column
-config gap=40
-
-table pricing label="Pricing Plans"
-{
-  header  Plan        Price   Requests    Support
-  row     Free        $0      1k/day      Community
-  row     Pro         $29     100k/day    Email
-  row     Business    $99     1M/day      Priority
-  row     Enterprise  $299    Unlimited   Dedicated
-}
-
-table stack label="Tech Stack"
-{
-  header  Layer       Technology  Version
-  row     Frontend    React       18.x
-  row     Backend     Node.js     20 LTS
-  row     Database    PostgreSQL  16.x
-  row     Cache       Redis       7.x
-  row     Queue       Kafka       3.6
-}
-end`,
-
-        notes: `diagram
-title label="System Notes"
-layout row
-config gap=40
-
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
-
-box api label="API Server" theme=primary width=140 height=55
-box db  label="Database"   theme=muted   width=140 height=55
-
-api --> db label="SQL"
-
-note n1 label="Rate limited\nto 1000 req/s\nper tenant"
-note n2 label="Postgres 16\nwith pg_vector\nfor embeddings"
-note n3 label="All writes go\nthrough a queue\nbefore commit"
-
-end`,
-
+     const EXAMPLES = {
         shapes: `diagram
-title label="All Node Shapes"
-layout row
-config gap=40
-config theme=sketch
+title label="Shapes"
+layout grid
+config columns=2
+config gap=24
 
-group row1 layout=row gap=30 padding=30
-{
-  box           s1 label="box"           width=110 height=55
-  circle        s2 label="circle"        width=90  height=90
-  diamond       s3 label="diamond"       width=130 height=62
-  hexagon       s4 label="hexagon"       width=130 height=56
-  triangle      s5 label="triangle"      width=110 height=66
-}
-
-group row2 layout=row gap=30 padding=30
-{
-  cylinder      s6 label="cylinder"      width=120 height=70
-  parallelogram s7 label="parallelogram" width=140 height=52
-  text          s8 label="text node"
-}
+box s_box label="box"
+circle s_circle label="circle" width=90 height=90
+diamond s_diamond label="diamond" width=140 height=62
+hexagon s_hex label="hexagon" width=140 height=56
+triangle s_tri label="triangle" width=120 height=70
+cylinder s_cyl label="cylinder" width=130 height=70
+parallelogram s_para label="parallelogram" width=170 height=54
+text s_text label="text node"
 end`,
 
-        sketch: `diagram
-title label="Sketch Theme Demo"
+        image: `diagram
+title label="Image"
+layout column
+config gap=24
+
+image poster label="Inline SVG" url="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='140' viewBox='0 0 240 140'%3E%3Crect width='240' height='140' rx='18' fill='%23e8f4ff'/%3E%3Ccircle cx='70' cy='70' r='28' fill='%230044cc'/%3E%3Crect x='116' y='44' width='72' height='14' rx='7' fill='%230044cc' opacity='0.82'/%3E%3Crect x='116' y='70' width='48' height='14' rx='7' fill='%230044cc' opacity='0.52'/%3E%3C/svg%3E" width=240 height=140
+text caption label="image via data URL"
+end`,
+
+        icon: `diagram
+title label="Icons"
 layout row
-config theme=sketch
-config gap=60
+config gap=36
 
-group root layout=row gap=60 padding=0
-{
-  box client  label="Client App"   width=140 height=55
-  box gateway label="API Gateway"  width=140 height=55
+icon lock label="Security" name="mdi:lock-outline"
+icon server label="Server" name="mdi:server"
+icon mail label="Email" name="mdi:email-outline"
+end`,
 
-  group services label="Services" layout=column gap=16 padding=30
-  {
-    box auth    label="Auth Service"    width=140 height=55
-    box billing label="Billing Service" width=140 height=55
-  }
+        paths: `diagram
+title label="Paths"
+layout row
+config gap=40
 
-  cylinder db label="PostgreSQL" width=140 height=65
-}
+path wave value="M 0 35 C 20 5, 50 5, 70 35 S 120 65, 140 35" width=140 height=70
+path tri value="M 10 60 L 70 10 L 130 60 Z" width=140 height=70
+text label_node label="custom SVG path"
+end`,
 
-client  --> gateway  label="HTTPS"
-gateway --> auth
-gateway --> billing
-auth    --> db label="SQL"
-billing --> db label="SQL"
+        groups: `diagram
+title label="Groups"
+layout row
+config gap=40
 
-step highlight client
-step draw client-->gateway
-step highlight gateway
-step draw gateway-->auth
-step draw gateway-->billing
-step highlight auth
-step draw auth-->db
-step highlight db
+box auth label="Auth"
+box billing label="Billing"
+cylinder db label="DB"
+
+group services label="Services" layout=column gap=14 padding=24 items=[auth,billing]
+group system label="System" layout=row gap=28 items=[services,db]
+
+auth --> db
+billing --> db
+end`,
+
+        animation: `diagram
+title label="Animation"
+layout row
+config gap=40
+
+box client label="Client"
+box api label="API"
+cylinder db label="DB"
+group backend label="Backend" layout=row gap=24 items=[api,db]
+
+client --> api
+api --> db
+
+step draw client
+step draw backend
+step draw client-->api
+step highlight api
+step fade backend
+step unfade backend
+step hide backend duration=0
+step show backend duration=0
+end`,
+
+        narration: `diagram
+title label="Narration"
+layout row
+config gap=40
+
+box ask label="Question"
+box think label="Reason"
+box answer label="Answer"
+
+ask --> think
+think --> answer
+
+step narrate "We begin with the question." pace=slow
+step draw ask
+step narrate "Then the reasoning step connects the idea." pace=slow
+step draw think
+step draw ask-->think
+step narrate "Finally we land on the answer." pace=pause
+step draw answer
+step draw think-->answer
+end`,
+
+        edges: `diagram
+title label="Edges"
+layout row
+config gap=40
+
+box a label="Source"
+box b label="Target"
+box c label="Observer"
+
+a -> b label="solid"
+a --> c label="dashed"
+b <-> c label="two-way"
+a --- c label="plain"
 end`,
 
         markdown: `diagram
-title label="Markdown Blocks"
+title label="Markdown"
 layout row
-config gap=60
+config gap=40
 
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+markdown intro width=320
+"""
+# Markdown
+- headings
+- lists
+- **bold**
+- \`inline code\`
+"""
 
-group page layout=row gap=60 padding=0
-{
-  markdown intro width=340 padding=0
-  """
-# Sketchmark
+box parser label="Parser"
+box render label="Renderer"
 
-A text-based diagram DSL that renders
-**hand-drawn** SVG diagrams using rough.js.
-
-## Why text?
-
-Because diagrams should live in *version
-control*, not binary files.
-
-Because a diff should tell you what changed
-in the architecture.
-
-## Animation
-
-Every element supports step-by-step
-animation — **draw**, highlight, fade,
-move, scale, rotate.
-  """
-
-  group diagram layout=column gap=20 padding=30 theme=muted
-  {
-    box parser  label="Parser"   theme=primary width=130 height=52
-    box scene   label="Scene"    theme=success width=130 height=52
-    box render  label="Renderer" theme=muted   width=130 height=52
-  }
-}
-
-parser --> scene  label="AST"
-scene  --> render label="SceneGraph"
-
-step draw intro
-step highlight parser
-step draw parser-->scene
-step highlight scene
-step draw scene-->render
-step highlight render
+parser --> render label="AST"
 end`,
 
-        notes: `diagram
-title label="Notes and Annotations"
+        table: `diagram
+title label="Table"
+layout column
+config gap=24
+
+table plans label="Plans"
+{
+  header Plan Tier Seats
+  row Free Starter 1
+  row Pro Growth 5
+  row Team Scale 25
+}
+end`,
+
+        charts: `diagram
+title label="Charts"
 layout row
-config gap=50
+config gap=28
 
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-theme success fill="#e8ffe8" stroke="#007700" color="#004400"
-theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
-theme danger  fill="#ffe8e8" stroke="#cc0000" color="#900000"
-theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
+bar-chart sales label="Sales" width=260 height=220
+data
+[
+  ["Month", "Value"],
+  ["Jan", 12],
+  ["Feb", 18],
+  ["Mar", 15]
+]
 
-group arch layout=column gap=30 padding=0
-{
-  group top layout=row gap=40 padding=0
-  {
-    box api    label="API Server"  theme=primary width=140 height=55
-    box worker label="Worker"      theme=success width=140 height=55
-  }
+line-chart growth label="Growth" width=260 height=220
+data
+[
+  ["Week", "Users"],
+  ["W1", 40],
+  ["W2", 55],
+  ["W3", 72]
+]
 
-  group bottom layout=row gap=40 padding=0
-  {
-    cylinder db    label="PostgreSQL" theme=muted    width=140 height=65
-    cylinder redis label="Redis"      theme=warning  width=140 height=65
-  }
-}
-
-group annotations layout=column gap=20 padding=0
-{
-  note n1 label="Rate limited\nto 1000 req/s\nper tenant" width=200 height=90
-  note n2 label="Postgres 16\nwith pg_vector\nfor embeddings" width=200 height=90
-  note n3 label="All writes go\nthrough a queue\nbefore commit" width=200 height=90
-  note n4 label="Redis TTL = 24h\nLRU eviction\non memory limit" width=200 height=90
-}
-
-api    --> db    label="SQL"
-api    --> redis label="cache"
-worker --> db    label="batch"
-
-step draw n1
-step highlight api
-step draw n2
-step highlight db
-step draw n3
-step highlight worker
-step draw n4
-step highlight redis
+pie-chart share label="Share" width=220 height=220
+data
+[
+  ["API", 45],
+  ["Web", 35],
+  ["Batch", 20]
+]
 end`,
       };
 
@@ -1785,8 +1316,8 @@ end`,
       });
 
       // ── Boot ───────────────────────────────────────────────────────────────
-      dslEl.value = EXAMPLES.arch;
-      runDiagram(EXAMPLES.arch);
+      dslEl.value = EXAMPLES.shapes;
+      runDiagram(EXAMPLES.shapes);
     </script>
   </body>
 </html>

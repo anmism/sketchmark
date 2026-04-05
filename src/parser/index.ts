@@ -1,5 +1,5 @@
 // ============================================================
-// sketchmark — Parser  (Tokens → DiagramAST)
+// sketchmark - Parser  (Tokens -> DiagramAST)
 // ============================================================
 
 import { tokenize, Token } from "./tokenizer";
@@ -10,7 +10,6 @@ import type {
   ASTGroup,
   ASTStep,
   ASTBeat,
-  ASTStepItem,
   ASTChart,
   ASTTable,
   NodeShape,
@@ -23,14 +22,18 @@ import type {
   JustifyContent,
   ASTMarkdown,
   StepPace,
+  GroupChildRef,
 } from "../ast/types";
 
 export type { DiagramAST } from "../ast/types";
+
+type AuthoredEntityKind = "node" | "group" | "table" | "chart" | "markdown";
 
 let _uid = 0;
 function uid(prefix: string) {
   return `${prefix}_${++_uid}`;
 }
+
 function resetUid() {
   _uid = 0;
 }
@@ -49,6 +52,7 @@ const SHAPES: NodeShape[] = [
   "line",
   "path",
 ];
+
 const CHART_TYPES = [
   "bar-chart",
   "line-chart",
@@ -80,12 +84,14 @@ function propsToStyle(p: Record<string, string>): StyleProps {
   if (p["font-weight"]) s.fontWeight = p["font-weight"];
   if (p["text-align"]) s.textAlign = p["text-align"] as StyleProps["textAlign"];
   if (p.padding) s.padding = parseFloat(p.padding);
-  if (p["vertical-align"])
+  if (p["vertical-align"]) {
     s.verticalAlign = p["vertical-align"] as StyleProps["verticalAlign"];
+  }
   if (p["line-height"]) s.lineHeight = parseFloat(p["line-height"]);
   if (p["letter-spacing"]) s.letterSpacing = parseFloat(p["letter-spacing"]);
   if (p.font) s.font = p.font;
-  const dashVal = p["dash"] || p["stroke-dash"];
+
+  const dashVal = p.dash || p["stroke-dash"];
   if (dashVal) {
     const parts = dashVal
       .split(",")
@@ -93,16 +99,25 @@ function propsToStyle(p: Record<string, string>): StyleProps {
       .filter((n) => !isNaN(n));
     if (parts.length) s.strokeDash = parts;
   }
+
   return s;
+}
+
+function isValueToken(t?: Token): t is Token {
+  return !!t && (t.type === "IDENT" || t.type === "STRING" || t.type === "KEYWORD");
+}
+
+function isPropKeyToken(t?: Token): t is Token {
+  return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
 }
 
 export function parse(src: string): DiagramAST {
   resetUid();
+
   const tokens = tokenize(src).filter(
     (t) => t.type !== "NEWLINE" || t.value === "\n",
   );
 
-  // Collapse multiple consecutive NEWLINEs into one
   const flat: Token[] = [];
   let lastNL = false;
   for (const t of tokens) {
@@ -131,11 +146,9 @@ export function parse(src: string): DiagramAST {
     rootOrder: [],
   };
 
-  const nodeIds = new Set<string>();
-  const tableIds = new Set<string>();
-  const chartIds = new Set<string>();
-  const groupIds = new Set<string>();
-  const markdownIds = new Set<string>();
+  const authoredEntityKinds = new Map<string, AuthoredEntityKind>();
+  const unresolvedGroupItems = new Map<string, string[]>();
+  const groupTokens = new Map<string, Token>();
 
   let i = 0;
   const cur = () => flat[i] ?? flat[flat.length - 1];
@@ -145,7 +158,6 @@ export function parse(src: string): DiagramAST {
     while (cur().type === "NEWLINE") skip();
   };
 
-  // Consume until EOL, return all tokens
   function lineTokens(): Token[] {
     const acc: Token[] = [];
     while (cur().type !== "NEWLINE" && cur().type !== "EOF") {
@@ -156,24 +168,142 @@ export function parse(src: string): DiagramAST {
     return acc;
   }
 
+  function requireExplicitId(keywordTok: Token, toks: Token[]): string {
+    const first = toks[0];
+    if (!isValueToken(first) || toks[1]?.type === "EQUALS") {
+      throw new ParseError(
+        `${keywordTok.value} requires an explicit id before properties`,
+        keywordTok.line,
+        keywordTok.col,
+      );
+    }
+    return first.value;
+  }
+
+  function parseSimpleProps(toks: Token[], startIndex: number): Record<string, string> {
+    const props: Record<string, string> = {};
+    let j = startIndex;
+
+    while (j < toks.length - 1) {
+      const key = toks[j];
+      const eq = toks[j + 1];
+      if (isPropKeyToken(key) && eq?.type === "EQUALS" && j + 2 < toks.length) {
+        props[key.value] = toks[j + 2].value;
+        j += 3;
+      } else {
+        j++;
+      }
+    }
+
+    return props;
+  }
+
+  function parseGroupProps(
+    toks: Token[],
+    startIndex: number,
+  ): { props: Record<string, string>; itemIds: string[] } {
+    const props: Record<string, string> = {};
+    const itemIds: string[] = [];
+    let j = startIndex;
+
+    while (j < toks.length) {
+      const key = toks[j];
+      const eq = toks[j + 1];
+
+      if (!isPropKeyToken(key) || eq?.type !== "EQUALS") {
+        j++;
+        continue;
+      }
+
+      if (key.value === "items") {
+        const open = toks[j + 2];
+        if (open?.type !== "LBRACKET") {
+          throw new ParseError(
+            `items must use bracket syntax like items=[a,b]`,
+            key.line,
+            key.col,
+          );
+        }
+
+        j += 3;
+        while (j < toks.length && toks[j].type !== "RBRACKET") {
+          const tok = toks[j];
+          if (tok.type === "COMMA") {
+            j++;
+            continue;
+          }
+          if (!isValueToken(tok)) {
+            const invalidTok = toks[j]!;
+            throw new ParseError(
+              `items can only contain ids like items=[a,b]`,
+              invalidTok.line,
+              invalidTok.col,
+            );
+          }
+          itemIds.push(tok.value);
+          j++;
+          if (toks[j]?.type === "COMMA") {
+            j++;
+          } else if (toks[j] && toks[j].type !== "RBRACKET") {
+            throw new ParseError(
+              `Expected ',' or ']' in items list`,
+              toks[j].line,
+              toks[j].col,
+            );
+          }
+        }
+
+        if (toks[j]?.type !== "RBRACKET") {
+          throw new ParseError(
+            `Unterminated items list; expected ']'`,
+            key.line,
+            key.col,
+          );
+        }
+
+        j++;
+        continue;
+      }
+
+      if (j + 2 < toks.length) {
+        props[key.value] = toks[j + 2].value;
+        j += 3;
+      } else {
+        j++;
+      }
+    }
+
+    return { props, itemIds };
+  }
+
+  function registerAuthoredId(id: string, kind: AuthoredEntityKind, tok: Token): void {
+    const existing = authoredEntityKinds.get(id);
+    if (existing) {
+      throw new ParseError(
+        `Duplicate id "${id}" already declared as a ${existing}`,
+        tok.line,
+        tok.col,
+      );
+    }
+    authoredEntityKinds.set(id, kind);
+  }
+
   function parseDataArray(): (string | number)[][] {
     const rows: (string | number)[][] = [];
     while (cur().type !== "LBRACKET" && cur().type !== "EOF") skip();
-    skip(); // outer [
+    skip();
     skipNL();
+
     while (cur().type !== "RBRACKET" && cur().type !== "EOF") {
       skipNL();
-      if (cur().type === "RBRACKET" || cur().type === "EOF") break; // ← ADD THIS LINE
+      if (cur().type === "RBRACKET" || cur().type === "EOF") break;
+
       if (cur().type === "LBRACKET") {
         skip();
         const row: (string | number)[] = [];
         while (cur().type !== "RBRACKET" && cur().type !== "EOF") {
           const v = cur();
-          if (
-            v.type === "STRING" ||
-            v.type === "IDENT" ||
-            v.type === "KEYWORD"
-          ) {
+          if (v.type === "STRING" || v.type === "IDENT" || v.type === "KEYWORD") {
             row.push(v.value);
             skip();
           } else if (v.type === "NUMBER") {
@@ -181,57 +311,36 @@ export function parse(src: string): DiagramAST {
             skip();
           } else if (v.type === "COMMA" || v.type === "NEWLINE") {
             skip();
-          } else break;
+          } else {
+            break;
+          }
         }
         if (cur().type === "RBRACKET") skip();
         rows.push(row);
       } else if (cur().type === "COMMA" || cur().type === "NEWLINE") {
         skip();
-      } else skip();
+      } else {
+        skip();
+      }
     }
+
     if (cur().type === "RBRACKET") skip();
     return rows;
   }
 
-  function parseNode(shape: NodeShape, groupId?: string): ASTNode {
-    skip(); // shape keyword
+  function parseNode(shape: NodeShape): ASTNode {
+    const keywordTok = cur();
+    skip();
     const toks = lineTokens();
 
-    let id = groupId ? groupId + "_" + uid(shape) : uid(shape);
-    const props: Record<string, string> = {};
-    let j = 0;
-
-    // First token may be the node id
-    if (
-      j < toks.length &&
-      (toks[j].type === "IDENT" || toks[j].type === "STRING")
-    ) {
-      id = toks[j++].value;
-    }
-
-    // Remaining tokens are key=value pairs
-    while (j < toks.length) {
-      const t = toks[j];
-      if (
-        (t.type === "IDENT" || t.type === "KEYWORD") &&
-        j + 1 < toks.length &&
-        toks[j + 1].type === "EQUALS"
-      ) {
-        const key = t.value;
-        j += 2;
-        if (j < toks.length) {
-          props[key] = toks[j].value;
-          j++;
-        }
-      } else j++;
-    }
+    const id = requireExplicitId(keywordTok, toks);
+    const props = parseSimpleProps(toks, 1);
 
     const node: ASTNode = {
       kind: "node",
       id,
       shape,
       label: props.label || "",
-      ...(groupId ? { groupId } : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
       ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
@@ -241,67 +350,23 @@ export function parse(src: string): DiagramAST {
       ...(props.theme ? { theme: props.theme } : {}),
       style: propsToStyle(props),
     };
+
     if (props.url) node.imageUrl = props.url;
     if (props.name) node.iconName = props.name;
     if (props.value) node.pathData = props.value;
+
     return node;
   }
 
-  function parseEdge(
-    fromId: string,
-    connector: string,
-    rest: Token[],
-  ): ASTEdge {
-    const toTok = rest.shift();
-    if (!toTok) throw new ParseError("Expected edge target", 0, 0);
-    const toId = toTok.value;
-    const props: Record<string, string> = {};
-    let j = 0;
-    while (j < rest.length) {
-      const t = rest[j];
-      if (
-        (t.type === "IDENT" || t.type === "KEYWORD") &&
-        j + 1 < rest.length &&
-        rest[j + 1].type === "EQUALS"
-      ) {
-        const key = t.value;
-        j += 2;
-        if (j < rest.length) {
-          props[key] = rest[j].value;
-          j++;
-        }
-      } else j++;
-    }
-    const dashed =
-      connector.includes("--") ||
-      connector.includes(".-") ||
-      connector.includes("-.");
-    const bidir = connector.includes("<") && connector.includes(">");
-    return {
-      kind: "edge",
-      id: uid("edge"),
-      from: fromId,
-      to: toId,
-      connector: connector as EdgeConnector,
-      label: props.label,
-      dashed,
-      bidirectional: bidir,
-      style: propsToStyle(props),
-    };
-  }
-
-  // ── parseNote → returns ASTNode with shape='note' ────────
-  function parseNote(groupId?: string): ASTNode {
-    skip(); // 'note'
+  function parseNote(): ASTNode {
+    const keywordTok = cur();
+    skip();
     const toks = lineTokens();
 
-    let id = groupId ? groupId + "_" + uid("note") : uid("note");
-    if (toks[0]) id = toks[0].value;
-
+    const id = requireExplicitId(keywordTok, toks);
     const props: Record<string, string> = {};
     let j = 1;
 
-    // Backward compat: second token is a bare/quoted string → label
     if (
       toks[1] &&
       (toks[1].type === "STRING" ||
@@ -311,25 +376,13 @@ export function parse(src: string): DiagramAST {
       j = 2;
     }
 
-    // Parse remaining key=value props
-    while (j < toks.length - 1) {
-      const k = toks[j];
-      const eq = toks[j + 1];
-      if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-        props[k.value] = toks[j + 2].value;
-        j += 3;
-      } else j++;
-    }
-
-    // Support multiline via literal \n in label string
-    const rawLabel = props.label ?? "";
+    Object.assign(props, parseSimpleProps(toks, j));
 
     return {
       kind: "node",
       id,
       shape: "note",
-      label: rawLabel.replace(/\\n/g, "\n"),
-      groupId,
+      label: (props.label ?? "").replace(/\\n/g, "\n"),
       theme: props.theme,
       style: propsToStyle(props),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
@@ -337,18 +390,23 @@ export function parse(src: string): DiagramAST {
     };
   }
 
-  // ── parseGroup ───────────────────────────────────────────
-  function parseGroup(parentGroupId?: string): ASTGroup {
-    skip(); // 'group'
+  function parseGroup(): ASTGroup {
+    const keywordTok = cur();
+    skip();
     const toks = lineTokens();
 
-    let id = uid("group");
-    if (toks[0]) id = toks[0].value;
+    if (toks.some((t) => t.type === "LBRACE" || t.type === "RBRACE")) {
+      throw new ParseError(
+        `Nested group blocks were removed. Use ${keywordTok.value} <id> items=[...] instead.`,
+        keywordTok.line,
+        keywordTok.col,
+      );
+    }
 
+    const id = requireExplicitId(keywordTok, toks);
     const props: Record<string, string> = {};
     let j = 1;
 
-    // Backward compat: second token is a quoted/bare string (old label syntax)
     if (
       toks[1] &&
       (toks[1].type === "STRING" ||
@@ -358,17 +416,22 @@ export function parse(src: string): DiagramAST {
       j = 2;
     }
 
-    // Parse remaining key=value props
-    while (j < toks.length - 1) {
-      const k = toks[j];
-      const eq = toks[j + 1];
-      if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-        props[k.value] = toks[j + 2].value;
-        j += 3;
-      } else j++;
+    const parsed = parseGroupProps(toks, j);
+    Object.assign(props, parsed.props);
+
+    skipNL();
+    if (cur().type === "LBRACE") {
+      throw new ParseError(
+        `Nested group blocks were removed. Use ${keywordTok.value} ${id} items=[...] instead.`,
+        cur().line,
+        cur().col,
+      );
     }
 
-    const group: ASTGroup = {
+    unresolvedGroupItems.set(id, parsed.itemIds);
+    groupTokens.set(id, keywordTok);
+
+    return {
       kind: "group",
       id,
       label: props.label ?? "",
@@ -383,124 +446,52 @@ export function parse(src: string): DiagramAST {
       justify: props.justify as JustifyContent | undefined,
       theme: props.theme,
       style: propsToStyle(props),
-      width: props.width !== undefined ? parseFloat(props.width) : undefined, // ← add
+      width: props.width !== undefined ? parseFloat(props.width) : undefined,
       height: props.height !== undefined ? parseFloat(props.height) : undefined,
     };
+  }
 
-    skipNL();
-    if (cur().type === "LBRACE") {
-      skip();
-      skipNL();
-    }
+  function parseEdge(
+    fromId: string,
+    connector: string,
+    rest: Token[],
+  ): ASTEdge {
+    const toTok = rest.shift();
+    if (!toTok) throw new ParseError("Expected edge target", 0, 0);
 
-    while (
-      cur().type !== "RBRACE" &&
-      cur().value !== "end" &&
-      cur().type !== "EOF"
-    ) {
-      skipNL();
-      if (cur().type === "RBRACE") break;
-      const v = cur().value;
-
-      // ── Nested group ──────────────────────────────────
-      if (v === "group" || v === "bare") {
-        const isBare = v === "bare";
-        const nested = parseGroup(id);
-
-        if (isBare) {
-          nested.label = "";
-          nested.style = {
-            ...nested.style,
-            fill: nested.style?.fill ?? "none",
-            stroke: nested.style?.stroke ?? "none",
-            strokeWidth: nested.style?.strokeWidth ?? 0,
-          };
-        }
-
-        ast.groups.push(nested);
-        groupIds.add(nested.id);
-        group.children.push({ kind: "group", id: nested.id });
-        continue;
-      }
-
-      // ── Table ─────────────────────────────────────────
-      if (v === "table") {
-        const tbl = parseTable();
-        ast.tables.push(tbl);
-        tableIds.add(tbl.id);
-        group.children.push({ kind: "table", id: tbl.id });
-        continue;
-      }
-
-      // ── Note (parsed as node with shape='note') ──────
-      if (v === "note") {
-        const note = parseNote(id);
-        ast.nodes.push(note);
-        nodeIds.add(note.id);
-        group.children.push({ kind: "node", id: note.id });
-        continue;
-      }
-      // ── Markdown ───────────────────────────────────────
-      if (v === "markdown") {
-        const md = parseMarkdown(id);
-        ast.markdowns.push(md);
-        markdownIds.add(md.id);
-        group.children.push({ kind: "markdown", id: md.id });
-        continue;
-      }
-
-      if (v === "bare") {
-        // treat exactly like 'group' but inject defaults
-        const grp = parseGroup(); // reuse parseGroup
-        grp.label = "";
-        grp.style = { ...grp.style, stroke: "none", fill: "none" };
-        // rest is identical to group handling
-      }
-
-      // ── Chart ──────────────────────────────────────────
-
-      if (CHART_TYPES.includes(v)) {
-        const chart = parseChart(v);
-        ast.charts.push(chart);
-        chartIds.add(chart.id);
-        group.children.push({ kind: "chart", id: chart.id });
-        continue;
-      }
-
-      // ── Node shape ────────────────────────────────────
-      if (SHAPES.includes(v as NodeShape)) {
-        const node = parseNode(v as NodeShape, id);
-        if (!nodeIds.has(node.id)) {
-          nodeIds.add(node.id);
-          ast.nodes.push(node);
-        }
-        group.children.push({ kind: "node", id: node.id });
-        continue;
-      }
-
-      // ── Edge inside group ─────────────────────────────
+    const props: Record<string, string> = {};
+    let j = 0;
+    while (j < rest.length) {
+      const t = rest[j];
       if (
-        cur().type === "IDENT" ||
-        cur().type === "STRING" ||
-        cur().type === "KEYWORD"
+        (t.type === "IDENT" || t.type === "KEYWORD") &&
+        j + 1 < rest.length &&
+        rest[j + 1].type === "EQUALS"
       ) {
-        const nextTok = flat[i + 1];
-        if (nextTok && nextTok.type === "ARROW") {
-          const lineToks = lineTokens();
-          if (lineToks.length >= 3 && lineToks[1].type === "ARROW") {
-            const fromId = lineToks[0].value;
-            const conn = lineToks[1].value;
-            const edge = parseEdge(fromId, conn, lineToks.slice(2));
-            ast.edges.push(edge);
-          }
-          continue;
-        }
+        props[t.value] = rest[j + 2]?.value ?? "";
+        j += 3;
+      } else {
+        j++;
       }
-
-      skip();
     }
-    if (cur().type === "RBRACE") skip();
-    return group;
+
+    const dashed =
+      connector.includes("--") ||
+      connector.includes(".-") ||
+      connector.includes("-.");
+    const bidirectional = connector.includes("<") && connector.includes(">");
+
+    return {
+      kind: "edge",
+      id: uid("edge"),
+      from: fromId,
+      to: toTok.value,
+      connector: connector as EdgeConnector,
+      label: props.label,
+      dashed,
+      bidirectional,
+      style: propsToStyle(props),
+    };
   }
 
   function parseStep(): ASTStep {
@@ -511,15 +502,14 @@ export function parse(src: string): DiagramAST {
     if (toks[2]?.type === "ARROW" && toks[3]) {
       target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
     }
+
     const step: ASTStep = { kind: "step", action, target };
 
-    // narrate: text is the value, not a target
     if (action === "narrate") {
       step.target = "";
       step.value = toks[1]?.value ?? "";
     }
 
-    // bracket: needs two targets
     if (action === "bracket" && toks.length >= 3) {
       step.target = toks[1]?.value ?? "";
       step.target2 = toks[2]?.value ?? "";
@@ -531,7 +521,6 @@ export function parse(src: string): DiagramAST {
       const eq = toks[j + 1];
       const vt = toks[j + 2];
 
-      // key=value form
       if (eq?.type === "EQUALS" && vt) {
         if (k === "dx") {
           step.dx = parseFloat(vt.value);
@@ -563,12 +552,7 @@ export function parse(src: string): DiagramAST {
           j += 2;
           continue;
         }
-        if (k === "fill") {
-          step.value = vt.value;
-          j += 2;
-          continue;
-        }
-        if (k === "color") {
+        if (k === "fill" || k === "color") {
           step.value = vt.value;
           j += 2;
           continue;
@@ -580,7 +564,6 @@ export function parse(src: string): DiagramAST {
         }
       }
 
-      // bare key value (legacy)
       if (k === "delay" && eq?.type === "NUMBER") {
         step.delay = parseFloat(eq.value);
         j++;
@@ -594,95 +577,26 @@ export function parse(src: string): DiagramAST {
       if (k === "trigger") {
         step.trigger = eq?.value as AnimationTrigger;
         j++;
-        continue;
       }
     }
 
     return step;
   }
 
-  // function parseStep(): ASTStep {
-  //   skip(); // 'step'
-  //   const toks = lineTokens();
-  //   const action = (toks[0]?.value ?? "highlight") as AnimationAction;
-  //   let target = toks[1]?.value ?? "";
-  //   if (toks[2]?.type === "ARROW" && toks[3]) {
-  //     target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
-  //   }
-  //   const step: ASTStep = { kind: "step", action, target };
-  //   for (let j = 2; j < toks.length - 1; j++) {
-  //     const k = toks[j].value;
-  //     const eq = toks[j + 1];
-  //     const vt = toks[j + 2];
-  //     // key=value form (dx=50, dy=-80, duration=600)
-  //     if (eq?.type === "EQUALS" && vt) {
-  //       if (k === "dx") {
-  //         step.dx = parseFloat(vt.value);
-  //         j += 2;
-  //         continue;
-  //       }
-  //       if (k === "dy") {
-  //         step.dy = parseFloat(vt.value);
-  //         j += 2;
-  //         continue;
-  //       }
-  //       if (k === "duration") {
-  //         step.duration = parseFloat(vt.value);
-  //         j += 2;
-  //         continue;
-  //       }
-  //       if (k === "delay") {
-  //         step.delay = parseFloat(vt.value);
-  //         j += 2;
-  //         continue;
-  //       }
-  //     }
-  //     // bare key value form (legacy: delay 500, duration 400)
-  //     if (k === "delay" && eq?.type === "NUMBER") {
-  //       step.delay = parseFloat(eq.value);
-  //       j++;
-  //     }
-  //     if (k === "duration" && eq?.type === "NUMBER") {
-  //       step.duration = parseFloat(eq.value);
-  //       j++;
-  //     }
-  //     if (k === "trigger") {
-  //       step.trigger = eq?.value as AnimationTrigger;
-  //       j++;
-  //     }
-  //     if (k === "factor") {
-  //       step.factor = parseFloat(vt.value);
-  //       j += 2;
-  //       continue;
-  //     }
-  //     if (k === "deg") {
-  //       step.deg = parseFloat(vt.value);
-  //       j += 2;
-  //       continue;
-  //     }
-  //   }
-  //   return step;
-  // }
-
   function parseChart(chartType: string): ASTChart {
+    const keywordTok = cur();
     skip();
     const toks = lineTokens();
-    const id = toks[0]?.value ?? uid("chart");
-    const props: Record<string, string> = {};
-    let j = 1;
-    while (j < toks.length - 1) {
-      const k = toks[j];
-      const eq = toks[j + 1];
-      if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-        props[k.value] = toks[j + 2].value;
-        j += 3;
-      } else j++;
-    }
+
+    const id = requireExplicitId(keywordTok, toks);
+    const props = parseSimpleProps(toks, 1);
     let dataRows: (string | number)[][] = [];
+
     skipNL();
     while (cur().type !== "EOF" && cur().value !== "end") {
       skipNL();
       if (cur().type === "RBRACE") break;
+
       const v = cur().value;
       if (v === "data") {
         dataRows = parseDataArray();
@@ -690,31 +604,35 @@ export function parse(src: string): DiagramAST {
         (cur().type === "IDENT" || cur().type === "KEYWORD") &&
         peek1().type === "EQUALS"
       ) {
-        const k = cur().value;
+        const key = cur().value;
         skip();
         skip();
-        props[k] = cur().value;
+        props[key] = cur().value;
         skip();
       } else if (
         SHAPES.includes(v as NodeShape) ||
         v === "step" ||
         v === "group" ||
-        v === "note" || // ← ADD
+        v === "bare" ||
+        v === "note" ||
         v === "table" ||
-        v === "config" || // ← ADD
-        v === "theme" || // ← ADD
+        v === "config" ||
+        v === "theme" ||
         v === "style" ||
         v === "markdown" ||
         CHART_TYPES.includes(v)
       ) {
         break;
       } else if (peek1().type === "ARROW") {
-        // ← ADD THIS WHOLE BLOCK
         break;
-      } else skip();
+      } else {
+        skip();
+      }
     }
+
     const headers = dataRows[0]?.map(String) ?? [];
     const rows = dataRows.slice(1);
+
     return {
       kind: "chart",
       id,
@@ -729,15 +647,14 @@ export function parse(src: string): DiagramAST {
   }
 
   function parseTable(): ASTTable {
-    skip(); // 'table'
+    const keywordTok = cur();
+    skip();
     const toks = lineTokens();
 
-    let id = uid("table");
-    if (toks[0]) id = toks[0].value;
-
+    const id = requireExplicitId(keywordTok, toks);
     const props: Record<string, string> = {};
     let j = 1;
-    // label="..." or bare second token
+
     if (
       toks[1] &&
       (toks[1].type === "STRING" ||
@@ -746,14 +663,8 @@ export function parse(src: string): DiagramAST {
       props.label = toks[1].value;
       j = 2;
     }
-    while (j < toks.length - 1) {
-      const k = toks[j],
-        eq = toks[j + 1];
-      if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-        props[k.value] = toks[j + 2].value;
-        j += 3;
-      } else j++;
-    }
+
+    Object.assign(props, parseSimpleProps(toks, j));
 
     const table: ASTTable = {
       kind: "table",
@@ -777,8 +688,8 @@ export function parse(src: string): DiagramAST {
     ) {
       skipNL();
       if (cur().type === "RBRACE") break;
-      const v = cur().value;
 
+      const v = cur().value;
       if (v === "header" || v === "row") {
         skip();
         const cells: string[] = [];
@@ -786,7 +697,8 @@ export function parse(src: string): DiagramAST {
           if (
             cur().type === "STRING" ||
             cur().type === "IDENT" ||
-            cur().type === "NUMBER"
+            cur().type === "NUMBER" ||
+            cur().type === "KEYWORD"
           ) {
             cells.push(cur().value);
           }
@@ -794,33 +706,24 @@ export function parse(src: string): DiagramAST {
         }
         if (cur().type === "NEWLINE") skip();
         table.rows.push({ kind: v === "header" ? "header" : "data", cells });
-      } else skip();
+      } else {
+        skip();
+      }
     }
+
     if (cur().type === "RBRACE") skip();
     return table;
   }
 
-  // ── parseMarkdown ─────────────────────────────────────────
-  function parseMarkdown(groupId?: string): ASTMarkdown {
-    skip(); // 'markdown'
+  function parseMarkdown(): ASTMarkdown {
+    const keywordTok = cur();
+    skip();
     const toks = lineTokens();
 
-    let id = groupId ? groupId + "_" + uid("md") : uid("md");
-    if (toks[0]) id = toks[0].value;
-
-    const props: Record<string, string> = {};
-    let j = 1;
-    while (j < toks.length - 1) {
-      const k = toks[j],
-        eq = toks[j + 1];
-      if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-        props[k.value] = toks[j + 2].value;
-        j += 3;
-      } else j++;
-    }
+    const id = requireExplicitId(keywordTok, toks);
+    const props = parseSimpleProps(toks, 1);
 
     skipNL();
-
     let content = "";
     if (cur().type === "STRING_BLOCK") {
       content = cur().value;
@@ -838,7 +741,6 @@ export function parse(src: string): DiagramAST {
     };
   }
 
-  // ── Main parse loop ─────────────────────────────────────
   skipNL();
   if (cur().value === "diagram") skip();
   skipNL();
@@ -858,13 +760,11 @@ export function parse(src: string): DiagramAST {
     }
     if (v === "end") break;
 
-    // direction — silently ignored (removed from engine)
     if (v === "direction") {
       lineTokens();
       continue;
     }
 
-    // layout
     if (v === "layout") {
       skip();
       ast.layout = (cur().value as LayoutType) ?? "column";
@@ -872,7 +772,6 @@ export function parse(src: string): DiagramAST {
       continue;
     }
 
-    // title
     if (v === "title") {
       skip();
       const toks = lineTokens();
@@ -883,15 +782,11 @@ export function parse(src: string): DiagramAST {
         const idx = toks.indexOf(labelProp);
         ast.title = toks[idx + 2]?.value ?? "";
       } else {
-        ast.title = toks
-          .map((t2) => t2.value)
-          .join(" ")
-          .replace(/"/g, "");
+        ast.title = toks.map((t2) => t2.value).join(" ").replace(/"/g, "");
       }
       continue;
     }
 
-    // description
     if (v === "description") {
       skip();
       ast.description = lineTokens()
@@ -901,62 +796,39 @@ export function parse(src: string): DiagramAST {
       continue;
     }
 
-    // config
     if (v === "config") {
       skip();
-      const k = cur().value;
+      const key = cur().value;
       skip();
       if (cur().type === "EQUALS") skip();
-      const cv = cur().value;
+      const value = cur().value;
       skip();
-      ast.config[k] = cv;
+      ast.config[key] = value;
       continue;
     }
 
-    // style
     if (v === "style") {
       skip();
       const targetId = cur().value;
       skip();
-      const lineToks = lineTokens();
-      const p: Record<string, string> = {};
-      let j = 0;
-      while (j < lineToks.length - 1) {
-        const k2 = lineToks[j];
-        const eq = lineToks[j + 1];
-        if (eq.type === "EQUALS") {
-          p[k2.value] = lineToks[j + 2]?.value ?? "";
-          j += 3;
-        } else j++;
-      }
-      ast.styles[targetId] = { ...ast.styles[targetId], ...propsToStyle(p) };
+      const props = parseSimpleProps(lineTokens(), 0);
+      ast.styles[targetId] = { ...ast.styles[targetId], ...propsToStyle(props) };
       continue;
     }
 
-    // theme
     if (v === "theme") {
       skip();
       const toks = lineTokens();
       const themeId = toks[0]?.value;
       if (!themeId) continue;
-      const props: Record<string, string> = {};
-      let j = 1;
-      while (j < toks.length - 1) {
-        const k2 = toks[j];
-        const eq = toks[j + 1];
-        if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-          props[k2.value] = toks[j + 2].value;
-          j += 3;
-        } else j++;
-      }
-      ast.themes[themeId] = propsToStyle(props);
+      ast.themes[themeId] = propsToStyle(parseSimpleProps(toks, 1));
       continue;
     }
 
-    // group
     if (v === "group" || v === "bare") {
       const isBare = v === "bare";
       const grp = parseGroup();
+      registerAuthoredId(grp.id, "group", t);
 
       if (isBare) {
         grp.label = "";
@@ -969,36 +841,39 @@ export function parse(src: string): DiagramAST {
       }
 
       ast.groups.push(grp);
-      groupIds.add(grp.id);
       ast.rootOrder.push({ kind: "group", id: grp.id });
       continue;
     }
 
-    // table
     if (v === "table") {
       const tbl = parseTable();
+      registerAuthoredId(tbl.id, "table", t);
       ast.tables.push(tbl);
-      tableIds.add(tbl.id);
       ast.rootOrder.push({ kind: "table", id: tbl.id });
       continue;
     }
 
-    // note (parsed as node with shape='note')
     if (v === "note") {
       const note = parseNote();
+      registerAuthoredId(note.id, "node", t);
       ast.nodes.push(note);
-      nodeIds.add(note.id);
       ast.rootOrder.push({ kind: "node", id: note.id });
       continue;
     }
 
-    // beat { ... } — parallel steps
     if (v === "beat") {
-      skip(); // 'beat'
+      skip();
       skipNL();
-      if (cur().type === "LBRACE") { skip(); skipNL(); }
+      if (cur().type === "LBRACE") {
+        skip();
+        skipNL();
+      }
       const children: ASTStep[] = [];
-      while (cur().type !== "RBRACE" && cur().value !== "end" && cur().type !== "EOF") {
+      while (
+        cur().type !== "RBRACE" &&
+        cur().value !== "end" &&
+        cur().type !== "EOF"
+      ) {
         skipNL();
         if (cur().type === "RBRACE") break;
         if (cur().value === "step") {
@@ -1012,77 +887,150 @@ export function parse(src: string): DiagramAST {
       continue;
     }
 
-    // step
     if (v === "step") {
       ast.steps.push(parseStep());
       continue;
     }
 
-    // charts
     if (CHART_TYPES.includes(v)) {
       const chart = parseChart(v);
+      registerAuthoredId(chart.id, "chart", t);
       ast.charts.push(chart);
-      chartIds.add(chart.id);
-      ast.rootOrder.push({ kind: "chart", id: chart.id }); // ← ADD
+      ast.rootOrder.push({ kind: "chart", id: chart.id });
       continue;
     }
 
     if (v === "markdown") {
       const md = parseMarkdown();
+      registerAuthoredId(md.id, "markdown", t);
       ast.markdowns.push(md);
-      markdownIds.add(md.id);
       ast.rootOrder.push({ kind: "markdown", id: md.id });
       continue;
     }
 
-    // edge:  A -> B  (MUST come before shape check)
     if (t.type === "IDENT" || t.type === "STRING" || t.type === "KEYWORD") {
       const nextTok = flat[i + 1];
       if (nextTok && nextTok.type === "ARROW") {
         const lineToks = lineTokens();
         if (lineToks.length >= 3 && lineToks[1].type === "ARROW") {
           const fromId = lineToks[0].value;
-          const conn = lineToks[1].value;
-          const edge = parseEdge(fromId, conn, lineToks.slice(2));
-          ast.edges.push(edge);
-          // Auto-create implied nodes if they don't exist yet
-          for (const nid of [fromId, edge.to]) {
-            if (
-              !nodeIds.has(nid) &&
-              !tableIds.has(nid) &&
-              !chartIds.has(nid) &&
-              !groupIds.has(nid)
-            ) {
-              nodeIds.add(nid);
-              ast.nodes.push({
-                kind: "node",
-                id: nid,
-                shape: "box",
-                label: nid,
-                style: {},
-              });
-            }
-          }
+          const connector = lineToks[1].value;
+          ast.edges.push(parseEdge(fromId, connector, lineToks.slice(2)));
           continue;
         }
       }
     }
 
-    // node shapes — only reached if NOT followed by an arrow
     if (SHAPES.includes(v as NodeShape)) {
       const node = parseNode(v as NodeShape);
-      if (!nodeIds.has(node.id)) {
-        nodeIds.add(node.id);
-        ast.nodes.push(node);
-        ast.rootOrder.push({ kind: "node", id: node.id });
-      }
+      registerAuthoredId(node.id, "node", t);
+      ast.nodes.push(node);
+      ast.rootOrder.push({ kind: "node", id: node.id });
       continue;
     }
 
     skip();
   }
 
-  // Merge global styles into node styles
+  const allKnownIds = new Set<string>(authoredEntityKinds.keys());
+  for (const edge of ast.edges) {
+    for (const id of [edge.from, edge.to]) {
+      if (allKnownIds.has(id)) continue;
+      allKnownIds.add(id);
+      ast.nodes.push({
+        kind: "node",
+        id,
+        shape: "box",
+        label: id,
+        style: {},
+      });
+    }
+  }
+
+  const entityKindById = new Map<string, GroupChildRef["kind"]>();
+  ast.nodes.forEach((node) => entityKindById.set(node.id, "node"));
+  ast.groups.forEach((group) => entityKindById.set(group.id, "group"));
+  ast.tables.forEach((table) => entityKindById.set(table.id, "table"));
+  ast.charts.forEach((chart) => entityKindById.set(chart.id, "chart"));
+  ast.markdowns.forEach((md) => entityKindById.set(md.id, "markdown"));
+
+  for (const group of ast.groups) {
+    const itemIds = unresolvedGroupItems.get(group.id) ?? [];
+    group.children = itemIds.map((itemId) => {
+      if (itemId === group.id) {
+        const tok = groupTokens.get(group.id) ?? cur();
+        throw new ParseError(
+          `Group "${group.id}" cannot include itself in items=[...]`,
+          tok.line,
+          tok.col,
+        );
+      }
+
+      const kind = entityKindById.get(itemId);
+      if (!kind) {
+        const tok = groupTokens.get(group.id) ?? cur();
+        throw new ParseError(
+          `Group "${group.id}" references unknown item "${itemId}" in items=[...]`,
+          tok.line,
+          tok.col,
+        );
+      }
+
+      return { kind, id: itemId };
+    });
+  }
+
+  const parentByItemId = new Map<string, string>();
+  for (const group of ast.groups) {
+    for (const child of group.children) {
+      const existingParent = parentByItemId.get(child.id);
+      if (existingParent) {
+        const tok = groupTokens.get(group.id) ?? cur();
+        throw new ParseError(
+          `Item "${child.id}" cannot belong to both "${existingParent}" and "${group.id}"`,
+          tok.line,
+          tok.col,
+        );
+      }
+      parentByItemId.set(child.id, group.id);
+    }
+  }
+
+  const groupsById = new Map(ast.groups.map((group) => [group.id, group]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const stack: string[] = [];
+
+  function visitGroup(groupId: string): void {
+    if (visiting.has(groupId)) {
+      const start = stack.indexOf(groupId);
+      const cycle = (start >= 0 ? stack.slice(start) : stack).concat(groupId);
+      const tok = groupTokens.get(groupId) ?? cur();
+      throw new ParseError(
+        `Group cycle detected: ${cycle.join(" -> ")}`,
+        tok.line,
+        tok.col,
+      );
+    }
+    if (visited.has(groupId)) return;
+
+    visiting.add(groupId);
+    stack.push(groupId);
+
+    const group = groupsById.get(groupId);
+    if (group) {
+      for (const child of group.children) {
+        if (child.kind === "group") visitGroup(child.id);
+      }
+    }
+
+    stack.pop();
+    visiting.delete(groupId);
+    visited.add(groupId);
+  }
+
+  for (const group of ast.groups) visitGroup(group.id);
+
   for (const node of ast.nodes) {
     if (ast.styles[node.id]) {
       node.style = { ...ast.styles[node.id], ...node.style };

@@ -365,20 +365,32 @@ a --> b label="HTTPS" stroke="#cc0000" stroke-width=2 color="#aa0000" font-size=
 
 ## Groups
 
-Groups visually contain one or more nodes, tables, or nested groups.
+Groups visually contain one or more nodes, tables, charts, markdown blocks,
+or other groups by referencing their ids with `items=[...]`.
+
+```
+box a label="Node A"
+box b label="Node B"
+box c label="Node C"
+
+group inner label="Inner Group" layout=row items=[c]
+group outer label="Outer Group" layout=column items=[a,b,inner]
+```
+
+General form:
 
 ```
 group <id> [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
            [columns=N] [align=start|center|end]
            [justify=start|center|end|space-between|space-around]
            [theme=...] [fill="..."] [stroke="..."] [width=N] [height=N]
-{
-  box a label="Node A"
-  box b label="Node B"
-  # nested groups allowed:
-  group inner label="Inner Group" layout=row { box c label="C" }
-}
+           [items=[id1,id2,...]]
 ```
+
+- Groups are always declared at the top level.
+- `items` order is the visual child order.
+- Nested groups are created by referencing another group id from `items=[...]`.
+- All authored nodes, groups, tables, charts, and markdown blocks must have explicit ids.
 
 ### Group Properties
 
@@ -403,10 +415,9 @@ group <id> [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
 `bare` is an alias for a group with no visible border or fill:
 
 ```
-bare myContainer {
-  box a label="Floating A"
-  box b label="Floating B"
-}
+box a label="Floating A"
+box b label="Floating B"
+bare myContainer layout=row items=[a,b]
 ```
 
 ---
@@ -535,7 +546,7 @@ theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 box client  label="Client"  theme=primary
 box server  label="Server"  theme=warning
 cylinder db label="DB"      theme=success
-group services label="Services" theme=muted { ... }
+group services label="Services" theme=muted items=[client,server,db]
 ```
 
 ---
@@ -1062,8 +1073,8 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | `<-->` | Edge | `a <--> b` |
 | `--` | Edge | `a -- b` |
 | `---` | Edge | `a --- b` |
-| `group` | Group | `group myGroup label="Services" layout=column { ... }` |
-| `bare` | Group | `bare myWrap { ... }` |
+| `group` | Group | `group myGroup label="Services" layout=column items=[api,db]` |
+| `bare` | Group | `bare myWrap layout=row items=[a,b]` |
 | `table` | Table | `table myTable label="Users" { header Name Age }` |
 | `bar-chart` | Chart | `bar-chart sales label="Sales" data [...]` |
 | `line-chart` | Chart | `line-chart trend data [...]` |

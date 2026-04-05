@@ -35,7 +35,7 @@ export interface StyleProps {
   letterSpacing?: number;
 }
 
-// A child inside a group — either a node or a nested group
+// A resolved item reference inside a group.
 export type GroupChildRef =
   | { kind: 'node';  id: string }
   | { kind: 'group'; id: string }

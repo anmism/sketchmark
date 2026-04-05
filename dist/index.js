@@ -225,7 +225,7 @@ function tokenize$1(src) {
 }
 
 // ============================================================
-// sketchmark — Parser  (Tokens → DiagramAST)
+// sketchmark - Parser  (Tokens -> DiagramAST)
 // ============================================================
 let _uid = 0;
 function uid(prefix) {
@@ -284,15 +284,16 @@ function propsToStyle(p) {
         s.textAlign = p["text-align"];
     if (p.padding)
         s.padding = parseFloat(p.padding);
-    if (p["vertical-align"])
+    if (p["vertical-align"]) {
         s.verticalAlign = p["vertical-align"];
+    }
     if (p["line-height"])
         s.lineHeight = parseFloat(p["line-height"]);
     if (p["letter-spacing"])
         s.letterSpacing = parseFloat(p["letter-spacing"]);
     if (p.font)
         s.font = p.font;
-    const dashVal = p["dash"] || p["stroke-dash"];
+    const dashVal = p.dash || p["stroke-dash"];
     if (dashVal) {
         const parts = dashVal
             .split(",")
@@ -303,10 +304,15 @@ function propsToStyle(p) {
     }
     return s;
 }
+function isValueToken(t) {
+    return !!t && (t.type === "IDENT" || t.type === "STRING" || t.type === "KEYWORD");
+}
+function isPropKeyToken(t) {
+    return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
+}
 function parse(src) {
     resetUid();
     const tokens = tokenize$1(src).filter((t) => t.type !== "NEWLINE" || t.value === "\n");
-    // Collapse multiple consecutive NEWLINEs into one
     const flat = [];
     let lastNL = false;
     for (const t of tokens) {
@@ -335,11 +341,9 @@ function parse(src) {
         config: {},
         rootOrder: [],
     };
-    const nodeIds = new Set();
-    const tableIds = new Set();
-    const chartIds = new Set();
-    const groupIds = new Set();
-    const markdownIds = new Set();
+    const authoredEntityKinds = new Map();
+    const unresolvedGroupItems = new Map();
+    const groupTokens = new Map();
     let i = 0;
     const cur = () => flat[i] ?? flat[flat.length - 1];
     const peek1 = () => flat[i + 1] ?? flat[flat.length - 1];
@@ -348,7 +352,6 @@ function parse(src) {
         while (cur().type === "NEWLINE")
             skip();
     };
-    // Consume until EOL, return all tokens
     function lineTokens() {
         const acc = [];
         while (cur().type !== "NEWLINE" && cur().type !== "EOF") {
@@ -359,24 +362,104 @@ function parse(src) {
             skip();
         return acc;
     }
+    function requireExplicitId(keywordTok, toks) {
+        const first = toks[0];
+        if (!isValueToken(first) || toks[1]?.type === "EQUALS") {
+            throw new ParseError(`${keywordTok.value} requires an explicit id before properties`, keywordTok.line, keywordTok.col);
+        }
+        return first.value;
+    }
+    function parseSimpleProps(toks, startIndex) {
+        const props = {};
+        let j = startIndex;
+        while (j < toks.length - 1) {
+            const key = toks[j];
+            const eq = toks[j + 1];
+            if (isPropKeyToken(key) && eq?.type === "EQUALS" && j + 2 < toks.length) {
+                props[key.value] = toks[j + 2].value;
+                j += 3;
+            }
+            else {
+                j++;
+            }
+        }
+        return props;
+    }
+    function parseGroupProps(toks, startIndex) {
+        const props = {};
+        const itemIds = [];
+        let j = startIndex;
+        while (j < toks.length) {
+            const key = toks[j];
+            const eq = toks[j + 1];
+            if (!isPropKeyToken(key) || eq?.type !== "EQUALS") {
+                j++;
+                continue;
+            }
+            if (key.value === "items") {
+                const open = toks[j + 2];
+                if (open?.type !== "LBRACKET") {
+                    throw new ParseError(`items must use bracket syntax like items=[a,b]`, key.line, key.col);
+                }
+                j += 3;
+                while (j < toks.length && toks[j].type !== "RBRACKET") {
+                    const tok = toks[j];
+                    if (tok.type === "COMMA") {
+                        j++;
+                        continue;
+                    }
+                    if (!isValueToken(tok)) {
+                        const invalidTok = toks[j];
+                        throw new ParseError(`items can only contain ids like items=[a,b]`, invalidTok.line, invalidTok.col);
+                    }
+                    itemIds.push(tok.value);
+                    j++;
+                    if (toks[j]?.type === "COMMA") {
+                        j++;
+                    }
+                    else if (toks[j] && toks[j].type !== "RBRACKET") {
+                        throw new ParseError(`Expected ',' or ']' in items list`, toks[j].line, toks[j].col);
+                    }
+                }
+                if (toks[j]?.type !== "RBRACKET") {
+                    throw new ParseError(`Unterminated items list; expected ']'`, key.line, key.col);
+                }
+                j++;
+                continue;
+            }
+            if (j + 2 < toks.length) {
+                props[key.value] = toks[j + 2].value;
+                j += 3;
+            }
+            else {
+                j++;
+            }
+        }
+        return { props, itemIds };
+    }
+    function registerAuthoredId(id, kind, tok) {
+        const existing = authoredEntityKinds.get(id);
+        if (existing) {
+            throw new ParseError(`Duplicate id "${id}" already declared as a ${existing}`, tok.line, tok.col);
+        }
+        authoredEntityKinds.set(id, kind);
+    }
     function parseDataArray() {
         const rows = [];
         while (cur().type !== "LBRACKET" && cur().type !== "EOF")
             skip();
-        skip(); // outer [
+        skip();
         skipNL();
         while (cur().type !== "RBRACKET" && cur().type !== "EOF") {
             skipNL();
             if (cur().type === "RBRACKET" || cur().type === "EOF")
-                break; // ← ADD THIS LINE
+                break;
             if (cur().type === "LBRACKET") {
                 skip();
                 const row = [];
                 while (cur().type !== "RBRACKET" && cur().type !== "EOF") {
                     const v = cur();
-                    if (v.type === "STRING" ||
-                        v.type === "IDENT" ||
-                        v.type === "KEYWORD") {
+                    if (v.type === "STRING" || v.type === "IDENT" || v.type === "KEYWORD") {
                         row.push(v.value);
                         skip();
                     }
@@ -387,8 +470,9 @@ function parse(src) {
                     else if (v.type === "COMMA" || v.type === "NEWLINE") {
                         skip();
                     }
-                    else
+                    else {
                         break;
+                    }
                 }
                 if (cur().type === "RBRACKET")
                     skip();
@@ -397,46 +481,25 @@ function parse(src) {
             else if (cur().type === "COMMA" || cur().type === "NEWLINE") {
                 skip();
             }
-            else
+            else {
                 skip();
+            }
         }
         if (cur().type === "RBRACKET")
             skip();
         return rows;
     }
-    function parseNode(shape, groupId) {
-        skip(); // shape keyword
+    function parseNode(shape) {
+        const keywordTok = cur();
+        skip();
         const toks = lineTokens();
-        let id = groupId ? groupId + "_" + uid(shape) : uid(shape);
-        const props = {};
-        let j = 0;
-        // First token may be the node id
-        if (j < toks.length &&
-            (toks[j].type === "IDENT" || toks[j].type === "STRING")) {
-            id = toks[j++].value;
-        }
-        // Remaining tokens are key=value pairs
-        while (j < toks.length) {
-            const t = toks[j];
-            if ((t.type === "IDENT" || t.type === "KEYWORD") &&
-                j + 1 < toks.length &&
-                toks[j + 1].type === "EQUALS") {
-                const key = t.value;
-                j += 2;
-                if (j < toks.length) {
-                    props[key] = toks[j].value;
-                    j++;
-                }
-            }
-            else
-                j++;
-        }
+        const id = requireExplicitId(keywordTok, toks);
+        const props = parseSimpleProps(toks, 1);
         const node = {
             kind: "node",
             id,
             shape,
             label: props.label || "",
-            ...(groupId ? { groupId } : {}),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
             ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
@@ -454,113 +517,56 @@ function parse(src) {
             node.pathData = props.value;
         return node;
     }
-    function parseEdge(fromId, connector, rest) {
-        const toTok = rest.shift();
-        if (!toTok)
-            throw new ParseError("Expected edge target", 0, 0);
-        const toId = toTok.value;
-        const props = {};
-        let j = 0;
-        while (j < rest.length) {
-            const t = rest[j];
-            if ((t.type === "IDENT" || t.type === "KEYWORD") &&
-                j + 1 < rest.length &&
-                rest[j + 1].type === "EQUALS") {
-                const key = t.value;
-                j += 2;
-                if (j < rest.length) {
-                    props[key] = rest[j].value;
-                    j++;
-                }
-            }
-            else
-                j++;
-        }
-        const dashed = connector.includes("--") ||
-            connector.includes(".-") ||
-            connector.includes("-.");
-        const bidir = connector.includes("<") && connector.includes(">");
-        return {
-            kind: "edge",
-            id: uid("edge"),
-            from: fromId,
-            to: toId,
-            connector: connector,
-            label: props.label,
-            dashed,
-            bidirectional: bidir,
-            style: propsToStyle(props),
-        };
-    }
-    // ── parseNote → returns ASTNode with shape='note' ────────
-    function parseNote(groupId) {
-        skip(); // 'note'
+    function parseNote() {
+        const keywordTok = cur();
+        skip();
         const toks = lineTokens();
-        let id = groupId ? groupId + "_" + uid("note") : uid("note");
-        if (toks[0])
-            id = toks[0].value;
+        const id = requireExplicitId(keywordTok, toks);
         const props = {};
         let j = 1;
-        // Backward compat: second token is a bare/quoted string → label
         if (toks[1] &&
             (toks[1].type === "STRING" ||
                 (toks[1].type === "IDENT" && toks[2]?.type !== "EQUALS"))) {
             props.label = toks[1].value;
             j = 2;
         }
-        // Parse remaining key=value props
-        while (j < toks.length - 1) {
-            const k = toks[j];
-            const eq = toks[j + 1];
-            if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-                props[k.value] = toks[j + 2].value;
-                j += 3;
-            }
-            else
-                j++;
-        }
-        // Support multiline via literal \n in label string
-        const rawLabel = props.label ?? "";
+        Object.assign(props, parseSimpleProps(toks, j));
         return {
             kind: "node",
             id,
             shape: "note",
-            label: rawLabel.replace(/\\n/g, "\n"),
-            groupId,
+            label: (props.label ?? "").replace(/\\n/g, "\n"),
             theme: props.theme,
             style: propsToStyle(props),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
         };
     }
-    // ── parseGroup ───────────────────────────────────────────
-    function parseGroup(parentGroupId) {
-        skip(); // 'group'
+    function parseGroup() {
+        const keywordTok = cur();
+        skip();
         const toks = lineTokens();
-        let id = uid("group");
-        if (toks[0])
-            id = toks[0].value;
+        if (toks.some((t) => t.type === "LBRACE" || t.type === "RBRACE")) {
+            throw new ParseError(`Nested group blocks were removed. Use ${keywordTok.value} <id> items=[...] instead.`, keywordTok.line, keywordTok.col);
+        }
+        const id = requireExplicitId(keywordTok, toks);
         const props = {};
         let j = 1;
-        // Backward compat: second token is a quoted/bare string (old label syntax)
         if (toks[1] &&
             (toks[1].type === "STRING" ||
                 (toks[1].type === "IDENT" && toks[2]?.type !== "EQUALS"))) {
             props.label = toks[1].value;
             j = 2;
         }
-        // Parse remaining key=value props
-        while (j < toks.length - 1) {
-            const k = toks[j];
-            const eq = toks[j + 1];
-            if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-                props[k.value] = toks[j + 2].value;
-                j += 3;
-            }
-            else
-                j++;
+        const parsed = parseGroupProps(toks, j);
+        Object.assign(props, parsed.props);
+        skipNL();
+        if (cur().type === "LBRACE") {
+            throw new ParseError(`Nested group blocks were removed. Use ${keywordTok.value} ${id} items=[...] instead.`, cur().line, cur().col);
         }
-        const group = {
+        unresolvedGroupItems.set(id, parsed.itemIds);
+        groupTokens.set(id, keywordTok);
+        return {
             kind: "group",
             id,
             label: props.label ?? "",
@@ -573,109 +579,43 @@ function parse(src) {
             justify: props.justify,
             theme: props.theme,
             style: propsToStyle(props),
-            width: props.width !== undefined ? parseFloat(props.width) : undefined, // ← add
+            width: props.width !== undefined ? parseFloat(props.width) : undefined,
             height: props.height !== undefined ? parseFloat(props.height) : undefined,
         };
-        skipNL();
-        if (cur().type === "LBRACE") {
-            skip();
-            skipNL();
+    }
+    function parseEdge(fromId, connector, rest) {
+        const toTok = rest.shift();
+        if (!toTok)
+            throw new ParseError("Expected edge target", 0, 0);
+        const props = {};
+        let j = 0;
+        while (j < rest.length) {
+            const t = rest[j];
+            if ((t.type === "IDENT" || t.type === "KEYWORD") &&
+                j + 1 < rest.length &&
+                rest[j + 1].type === "EQUALS") {
+                props[t.value] = rest[j + 2]?.value ?? "";
+                j += 3;
+            }
+            else {
+                j++;
+            }
         }
-        while (cur().type !== "RBRACE" &&
-            cur().value !== "end" &&
-            cur().type !== "EOF") {
-            skipNL();
-            if (cur().type === "RBRACE")
-                break;
-            const v = cur().value;
-            // ── Nested group ──────────────────────────────────
-            if (v === "group" || v === "bare") {
-                const isBare = v === "bare";
-                const nested = parseGroup();
-                if (isBare) {
-                    nested.label = "";
-                    nested.style = {
-                        ...nested.style,
-                        fill: nested.style?.fill ?? "none",
-                        stroke: nested.style?.stroke ?? "none",
-                        strokeWidth: nested.style?.strokeWidth ?? 0,
-                    };
-                }
-                ast.groups.push(nested);
-                groupIds.add(nested.id);
-                group.children.push({ kind: "group", id: nested.id });
-                continue;
-            }
-            // ── Table ─────────────────────────────────────────
-            if (v === "table") {
-                const tbl = parseTable();
-                ast.tables.push(tbl);
-                tableIds.add(tbl.id);
-                group.children.push({ kind: "table", id: tbl.id });
-                continue;
-            }
-            // ── Note (parsed as node with shape='note') ──────
-            if (v === "note") {
-                const note = parseNote(id);
-                ast.nodes.push(note);
-                nodeIds.add(note.id);
-                group.children.push({ kind: "node", id: note.id });
-                continue;
-            }
-            // ── Markdown ───────────────────────────────────────
-            if (v === "markdown") {
-                const md = parseMarkdown(id);
-                ast.markdowns.push(md);
-                markdownIds.add(md.id);
-                group.children.push({ kind: "markdown", id: md.id });
-                continue;
-            }
-            if (v === "bare") {
-                // treat exactly like 'group' but inject defaults
-                const grp = parseGroup(); // reuse parseGroup
-                grp.label = "";
-                grp.style = { ...grp.style, stroke: "none", fill: "none" };
-                // rest is identical to group handling
-            }
-            // ── Chart ──────────────────────────────────────────
-            if (CHART_TYPES.includes(v)) {
-                const chart = parseChart(v);
-                ast.charts.push(chart);
-                chartIds.add(chart.id);
-                group.children.push({ kind: "chart", id: chart.id });
-                continue;
-            }
-            // ── Node shape ────────────────────────────────────
-            if (SHAPES$1.includes(v)) {
-                const node = parseNode(v, id);
-                if (!nodeIds.has(node.id)) {
-                    nodeIds.add(node.id);
-                    ast.nodes.push(node);
-                }
-                group.children.push({ kind: "node", id: node.id });
-                continue;
-            }
-            // ── Edge inside group ─────────────────────────────
-            if (cur().type === "IDENT" ||
-                cur().type === "STRING" ||
-                cur().type === "KEYWORD") {
-                const nextTok = flat[i + 1];
-                if (nextTok && nextTok.type === "ARROW") {
-                    const lineToks = lineTokens();
-                    if (lineToks.length >= 3 && lineToks[1].type === "ARROW") {
-                        const fromId = lineToks[0].value;
-                        const conn = lineToks[1].value;
-                        const edge = parseEdge(fromId, conn, lineToks.slice(2));
-                        ast.edges.push(edge);
-                    }
-                    continue;
-                }
-            }
-            skip();
-        }
-        if (cur().type === "RBRACE")
-            skip();
-        return group;
+        const dashed = connector.includes("--") ||
+            connector.includes(".-") ||
+            connector.includes("-.");
+        const bidirectional = connector.includes("<") && connector.includes(">");
+        return {
+            kind: "edge",
+            id: uid("edge"),
+            from: fromId,
+            to: toTok.value,
+            connector: connector,
+            label: props.label,
+            dashed,
+            bidirectional,
+            style: propsToStyle(props),
+        };
     }
     function parseStep() {
         skip();
@@ -686,12 +626,10 @@ function parse(src) {
             target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
         }
         const step = { kind: "step", action, target };
-        // narrate: text is the value, not a target
         if (action === "narrate") {
             step.target = "";
             step.value = toks[1]?.value ?? "";
         }
-        // bracket: needs two targets
         if (action === "bracket" && toks.length >= 3) {
             step.target = toks[1]?.value ?? "";
             step.target2 = toks[2]?.value ?? "";
@@ -701,7 +639,6 @@ function parse(src) {
             const k = toks[j]?.value;
             const eq = toks[j + 1];
             const vt = toks[j + 2];
-            // key=value form
             if (eq?.type === "EQUALS" && vt) {
                 if (k === "dx") {
                     step.dx = parseFloat(vt.value);
@@ -733,12 +670,7 @@ function parse(src) {
                     j += 2;
                     continue;
                 }
-                if (k === "fill") {
-                    step.value = vt.value;
-                    j += 2;
-                    continue;
-                }
-                if (k === "color") {
+                if (k === "fill" || k === "color") {
                     step.value = vt.value;
                     j += 2;
                     continue;
@@ -749,7 +681,6 @@ function parse(src) {
                     continue;
                 }
             }
-            // bare key value (legacy)
             if (k === "delay" && eq?.type === "NUMBER") {
                 step.delay = parseFloat(eq.value);
                 j++;
@@ -763,89 +694,16 @@ function parse(src) {
             if (k === "trigger") {
                 step.trigger = eq?.value;
                 j++;
-                continue;
             }
         }
         return step;
     }
-    // function parseStep(): ASTStep {
-    //   skip(); // 'step'
-    //   const toks = lineTokens();
-    //   const action = (toks[0]?.value ?? "highlight") as AnimationAction;
-    //   let target = toks[1]?.value ?? "";
-    //   if (toks[2]?.type === "ARROW" && toks[3]) {
-    //     target = `${toks[1].value}${toks[2].value}${toks[3].value}`;
-    //   }
-    //   const step: ASTStep = { kind: "step", action, target };
-    //   for (let j = 2; j < toks.length - 1; j++) {
-    //     const k = toks[j].value;
-    //     const eq = toks[j + 1];
-    //     const vt = toks[j + 2];
-    //     // key=value form (dx=50, dy=-80, duration=600)
-    //     if (eq?.type === "EQUALS" && vt) {
-    //       if (k === "dx") {
-    //         step.dx = parseFloat(vt.value);
-    //         j += 2;
-    //         continue;
-    //       }
-    //       if (k === "dy") {
-    //         step.dy = parseFloat(vt.value);
-    //         j += 2;
-    //         continue;
-    //       }
-    //       if (k === "duration") {
-    //         step.duration = parseFloat(vt.value);
-    //         j += 2;
-    //         continue;
-    //       }
-    //       if (k === "delay") {
-    //         step.delay = parseFloat(vt.value);
-    //         j += 2;
-    //         continue;
-    //       }
-    //     }
-    //     // bare key value form (legacy: delay 500, duration 400)
-    //     if (k === "delay" && eq?.type === "NUMBER") {
-    //       step.delay = parseFloat(eq.value);
-    //       j++;
-    //     }
-    //     if (k === "duration" && eq?.type === "NUMBER") {
-    //       step.duration = parseFloat(eq.value);
-    //       j++;
-    //     }
-    //     if (k === "trigger") {
-    //       step.trigger = eq?.value as AnimationTrigger;
-    //       j++;
-    //     }
-    //     if (k === "factor") {
-    //       step.factor = parseFloat(vt.value);
-    //       j += 2;
-    //       continue;
-    //     }
-    //     if (k === "deg") {
-    //       step.deg = parseFloat(vt.value);
-    //       j += 2;
-    //       continue;
-    //     }
-    //   }
-    //   return step;
-    // }
     function parseChart(chartType) {
+        const keywordTok = cur();
         skip();
         const toks = lineTokens();
-        const id = toks[0]?.value ?? uid("chart");
-        const props = {};
-        let j = 1;
-        while (j < toks.length - 1) {
-            const k = toks[j];
-            const eq = toks[j + 1];
-            if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-                props[k.value] = toks[j + 2].value;
-                j += 3;
-            }
-            else
-                j++;
-        }
+        const id = requireExplicitId(keywordTok, toks);
+        const props = parseSimpleProps(toks, 1);
         let dataRows = [];
         skipNL();
         while (cur().type !== "EOF" && cur().value !== "end") {
@@ -858,30 +716,31 @@ function parse(src) {
             }
             else if ((cur().type === "IDENT" || cur().type === "KEYWORD") &&
                 peek1().type === "EQUALS") {
-                const k = cur().value;
+                const key = cur().value;
                 skip();
                 skip();
-                props[k] = cur().value;
+                props[key] = cur().value;
                 skip();
             }
             else if (SHAPES$1.includes(v) ||
                 v === "step" ||
                 v === "group" ||
-                v === "note" || // ← ADD
+                v === "bare" ||
+                v === "note" ||
                 v === "table" ||
-                v === "config" || // ← ADD
-                v === "theme" || // ← ADD
+                v === "config" ||
+                v === "theme" ||
                 v === "style" ||
                 v === "markdown" ||
                 CHART_TYPES.includes(v)) {
                 break;
             }
             else if (peek1().type === "ARROW") {
-                // ← ADD THIS WHOLE BLOCK
                 break;
             }
-            else
+            else {
                 skip();
+            }
         }
         const headers = dataRows[0]?.map(String) ?? [];
         const rows = dataRows.slice(1);
@@ -898,29 +757,19 @@ function parse(src) {
         };
     }
     function parseTable() {
-        skip(); // 'table'
+        const keywordTok = cur();
+        skip();
         const toks = lineTokens();
-        let id = uid("table");
-        if (toks[0])
-            id = toks[0].value;
+        const id = requireExplicitId(keywordTok, toks);
         const props = {};
         let j = 1;
-        // label="..." or bare second token
         if (toks[1] &&
             (toks[1].type === "STRING" ||
                 (toks[1].type === "IDENT" && toks[2]?.type !== "EQUALS"))) {
             props.label = toks[1].value;
             j = 2;
         }
-        while (j < toks.length - 1) {
-            const k = toks[j], eq = toks[j + 1];
-            if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-                props[k.value] = toks[j + 2].value;
-                j += 3;
-            }
-            else
-                j++;
-        }
+        Object.assign(props, parseSimpleProps(toks, j));
         const table = {
             kind: "table",
             id,
@@ -947,7 +796,8 @@ function parse(src) {
                 while (cur().type !== "NEWLINE" && cur().type !== "EOF") {
                     if (cur().type === "STRING" ||
                         cur().type === "IDENT" ||
-                        cur().type === "NUMBER") {
+                        cur().type === "NUMBER" ||
+                        cur().type === "KEYWORD") {
                         cells.push(cur().value);
                     }
                     skip();
@@ -956,31 +806,20 @@ function parse(src) {
                     skip();
                 table.rows.push({ kind: v === "header" ? "header" : "data", cells });
             }
-            else
+            else {
                 skip();
+            }
         }
         if (cur().type === "RBRACE")
             skip();
         return table;
     }
-    // ── parseMarkdown ─────────────────────────────────────────
-    function parseMarkdown(groupId) {
-        skip(); // 'markdown'
+    function parseMarkdown() {
+        const keywordTok = cur();
+        skip();
         const toks = lineTokens();
-        let id = groupId ? groupId + "_" + uid("md") : uid("md");
-        if (toks[0])
-            id = toks[0].value;
-        const props = {};
-        let j = 1;
-        while (j < toks.length - 1) {
-            const k = toks[j], eq = toks[j + 1];
-            if (eq?.type === "EQUALS" && j + 2 < toks.length) {
-                props[k.value] = toks[j + 2].value;
-                j += 3;
-            }
-            else
-                j++;
-        }
+        const id = requireExplicitId(keywordTok, toks);
+        const props = parseSimpleProps(toks, 1);
         skipNL();
         let content = "";
         if (cur().type === "STRING_BLOCK") {
@@ -997,7 +836,6 @@ function parse(src) {
             style: propsToStyle(props),
         };
     }
-    // ── Main parse loop ─────────────────────────────────────
     skipNL();
     if (cur().value === "diagram")
         skip();
@@ -1016,19 +854,16 @@ function parse(src) {
         }
         if (v === "end")
             break;
-        // direction — silently ignored (removed from engine)
         if (v === "direction") {
             lineTokens();
             continue;
         }
-        // layout
         if (v === "layout") {
             skip();
             ast.layout = cur().value ?? "column";
             skip();
             continue;
         }
-        // title
         if (v === "title") {
             skip();
             const toks = lineTokens();
@@ -1038,14 +873,10 @@ function parse(src) {
                 ast.title = toks[idx + 2]?.value ?? "";
             }
             else {
-                ast.title = toks
-                    .map((t2) => t2.value)
-                    .join(" ")
-                    .replace(/"/g, "");
+                ast.title = toks.map((t2) => t2.value).join(" ").replace(/"/g, "");
             }
             continue;
         }
-        // description
         if (v === "description") {
             skip();
             ast.description = lineTokens()
@@ -1054,65 +885,38 @@ function parse(src) {
                 .replace(/"/g, "");
             continue;
         }
-        // config
         if (v === "config") {
             skip();
-            const k = cur().value;
+            const key = cur().value;
             skip();
             if (cur().type === "EQUALS")
                 skip();
-            const cv = cur().value;
+            const value = cur().value;
             skip();
-            ast.config[k] = cv;
+            ast.config[key] = value;
             continue;
         }
-        // style
         if (v === "style") {
             skip();
             const targetId = cur().value;
             skip();
-            const lineToks = lineTokens();
-            const p = {};
-            let j = 0;
-            while (j < lineToks.length - 1) {
-                const k2 = lineToks[j];
-                const eq = lineToks[j + 1];
-                if (eq.type === "EQUALS") {
-                    p[k2.value] = lineToks[j + 2]?.value ?? "";
-                    j += 3;
-                }
-                else
-                    j++;
-            }
-            ast.styles[targetId] = { ...ast.styles[targetId], ...propsToStyle(p) };
+            const props = parseSimpleProps(lineTokens(), 0);
+            ast.styles[targetId] = { ...ast.styles[targetId], ...propsToStyle(props) };
             continue;
         }
-        // theme
         if (v === "theme") {
             skip();
             const toks = lineTokens();
             const themeId = toks[0]?.value;
             if (!themeId)
                 continue;
-            const props = {};
-            let j = 1;
-            while (j < toks.length - 1) {
-                const k2 = toks[j];
-                const eq = toks[j + 1];
-                if (eq && eq.type === "EQUALS" && j + 2 < toks.length) {
-                    props[k2.value] = toks[j + 2].value;
-                    j += 3;
-                }
-                else
-                    j++;
-            }
-            ast.themes[themeId] = propsToStyle(props);
+            ast.themes[themeId] = propsToStyle(parseSimpleProps(toks, 1));
             continue;
         }
-        // group
         if (v === "group" || v === "bare") {
             const isBare = v === "bare";
             const grp = parseGroup();
+            registerAuthoredId(grp.id, "group", t);
             if (isBare) {
                 grp.label = "";
                 grp.style = {
@@ -1123,36 +927,34 @@ function parse(src) {
                 };
             }
             ast.groups.push(grp);
-            groupIds.add(grp.id);
             ast.rootOrder.push({ kind: "group", id: grp.id });
             continue;
         }
-        // table
         if (v === "table") {
             const tbl = parseTable();
+            registerAuthoredId(tbl.id, "table", t);
             ast.tables.push(tbl);
-            tableIds.add(tbl.id);
             ast.rootOrder.push({ kind: "table", id: tbl.id });
             continue;
         }
-        // note (parsed as node with shape='note')
         if (v === "note") {
             const note = parseNote();
+            registerAuthoredId(note.id, "node", t);
             ast.nodes.push(note);
-            nodeIds.add(note.id);
             ast.rootOrder.push({ kind: "node", id: note.id });
             continue;
         }
-        // beat { ... } — parallel steps
         if (v === "beat") {
-            skip(); // 'beat'
+            skip();
             skipNL();
             if (cur().type === "LBRACE") {
                 skip();
                 skipNL();
             }
             const children = [];
-            while (cur().type !== "RBRACE" && cur().value !== "end" && cur().type !== "EOF") {
+            while (cur().type !== "RBRACE" &&
+                cur().value !== "end" &&
+                cur().type !== "EOF") {
                 skipNL();
                 if (cur().type === "RBRACE")
                     break;
@@ -1168,69 +970,120 @@ function parse(src) {
             ast.steps.push({ kind: "beat", children });
             continue;
         }
-        // step
         if (v === "step") {
             ast.steps.push(parseStep());
             continue;
         }
-        // charts
         if (CHART_TYPES.includes(v)) {
             const chart = parseChart(v);
+            registerAuthoredId(chart.id, "chart", t);
             ast.charts.push(chart);
-            chartIds.add(chart.id);
-            ast.rootOrder.push({ kind: "chart", id: chart.id }); // ← ADD
+            ast.rootOrder.push({ kind: "chart", id: chart.id });
             continue;
         }
         if (v === "markdown") {
             const md = parseMarkdown();
+            registerAuthoredId(md.id, "markdown", t);
             ast.markdowns.push(md);
-            markdownIds.add(md.id);
             ast.rootOrder.push({ kind: "markdown", id: md.id });
             continue;
         }
-        // edge:  A -> B  (MUST come before shape check)
         if (t.type === "IDENT" || t.type === "STRING" || t.type === "KEYWORD") {
             const nextTok = flat[i + 1];
             if (nextTok && nextTok.type === "ARROW") {
                 const lineToks = lineTokens();
                 if (lineToks.length >= 3 && lineToks[1].type === "ARROW") {
                     const fromId = lineToks[0].value;
-                    const conn = lineToks[1].value;
-                    const edge = parseEdge(fromId, conn, lineToks.slice(2));
-                    ast.edges.push(edge);
-                    // Auto-create implied nodes if they don't exist yet
-                    for (const nid of [fromId, edge.to]) {
-                        if (!nodeIds.has(nid) &&
-                            !tableIds.has(nid) &&
-                            !chartIds.has(nid) &&
-                            !groupIds.has(nid)) {
-                            nodeIds.add(nid);
-                            ast.nodes.push({
-                                kind: "node",
-                                id: nid,
-                                shape: "box",
-                                label: nid,
-                                style: {},
-                            });
-                        }
-                    }
+                    const connector = lineToks[1].value;
+                    ast.edges.push(parseEdge(fromId, connector, lineToks.slice(2)));
                     continue;
                 }
             }
         }
-        // node shapes — only reached if NOT followed by an arrow
         if (SHAPES$1.includes(v)) {
             const node = parseNode(v);
-            if (!nodeIds.has(node.id)) {
-                nodeIds.add(node.id);
-                ast.nodes.push(node);
-                ast.rootOrder.push({ kind: "node", id: node.id });
-            }
+            registerAuthoredId(node.id, "node", t);
+            ast.nodes.push(node);
+            ast.rootOrder.push({ kind: "node", id: node.id });
             continue;
         }
         skip();
     }
-    // Merge global styles into node styles
+    const allKnownIds = new Set(authoredEntityKinds.keys());
+    for (const edge of ast.edges) {
+        for (const id of [edge.from, edge.to]) {
+            if (allKnownIds.has(id))
+                continue;
+            allKnownIds.add(id);
+            ast.nodes.push({
+                kind: "node",
+                id,
+                shape: "box",
+                label: id,
+                style: {},
+            });
+        }
+    }
+    const entityKindById = new Map();
+    ast.nodes.forEach((node) => entityKindById.set(node.id, "node"));
+    ast.groups.forEach((group) => entityKindById.set(group.id, "group"));
+    ast.tables.forEach((table) => entityKindById.set(table.id, "table"));
+    ast.charts.forEach((chart) => entityKindById.set(chart.id, "chart"));
+    ast.markdowns.forEach((md) => entityKindById.set(md.id, "markdown"));
+    for (const group of ast.groups) {
+        const itemIds = unresolvedGroupItems.get(group.id) ?? [];
+        group.children = itemIds.map((itemId) => {
+            if (itemId === group.id) {
+                const tok = groupTokens.get(group.id) ?? cur();
+                throw new ParseError(`Group "${group.id}" cannot include itself in items=[...]`, tok.line, tok.col);
+            }
+            const kind = entityKindById.get(itemId);
+            if (!kind) {
+                const tok = groupTokens.get(group.id) ?? cur();
+                throw new ParseError(`Group "${group.id}" references unknown item "${itemId}" in items=[...]`, tok.line, tok.col);
+            }
+            return { kind, id: itemId };
+        });
+    }
+    const parentByItemId = new Map();
+    for (const group of ast.groups) {
+        for (const child of group.children) {
+            const existingParent = parentByItemId.get(child.id);
+            if (existingParent) {
+                const tok = groupTokens.get(group.id) ?? cur();
+                throw new ParseError(`Item "${child.id}" cannot belong to both "${existingParent}" and "${group.id}"`, tok.line, tok.col);
+            }
+            parentByItemId.set(child.id, group.id);
+        }
+    }
+    const groupsById = new Map(ast.groups.map((group) => [group.id, group]));
+    const visiting = new Set();
+    const visited = new Set();
+    const stack = [];
+    function visitGroup(groupId) {
+        if (visiting.has(groupId)) {
+            const start = stack.indexOf(groupId);
+            const cycle = (start >= 0 ? stack.slice(start) : stack).concat(groupId);
+            const tok = groupTokens.get(groupId) ?? cur();
+            throw new ParseError(`Group cycle detected: ${cycle.join(" -> ")}`, tok.line, tok.col);
+        }
+        if (visited.has(groupId))
+            return;
+        visiting.add(groupId);
+        stack.push(groupId);
+        const group = groupsById.get(groupId);
+        if (group) {
+            for (const child of group.children) {
+                if (child.kind === "group")
+                    visitGroup(child.id);
+            }
+        }
+        stack.pop();
+        visiting.delete(groupId);
+        visited.add(groupId);
+    }
+    for (const group of ast.groups)
+        visitGroup(group.id);
     for (const node of ast.nodes) {
         if (ast.styles[node.id]) {
             node.style = { ...ast.styles[node.id], ...node.style };
@@ -3565,6 +3418,16 @@ function calcMarkdownWidth(lines, fontFamily = DEFAULT_FONT, pad = MARKDOWN.defa
 // ============================================================
 // ── Build scene graph from AST ────────────────────────────
 function buildSceneGraph(ast) {
+    const nodeParentById = new Map();
+    const groupParentById = new Map();
+    for (const g of ast.groups) {
+        for (const child of g.children) {
+            if (child.kind === "node")
+                nodeParentById.set(child.id, g.id);
+            if (child.kind === "group")
+                groupParentById.set(child.id, g.id);
+        }
+    }
     const nodes = ast.nodes.map((n) => {
         const themeStyle = n.theme ? (ast.themes[n.theme] ?? {}) : {};
         return {
@@ -3572,7 +3435,7 @@ function buildSceneGraph(ast) {
             shape: n.shape,
             label: n.label,
             style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
-            groupId: n.groupId,
+            groupId: nodeParentById.get(n.id),
             width: n.width,
             height: n.height,
             deg: n.deg,
@@ -3594,7 +3457,7 @@ function buildSceneGraph(ast) {
         return {
             id: g.id,
             label: g.label,
-            parentId: undefined, // set below
+            parentId: groupParentById.get(g.id),
             children: g.children,
             layout: (g.layout ?? "column"),
             columns: g.columns ?? 1,
@@ -3642,28 +3505,21 @@ function buildSceneGraph(ast) {
             h: c.height ?? CHART.defaultH,
         };
     });
-    const markdowns = (ast.markdowns ?? []).map(m => {
+    const markdowns = (ast.markdowns ?? []).map((m) => {
         const themeStyle = m.theme ? (ast.themes[m.theme] ?? {}) : {};
         return {
             id: m.id,
             content: m.content,
             lines: parseMarkdownContent(m.content),
-            style: { ...themeStyle, ...m.style },
+            style: { ...ast.styles[m.id], ...themeStyle, ...m.style },
             width: m.width,
             height: m.height,
-            x: 0, y: 0, w: 0, h: 0,
+            x: 0,
+            y: 0,
+            w: 0,
+            h: 0,
         };
     });
-    // Set parentId for nested groups
-    for (const g of groups) {
-        for (const child of g.children) {
-            if (child.kind === "group") {
-                const nested = groups.find((gg) => gg.id === child.id);
-                if (nested)
-                    nested.parentId = g.id;
-            }
-        }
-    }
     const edges = ast.edges.map((e) => ({
         id: e.id,
         from: e.from,
@@ -4790,15 +4646,30 @@ function layout(sg) {
     // 4. Build root order
     //    sg.rootOrder preserves DSL declaration order.
     //    Fall back: groups, then nodes, then tables.
-    const rootOrder = sg.rootOrder?.length
-        ? sg.rootOrder
-        : [
-            ...rootGroups.map((g) => ({ kind: "group", id: g.id })),
-            ...rootNodes.map((n) => ({ kind: "node", id: n.id })),
-            ...rootTables.map((t) => ({ kind: "table", id: t.id })),
-            ...rootCharts.map((c) => ({ kind: "chart", id: c.id })),
-            ...rootMarkdowns.map((m) => ({ kind: "markdown", id: m.id })),
-        ];
+    const defaultRootOrder = [
+        ...rootGroups.map((g) => ({ kind: "group", id: g.id })),
+        ...rootNodes.map((n) => ({ kind: "node", id: n.id })),
+        ...rootTables.map((t) => ({ kind: "table", id: t.id })),
+        ...rootCharts.map((c) => ({ kind: "chart", id: c.id })),
+        ...rootMarkdowns.map((m) => ({ kind: "markdown", id: m.id })),
+    ];
+    const rootOrderSource = sg.rootOrder?.length ? sg.rootOrder : defaultRootOrder;
+    const rootOrder = rootOrderSource.filter((ref) => {
+        switch (ref.kind) {
+            case "group":
+                return !nestedGroupIds.has(ref.id);
+            case "node":
+                return !groupedNodeIds.has(ref.id);
+            case "table":
+                return !groupedTableIds.has(ref.id);
+            case "chart":
+                return !groupedChartIds.has(ref.id);
+            case "markdown":
+                return !groupedMarkdownIds.has(ref.id);
+            default:
+                return true;
+        }
+    });
     // 5. Root-level layout
     //    sg.layout:
     //      'row'    → items flow left to right  (default)

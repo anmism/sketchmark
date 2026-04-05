@@ -16,12 +16,9 @@ theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
 box client  label="Client App"   theme=primary width=140 height=55
 box gateway label="API Gateway"  theme=warning width=140 height=55
-
-group services label="Services" layout=column gap=16 padding=30 theme=muted
-{
-  box auth  label="Auth Service"  theme=primary width=130 height=50
-  box data  label="Data Service"  theme=primary width=130 height=50
-}
+box auth    label="Auth Service" theme=primary width=130 height=50
+box data    label="Data Service" theme=primary width=130 height=50
+group services label="Services" layout=column gap=16 padding=30 theme=muted items=[auth,data]
 
 cylinder db label="PostgreSQL" theme=success width=140 height=65
 

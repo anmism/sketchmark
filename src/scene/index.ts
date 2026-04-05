@@ -142,6 +142,16 @@ export interface SceneGraph {
 
 // ── Build scene graph from AST ────────────────────────────
 export function buildSceneGraph(ast: DiagramAST): SceneGraph {
+  const nodeParentById = new Map<string, string>();
+  const groupParentById = new Map<string, string>();
+
+  for (const g of ast.groups) {
+    for (const child of g.children) {
+      if (child.kind === "node") nodeParentById.set(child.id, g.id);
+      if (child.kind === "group") groupParentById.set(child.id, g.id);
+    }
+  }
+
   const nodes: SceneNode[] = ast.nodes.map((n) => {
     const themeStyle = n.theme ? (ast.themes[n.theme] ?? {}) : {};
     return {
@@ -149,7 +159,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       shape: n.shape,
       label: n.label,
       style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
-      groupId: n.groupId,
+      groupId: nodeParentById.get(n.id),
       width: n.width,
       height: n.height,
       deg: n.deg,
@@ -172,7 +182,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     return {
       id: g.id,
       label: g.label,
-      parentId: undefined, // set below
+      parentId: groupParentById.get(g.id),
       children: g.children,
       layout: (g.layout ?? "column") as SceneGroup["layout"],
       columns: g.columns ?? 1,
@@ -223,29 +233,21 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     };
   });
 
-    const markdowns: SceneMarkdown[] = (ast.markdowns ?? []).map(m => {
+  const markdowns: SceneMarkdown[] = (ast.markdowns ?? []).map((m) => {
     const themeStyle = m.theme ? (ast.themes[m.theme] ?? {}) : {};
     return {
-      id:      m.id,
+      id: m.id,
       content: m.content,
-      lines:   parseMarkdownContent(m.content),
-      style:   { ...themeStyle, ...m.style },
-      width:   m.width,
-      height:  m.height,
-      x: 0, y: 0, w: 0, h: 0,
+      lines: parseMarkdownContent(m.content),
+      style: { ...ast.styles[m.id], ...themeStyle, ...m.style },
+      width: m.width,
+      height: m.height,
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
     };
   });
- 
-
-  // Set parentId for nested groups
-  for (const g of groups) {
-    for (const child of g.children) {
-      if (child.kind === "group") {
-        const nested = groups.find((gg) => gg.id === child.id);
-        if (nested) nested.parentId = g.id;
-      }
-    }
-  }
 
   const edges: SceneEdge[] = ast.edges.map((e) => ({
     id: e.id,

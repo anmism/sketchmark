@@ -492,15 +492,31 @@ export function layout(sg: SceneGraph): SceneGraph {
   // 4. Build root order
   //    sg.rootOrder preserves DSL declaration order.
   //    Fall back: groups, then nodes, then tables.
-  const rootOrder = sg.rootOrder?.length
-    ? sg.rootOrder
-    : [
+  const defaultRootOrder = [
         ...rootGroups.map((g) => ({ kind: "group" as const, id: g.id })),
         ...rootNodes.map((n) => ({ kind: "node" as const, id: n.id })),
         ...rootTables.map((t) => ({ kind: "table" as const, id: t.id })),
         ...rootCharts.map((c) => ({ kind: "chart" as const, id: c.id })),
         ...rootMarkdowns.map((m) => ({ kind: "markdown" as const, id: m.id })),
       ];
+
+  const rootOrderSource = sg.rootOrder?.length ? sg.rootOrder : defaultRootOrder;
+  const rootOrder = rootOrderSource.filter((ref) => {
+    switch (ref.kind) {
+      case "group":
+        return !nestedGroupIds.has(ref.id);
+      case "node":
+        return !groupedNodeIds.has(ref.id);
+      case "table":
+        return !groupedTableIds.has(ref.id);
+      case "chart":
+        return !groupedChartIds.has(ref.id);
+      case "markdown":
+        return !groupedMarkdownIds.has(ref.id);
+      default:
+        return true;
+    }
+  });
 
   // 5. Root-level layout
   //    sg.layout:

@@ -68,10 +68,9 @@ afterEach(() => {
 describe("AnimationController group draw cascade", () => {
   it("pre-hides a draw-targeted group subtree and reveals implicit descendants on draw", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group g1 {
-  box a
-  box b
-}
+box a
+box b
+group g1 items=[a,b]
 step draw g1
 end`);
 
@@ -102,10 +101,9 @@ end`);
 
   it("keeps explicitly drawn child nodes hidden until their own step and restores that state on prev()", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group g1 {
-  box a
-  box b
-}
+box a
+box b
+group g1 items=[a,b]
 step draw g1
 step draw a
 end`);
@@ -132,12 +130,10 @@ end`);
 
   it("keeps explicitly drawn nested groups and their branches hidden until their own step, including goTo()", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group outer {
-  box a
-  group inner {
-    box b
-  }
-}
+box a
+box b
+group inner items=[b]
+group outer items=[a,inner]
 step draw outer
 step draw inner
 end`);
@@ -164,22 +160,21 @@ end`);
 
   it("cascades to notes, tables, charts, and markdown inside the group subtree", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group g1 {
-  note sticky label="Sticky"
-  table people label="People" {
-    header Name
-    row Alice
-  }
-  bar-chart revenue label="Revenue"
-  data [
-    ["Month", "Value"],
-    ["Jan", 10]
-  ]
-  markdown explainer
-  """
-  Hello world
-  """
+note sticky label="Sticky"
+table people label="People" {
+  header Name
+  row Alice
 }
+bar-chart revenue label="Revenue"
+data [
+  ["Month", "Value"],
+  ["Jan", 10]
+]
+markdown explainer
+"""
+Hello world
+"""
+group g1 items=[sticky,people,revenue,explainer]
 step draw g1
 end`);
 
@@ -207,9 +202,8 @@ end`);
 
   it("leaves groups visible by default when they are not draw targets", () => {
     const { svg, cleanup } = renderAnimatedDiagram(`diagram
-group g1 {
-  box a
-}
+box a
+group g1 items=[a]
 end`);
 
     try {
@@ -222,12 +216,10 @@ end`);
 
   it("cascades hide and show through nested group subtrees", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group outer {
-  box a
-  group inner {
-    box b
-  }
-}
+box a
+box b
+group inner items=[b]
+group outer items=[a,inner]
 step hide outer
 step show outer
 end`);
@@ -263,12 +255,10 @@ end`);
 
   it("cascades fade and unfade through nested group subtrees", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group outer {
-  box a
-  group inner {
-    box b
-  }
-}
+box a
+box b
+group inner items=[b]
+group outer items=[a,inner]
 step fade outer
 step unfade outer
 end`);
@@ -297,13 +287,11 @@ end`);
 
   it("cascades erase through the full group subtree", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-group outer {
-  box a
-  note sticky label="Sticky"
-  group inner {
-    box b
-  }
-}
+box a
+note sticky label="Sticky"
+box b
+group inner items=[b]
+group outer items=[a,sticky,inner]
 step erase outer duration=0
 end`);
 
