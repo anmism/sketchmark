@@ -30,7 +30,7 @@ const CANVAS_CSS = `
 .skm-canvas__viewport.is-panning{cursor:grabbing}
 .skm-canvas--dark .skm-canvas__viewport{background:#12100a}
 .skm-canvas__grid{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.skm-canvas__world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.skm-canvas__world{position:absolute;top:0;left:0;transform-origin:0 0;}
 .skm-canvas__controls{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
 .skm-canvas__zoom{min-width:40px;text-align:center;color:#8a6040;font-size:10px}
 .skm-canvas__minimap{position:absolute;left:14px;bottom:14px;width:120px;height:80px;background:rgba(255,248,234,.94);border:1px solid #caba98;border-radius:6px;overflow:hidden;z-index:2}

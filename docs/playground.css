@@ -226,13 +226,54 @@
         background: var(--bg3);
       }
 
-      #editor-host .skm-editor__input {
+      #editor-host .skm-editor__surface {
         background: var(--bg3);
-        color: var(--text);
+      }
+
+      #editor-host .skm-editor__highlight,
+      #editor-host .skm-editor__input {
         padding: 10px 12px;
         font-family: "Courier New", monospace;
         font-size: 11.5px;
         line-height: 1.8;
+      }
+
+      #editor-host .skm-editor__highlight {
+        background: var(--bg3);
+      }
+
+      #editor-host .skm-editor__input {
+        background: transparent;
+        color: transparent;
+        caret-color: var(--gold);
+      }
+
+      #editor-host .skm-editor__token--keyword {
+        color: #e07040;
+      }
+
+      #editor-host .skm-editor__token--property {
+        color: #70a8d0;
+      }
+
+      #editor-host .skm-editor__token--string {
+        color: #8db870;
+      }
+
+      #editor-host .skm-editor__token--number {
+        color: #d4a020;
+      }
+
+      #editor-host .skm-editor__token--comment {
+        color: #6a5a3a;
+      }
+
+      #editor-host .skm-editor__token--connector {
+        color: #c8b070;
+      }
+
+      #editor-host .skm-editor__token--color {
+        color: var(--skm-editor-color, var(--gold));
       }
 
       #editor-host .skm-editor__error {

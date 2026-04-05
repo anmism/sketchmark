@@ -10568,13 +10568,13 @@ var AIDiagram = (function (exports) {
 </head>
 <body>
   <div class="diagram">${svgStr}</div>
-  <details class="dsl"><summary style="cursor:pointer;color:#f0c96a">DSL source</summary><pre>${escapeHtml(dslSource)}</pre></details>
+  <details class="dsl"><summary style="cursor:pointer;color:#f0c96a">DSL source</summary><pre>${escapeHtml$1(dslSource)}</pre></details>
 </body>
 </html>`;
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         download(blob, opts.filename ?? 'diagram.html');
     }
-    function escapeHtml(s) {
+    function escapeHtml$1(s) {
         return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
     // ── GIF stub (requires gifshot or gif.js at runtime) ──────
@@ -10800,7 +10800,7 @@ var AIDiagram = (function (exports) {
 .skm-canvas__viewport.is-panning{cursor:grabbing}
 .skm-canvas--dark .skm-canvas__viewport{background:#12100a}
 .skm-canvas__grid{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.skm-canvas__world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.skm-canvas__world{position:absolute;top:0;left:0;transform-origin:0 0;}
 .skm-canvas__controls{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
 .skm-canvas__zoom{min-width:40px;text-align:center;color:#8a6040;font-size:10px}
 .skm-canvas__minimap{position:absolute;left:14px;bottom:14px;width:120px;height:80px;background:rgba(255,248,234,.94);border:1px solid #caba98;border-radius:6px;overflow:hidden;z-index:2}
@@ -11450,25 +11450,83 @@ var AIDiagram = (function (exports) {
   color: #fff;
 }
 
-.skm-editor__input {
+.skm-editor__surface {
+  position: relative;
   flex: 1;
-  width: 100%;
   min-height: 0;
-  border: 0;
-  outline: 0;
-  resize: none;
   background: #1c1608;
-  color: #e0c898;
+  overflow: hidden;
+}
+
+.skm-editor__highlight,
+.skm-editor__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   padding: 12px 14px;
   font: inherit;
   font-size: 12px;
   line-height: 1.7;
   tab-size: 2;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+.skm-editor__highlight {
+  margin: 0;
+  border: 0;
+  background: #1c1608;
+  color: #e0c898;
+  pointer-events: none;
+  word-break: break-word;
+}
+
+.skm-editor__input {
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: transparent;
   caret-color: #f0c96a;
 }
 
 .skm-editor__input::placeholder {
   color: #80633b;
+}
+
+.skm-editor__input::selection {
+  background: rgba(240, 201, 106, 0.22);
+}
+
+.skm-editor__token--keyword {
+  color: #e07040;
+}
+
+.skm-editor__token--property {
+  color: #70a8d0;
+}
+
+.skm-editor__token--string {
+  color: #8db870;
+}
+
+.skm-editor__token--number {
+  color: #d4a020;
+}
+
+.skm-editor__token--comment {
+  color: #6a5a3a;
+}
+
+.skm-editor__token--connector {
+  color: #c8b070;
+}
+
+.skm-editor__token--color {
+  color: var(--skm-editor-color, #f0c96a);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+  font-weight: 600;
 }
 
 .skm-editor__error {
@@ -11487,11 +11545,111 @@ var AIDiagram = (function (exports) {
   display: block;
 }
 `;
+    const CONNECTORS = ["<-->", "<->", "-->", "<--", "---", "--", "->", "<-"];
+    const HEX_COLOR_RE = /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/g;
     function defaultFormatter(value) {
         return normalizeNewlines(value)
             .split("\n")
             .map((line) => line.replace(/[ \t]+$/g, ""))
             .join("\n");
+    }
+    function escapeHtml(value) {
+        return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+    function wrapToken(kind, value) {
+        return `<span class="skm-editor__token skm-editor__token--${kind}">${escapeHtml(value)}</span>`;
+    }
+    function renderColorLiteral(value) {
+        return `<span class="skm-editor__token skm-editor__token--color" style="--skm-editor-color:${value}">${escapeHtml(value)}</span>`;
+    }
+    function renderStringToken(value) {
+        HEX_COLOR_RE.lastIndex = 0;
+        if (!HEX_COLOR_RE.test(value)) {
+            return wrapToken("string", value);
+        }
+        HEX_COLOR_RE.lastIndex = 0;
+        let html = "";
+        let lastIndex = 0;
+        let match = null;
+        while ((match = HEX_COLOR_RE.exec(value))) {
+            if (match.index > lastIndex) {
+                html += wrapToken("string", value.slice(lastIndex, match.index));
+            }
+            html += renderColorLiteral(match[0]);
+            lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < value.length) {
+            html += wrapToken("string", value.slice(lastIndex));
+        }
+        return html;
+    }
+    function renderPlainToken(value, nextChar) {
+        if (/^-?\d/.test(value)) {
+            return wrapToken("number", value);
+        }
+        if (nextChar === "=") {
+            return wrapToken("property", value);
+        }
+        if (KEYWORDS.has(value)) {
+            return wrapToken("keyword", value);
+        }
+        return escapeHtml(value);
+    }
+    function highlightLine(line) {
+        let html = "";
+        let index = 0;
+        while (index < line.length) {
+            const rest = line.slice(index);
+            if (rest.startsWith("//") || rest.startsWith("#")) {
+                html += wrapToken("comment", rest);
+                break;
+            }
+            if (line[index] === "\"") {
+                let end = index + 1;
+                while (end < line.length) {
+                    if (line[end] === "\"" && line[end - 1] !== "\\") {
+                        end += 1;
+                        break;
+                    }
+                    end += 1;
+                }
+                html += renderStringToken(line.slice(index, end));
+                index = end;
+                continue;
+            }
+            const connector = CONNECTORS.find((candidate) => line.startsWith(candidate, index));
+            if (connector) {
+                html += wrapToken("connector", connector);
+                index += connector.length;
+                continue;
+            }
+            const wordMatch = /^[A-Za-z_][A-Za-z0-9_-]*/.exec(rest);
+            if (wordMatch) {
+                const word = wordMatch[0];
+                const nextChar = line[index + word.length] ?? "";
+                html += renderPlainToken(word, nextChar);
+                index += word.length;
+                continue;
+            }
+            const numberMatch = /^-?\d+(?:\.\d+)?/.exec(rest);
+            if (numberMatch) {
+                html += wrapToken("number", numberMatch[0]);
+                index += numberMatch[0].length;
+                continue;
+            }
+            html += escapeHtml(line[index]);
+            index += 1;
+        }
+        return html;
+    }
+    function renderHighlightedValue(value) {
+        const normalized = normalizeNewlines(value);
+        const html = normalized.split("\n").map(highlightLine).join("\n");
+        return html || " ";
     }
     class SketchmarkEditor {
         constructor(options) {
@@ -11529,16 +11687,23 @@ var AIDiagram = (function (exports) {
             if (options.showClearButton !== false)
                 this.toolbar.appendChild(clearButton);
             this.toolbar.appendChild(hint);
+            this.surface = document.createElement("div");
+            this.surface.className = "skm-editor__surface";
+            this.highlightElement = document.createElement("pre");
+            this.highlightElement.className = "skm-editor__highlight";
+            this.highlightElement.setAttribute("aria-hidden", "true");
             this.textarea = document.createElement("textarea");
             this.textarea.className = "skm-editor__input";
             this.textarea.spellcheck = false;
             this.textarea.placeholder = options.placeholder ?? "diagram\nbox a label=\"Hello\"\nend";
             this.textarea.value = normalizeNewlines(options.value ?? DEFAULT_CLEAR_VALUE);
             this.textarea.addEventListener("input", () => {
+                this.syncHighlight();
                 const payload = { value: this.getValue(), editor: this };
                 options.onChange?.(payload.value, this);
                 this.emitter.emit("change", payload);
             });
+            this.textarea.addEventListener("scroll", () => this.syncScroll());
             this.textarea.addEventListener("keydown", (event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                     event.preventDefault();
@@ -11550,9 +11715,12 @@ var AIDiagram = (function (exports) {
             if (options.showToolbar !== false) {
                 this.root.appendChild(this.toolbar);
             }
-            this.root.appendChild(this.textarea);
+            this.surface.appendChild(this.highlightElement);
+            this.surface.appendChild(this.textarea);
+            this.root.appendChild(this.surface);
             this.root.appendChild(this.errorElement);
             host.appendChild(this.root);
+            this.syncHighlight();
             if (options.autoFocus) {
                 this.focus();
             }
@@ -11562,6 +11730,7 @@ var AIDiagram = (function (exports) {
         }
         setValue(value, emitChange = false) {
             this.textarea.value = normalizeNewlines(value);
+            this.syncHighlight();
             if (emitChange) {
                 const payload = { value: this.getValue(), editor: this };
                 this.options.onChange?.(payload.value, this);
@@ -11602,6 +11771,14 @@ var AIDiagram = (function (exports) {
         }
         destroy() {
             this.root.remove();
+        }
+        syncHighlight() {
+            this.highlightElement.innerHTML = renderHighlightedValue(this.textarea.value);
+            this.syncScroll();
+        }
+        syncScroll() {
+            this.highlightElement.scrollTop = this.textarea.scrollTop;
+            this.highlightElement.scrollLeft = this.textarea.scrollLeft;
         }
     }
 

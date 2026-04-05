@@ -29,6 +29,8 @@ export interface SketchmarkEditorEvents extends Record<string, unknown> {
 export declare class SketchmarkEditor {
     readonly root: HTMLDivElement;
     readonly toolbar: HTMLDivElement;
+    readonly surface: HTMLDivElement;
+    readonly highlightElement: HTMLPreElement;
     readonly textarea: HTMLTextAreaElement;
     readonly errorElement: HTMLDivElement;
     private readonly emitter;
@@ -44,5 +46,7 @@ export declare class SketchmarkEditor {
     clearError(): void;
     on<K extends keyof SketchmarkEditorEvents>(event: K, listener: (payload: SketchmarkEditorEvents[K]) => void): () => void;
     destroy(): void;
+    private syncHighlight;
+    private syncScroll;
 }
 //# sourceMappingURL=editor.d.ts.map

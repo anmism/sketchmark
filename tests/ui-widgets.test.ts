@@ -50,6 +50,23 @@ afterEach(() => {
 });
 
 describe("reusable UI widgets", () => {
+  it("renders lightweight syntax highlighting in the editor", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const editor = new SketchmarkEditor({
+      container: host,
+      value: 'diagram\ntheme primary fill="#e8f4ff"\na --> b\nend',
+    });
+
+    const html = editor.highlightElement.innerHTML;
+
+    expect(html).toContain("skm-editor__token--keyword");
+    expect(html).toContain("skm-editor__token--property");
+    expect(html).toContain("skm-editor__token--color");
+    expect(html).toContain("skm-editor__token--connector");
+  });
+
   it("emits editor run events", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
