@@ -20,6 +20,7 @@ export declare class AnimationController {
     private _config?;
     private _step;
     private _pendingStepTimers;
+    private _pendingNarrationTimers;
     private _transforms;
     private _listeners;
     readonly drawTargetEdges: Set<string>;
@@ -34,6 +35,7 @@ export declare class AnimationController {
     private readonly _groupDescendantIds;
     private _captionEl;
     private _captionTextEl;
+    private _narrationRunId;
     private _annotationLayer;
     private _annotations;
     private _pointerEl;
@@ -67,7 +69,10 @@ export declare class AnimationController {
     prev(): boolean;
     play(msPerStep?: number): Promise<void>;
     goTo(index: number): void;
+    private _clearTimerBucket;
     private _clearPendingStepTimers;
+    private _cancelNarrationTyping;
+    private _scheduleTimer;
     private _scheduleStep;
     private _stepWaitMs;
     private _playbackWaitMs;

@@ -1,6 +1,6 @@
 {
   "name": "sketchmark",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A plain-text DSL for hand-drawn diagrams. Write boxes, edges, and groups as code — renders sketchy SVG/Canvas via rough.js with a built-in step-by-step animation system.",
   "keywords": [
     "diagram",

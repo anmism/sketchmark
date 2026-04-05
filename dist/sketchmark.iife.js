@@ -9249,11 +9249,13 @@ var AIDiagram = (function (exports) {
             this._config = _config;
             this._step = -1;
             this._pendingStepTimers = new Set();
+            this._pendingNarrationTimers = new Set();
             this._transforms = new Map();
             this._listeners = [];
             // ── Narration caption ──
             this._captionEl = null;
             this._captionTextEl = null;
+            this._narrationRunId = 0;
             // ── Annotations ──
             this._annotationLayer = null;
             this._annotations = [];
@@ -9516,20 +9518,30 @@ var AIDiagram = (function (exports) {
             }
             this.emit("step-change");
         }
-        _clearPendingStepTimers() {
-            this._pendingStepTimers.forEach((id) => window.clearTimeout(id));
-            this._pendingStepTimers.clear();
+        _clearTimerBucket(bucket) {
+            bucket.forEach((id) => window.clearTimeout(id));
+            bucket.clear();
         }
-        _scheduleStep(fn, delayMs) {
+        _clearPendingStepTimers() {
+            this._clearTimerBucket(this._pendingStepTimers);
+        }
+        _cancelNarrationTyping() {
+            this._narrationRunId += 1;
+            this._clearTimerBucket(this._pendingNarrationTimers);
+        }
+        _scheduleTimer(fn, delayMs, bucket = this._pendingStepTimers) {
             if (delayMs <= 0) {
                 fn();
                 return;
             }
             const id = window.setTimeout(() => {
-                this._pendingStepTimers.delete(id);
+                bucket.delete(id);
                 fn();
             }, delayMs);
-            this._pendingStepTimers.add(id);
+            bucket.add(id);
+        }
+        _scheduleStep(fn, delayMs) {
+            this._scheduleTimer(fn, delayMs, this._pendingStepTimers);
         }
         _stepWaitMs(step, fallbackMs) {
             const delay = Math.max(0, step.delay ?? 0);
@@ -9573,6 +9585,7 @@ var AIDiagram = (function (exports) {
         }
         _clearAll() {
             this._clearPendingStepTimers();
+            this._cancelNarrationTyping();
             this._cancelSpeech();
             this._transforms.clear();
             // Nodes
@@ -10127,6 +10140,7 @@ var AIDiagram = (function (exports) {
         _doNarrate(text, silent) {
             if (!this._captionEl || !this._captionTextEl)
                 return;
+            this._cancelNarrationTyping();
             this._captionEl.style.opacity = "1";
             if (silent || !text) {
                 this._captionTextEl.textContent = text;
@@ -10137,12 +10151,16 @@ var AIDiagram = (function (exports) {
                 this._speak(text);
             // Typing effect
             this._captionTextEl.textContent = "";
+            const narrationRunId = this._narrationRunId;
             let charIdx = 0;
             const typeNext = () => {
+                if (this._narrationRunId !== narrationRunId || !this._captionTextEl)
+                    return;
                 if (charIdx < text.length) {
                     this._captionTextEl.textContent += text[charIdx++];
-                    const id = window.setTimeout(typeNext, ANIMATION.narrationTypeMs);
-                    this._pendingStepTimers.add(id);
+                    if (charIdx < text.length) {
+                        this._scheduleTimer(typeNext, ANIMATION.narrationTypeMs, this._pendingNarrationTimers);
+                    }
                 }
             };
             typeNext();
@@ -10252,12 +10270,11 @@ var AIDiagram = (function (exports) {
                     requestAnimationFrame(animate);
                 }
                 // After guide finishes: reveal rough.js element, remove guide
-                const id = window.setTimeout(() => {
+                this._scheduleTimer(() => {
                     roughEl.style.transition = `opacity 120ms ease`;
                     roughEl.style.opacity = "1";
                     guide.remove();
                 }, dur + 30);
-                this._pendingStepTimers.add(id);
             }));
         }
         _doAnnotationCircle(target, silent) {

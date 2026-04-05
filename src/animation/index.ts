@@ -633,6 +633,7 @@ function animateEdgeDraw(
 export class AnimationController {
   private _step = -1;
   private _pendingStepTimers = new Set<number>();
+  private _pendingNarrationTimers = new Set<number>();
   private _transforms = new Map<
     string,
     {
@@ -657,6 +658,7 @@ export class AnimationController {
   // ── Narration caption ──
   private _captionEl: HTMLDivElement | null = null;
   private _captionTextEl: HTMLSpanElement | null = null;
+  private _narrationRunId = 0;
 
   // ── Annotations ──
   private _annotationLayer: SVGGElement | null = null;
@@ -961,21 +963,38 @@ export class AnimationController {
     this.emit("step-change");
   }
 
-  private _clearPendingStepTimers(): void {
-    this._pendingStepTimers.forEach((id) => window.clearTimeout(id));
-    this._pendingStepTimers.clear();
+  private _clearTimerBucket(bucket: Set<number>): void {
+    bucket.forEach((id) => window.clearTimeout(id));
+    bucket.clear();
   }
 
-  private _scheduleStep(fn: () => void, delayMs: number): void {
+  private _clearPendingStepTimers(): void {
+    this._clearTimerBucket(this._pendingStepTimers);
+  }
+
+  private _cancelNarrationTyping(): void {
+    this._narrationRunId += 1;
+    this._clearTimerBucket(this._pendingNarrationTimers);
+  }
+
+  private _scheduleTimer(
+    fn: () => void,
+    delayMs: number,
+    bucket: Set<number> = this._pendingStepTimers,
+  ): void {
     if (delayMs <= 0) {
       fn();
       return;
     }
     const id = window.setTimeout(() => {
-      this._pendingStepTimers.delete(id);
+      bucket.delete(id);
       fn();
     }, delayMs);
-    this._pendingStepTimers.add(id);
+    bucket.add(id);
+  }
+
+  private _scheduleStep(fn: () => void, delayMs: number): void {
+    this._scheduleTimer(fn, delayMs, this._pendingStepTimers);
   }
 
   private _stepWaitMs(step: ASTStep, fallbackMs: number): number {
@@ -1018,6 +1037,7 @@ export class AnimationController {
 
   private _clearAll(): void {
     this._clearPendingStepTimers();
+    this._cancelNarrationTyping();
     this._cancelSpeech();
     this._transforms.clear();
 
@@ -1606,6 +1626,7 @@ export class AnimationController {
 
   private _doNarrate(text: string, silent: boolean): void {
     if (!this._captionEl || !this._captionTextEl) return;
+    this._cancelNarrationTyping();
     this._captionEl.style.opacity = "1";
     if (silent || !text) {
       this._captionTextEl.textContent = text;
@@ -1617,12 +1638,19 @@ export class AnimationController {
 
     // Typing effect
     this._captionTextEl.textContent = "";
+    const narrationRunId = this._narrationRunId;
     let charIdx = 0;
     const typeNext = () => {
+      if (this._narrationRunId !== narrationRunId || !this._captionTextEl) return;
       if (charIdx < text.length) {
-        this._captionTextEl!.textContent += text[charIdx++];
-        const id = window.setTimeout(typeNext, ANIMATION.narrationTypeMs);
-        this._pendingStepTimers.add(id);
+        this._captionTextEl.textContent += text[charIdx++];
+        if (charIdx < text.length) {
+          this._scheduleTimer(
+            typeNext,
+            ANIMATION.narrationTypeMs,
+            this._pendingNarrationTimers,
+          );
+        }
       }
     };
     typeNext();
@@ -1738,12 +1766,11 @@ export class AnimationController {
         }
 
         // After guide finishes: reveal rough.js element, remove guide
-        const id = window.setTimeout(() => {
+        this._scheduleTimer(() => {
           roughEl.style.transition = `opacity 120ms ease`;
           roughEl.style.opacity = "1";
           guide.remove();
         }, dur + 30);
-        this._pendingStepTimers.add(id);
       }),
     );
   }
