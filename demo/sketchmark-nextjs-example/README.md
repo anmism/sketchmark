@@ -1,6 +1,6 @@
-# sketchmark — Next.js example
+# sketchmark - Next.js example
 
-Minimal working example of sketchmark in a Next.js 15 App Router project.
+Minimal working example of sketchmark in a Next.js 15 App Router project using `SketchmarkEmbed`.
 
 ## Run it
 
@@ -15,63 +15,39 @@ Open http://localhost:3000
 
 ## File structure
 
-```
+```text
 src/
   app/
-    layout.tsx        ← loads rough.js via <script> tag
-    page.tsx          ← server component, uses SketchmarkDiagram
-    diagrams.ts       ← DSL strings (no browser APIs, safe anywhere)
+    layout.tsx
+    page.tsx
+    diagrams.ts
   components/
-    SketchmarkDiagram.tsx  ← 'use client' component, does the rendering
+    SketchmarkDiagram.tsx
 ```
 
 ---
 
-## The three Next.js-specific rules
+## The Next.js-specific rules
 
-### 1. rough.js goes in layout.tsx as a plain `<script>` tag
-
-```tsx
-// src/app/layout.tsx
-<script
-  src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"
-  async={false}
-/>
-```
-
-rough.js puts itself on `window.rough`. sketchmark reads it from there.
-Do NOT try to `import rough from 'roughjs'` in a module — sketchmark
-expects the bundled global, not the ESM build.
-
-`async={false}` makes it load synchronously so it's ready before hydration.
-
-### 2. The render component must be 'use client'
+### 1. The embed host must be a client component
 
 ```tsx
-// src/components/SketchmarkDiagram.tsx
 'use client';
 ```
 
-sketchmark calls `document.createElement` and `window.rough`.
-Both crash during Next.js server rendering (there is no DOM on the server).
-`'use client'` tells Next.js to only run this component in the browser.
+`SketchmarkEmbed` creates DOM nodes and runs browser-only animation logic, so it must mount from a client component.
 
-### 3. sketchmark must be dynamically imported inside useEffect
+### 2. Import sketchmark at the top of the client component
 
 ```tsx
-// inside useEffect — never at the top of the file
-const { render } = await import('sketchmark');
+import { SketchmarkEmbed } from "sketchmark";
 ```
 
-Even with `'use client'`, Next.js still does a server-side pass for the
-initial HTML. A top-level `import { render } from 'sketchmark'` would run
-on the server and crash. Dynamic import inside `useEffect` only runs in
-the browser, after hydration.
+Because the component is already marked with `'use client'`, a normal import is fine here. The embed should still be created inside `useEffect`, but the module itself does not need dynamic import gymnastics.
 
-### 4. DSL strings must not have leading whitespace
+### 3. Keep DSL strings flush-left
 
 ```ts
-// ✓ correct
 const dsl = `
 diagram
 box a label="Hello"
@@ -79,33 +55,24 @@ box b label="World"
 a --> b
 end
 `.trim();
-
-// ✗ wrong — the spaces before 'box' are part of the string
-const dsl = `
-  diagram
-  box a label="Hello"
-  box b label="World"
-  a --> b
-  end
-`.trim();
 ```
 
-Keep DSL strings in a separate `diagrams.ts` file where you can see
-exactly what indentation they have.
+Leading spaces become part of the DSL string and can cause parse errors.
 
 ---
 
 ## Using the component
 
 ```tsx
-import SketchmarkDiagram from '@/components/SketchmarkDiagram';
+import SketchmarkDiagram from "@/components/SketchmarkDiagram";
 
-// with controls
-<SketchmarkDiagram dsl={myDsl} showTitle showControls />
+<SketchmarkDiagram dsl={myDsl} showTitle showControls height={560} />
 
-// just the diagram, no buttons
-<SketchmarkDiagram dsl={myDsl} showTitle={false} showControls={false} />
-
-// dark theme
-<SketchmarkDiagram dsl={myDsl} theme="dark" />
+<SketchmarkDiagram
+  dsl={myDsl}
+  showTitle={false}
+  showControls={false}
+  showExports={false}
+  height={220}
+/>
 ```

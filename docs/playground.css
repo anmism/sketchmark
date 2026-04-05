@@ -211,32 +211,33 @@
         color: var(--text2);
       }
 
-      /* editor */
-      #dsl {
+      /* editor host */
+      #editor-host {
         flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+
+      #editor-host .skm-editor {
+        flex: 1;
+        min-height: 0;
+        border: none;
+        border-radius: 0;
+        background: var(--bg3);
+      }
+
+      #editor-host .skm-editor__input {
         background: var(--bg3);
         color: var(--text);
-        border: none;
-        outline: none;
-        resize: none;
         padding: 10px 12px;
         font-family: "Courier New", monospace;
         font-size: 11.5px;
         line-height: 1.8;
-        caret-color: var(--gold);
-        tab-size: 2;
-        user-select: text;
       }
 
-      #error {
-        padding: 5px 10px;
-        background: #280a0a;
-        color: #f07070;
+      #editor-host .skm-editor__error {
         font-size: 10px;
         font-family: "Courier New", monospace;
-        border-top: 1px solid #5a1818;
-        display: none;
-        flex-shrink: 0;
       }
 
       /* collapse toggle */
@@ -313,7 +314,7 @@
         flex-direction: column;
         gap: 3px;
       }
-      #sidebar.collapsed ~ #expand-strip {
+      #sidebar.collapsed + #canvas-pane #expand-strip {
         display: flex;
       }
       #expand-strip .strip-dot {
@@ -336,6 +337,20 @@
         flex-direction: column;
         overflow: hidden;
         position: relative;
+        background: var(--canvas-bg);
+      }
+
+      #canvas-host {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+
+      #canvas-host .skm-canvas {
+        flex: 1;
+        min-height: 0;
+        border: none;
+        border-radius: 0;
       }
 
       /* anim bar */

@@ -16,10 +16,8 @@
     </header>
 
     <main>
-      <!-- ── Sidebar ───────────────────────── -->
       <div id="sidebar">
         <div class="sidebar-inner">
-          <!-- example tabs -->
           <div id="example-tabs">
             <button class="ex-tab active" data-example="shapes">⬡ shapes</button>
             <button class="ex-tab" data-example="image">🖼 image</button>
@@ -34,7 +32,6 @@
             <button class="ex-tab" data-example="charts">📊 charts</button>
           </div>
 
-          <!-- toolbar -->
           <div id="toolbar">
             <button class="run-btn" id="btn-run">▶ Run</button>
             <span class="kbd">Ctrl+Enter</span>
@@ -42,22 +39,17 @@
             <button class="tool-btn" id="btn-clear">✕ clear</button>
           </div>
 
-          <textarea id="dsl" spellcheck="false"></textarea>
-          <div id="error"></div>
+          <div id="editor-host"></div>
         </div>
 
-        <!-- resize handle -->
         <div id="resize-handle"></div>
 
-        <!-- collapse toggle -->
         <button id="collapse-btn" title="Collapse sidebar">
           <span class="collapse-icon"></span>
         </button>
       </div>
 
-      <!-- ── Canvas pane ─────────────────── -->
       <div id="canvas-pane">
-        <!-- expand strip shown when sidebar collapsed -->
         <div id="expand-strip" title="Drag to expand editor">
           <div class="strip-dot"></div>
           <div class="strip-dot"></div>
@@ -65,70 +57,19 @@
           <div class="strip-dot"></div>
           <div class="strip-dot"></div>
         </div>
-        <!-- animation bar -->
-        <div id="anim-bar">
-          <button class="anim-btn" id="btn-reset" title="Reset">↺</button>
-          <button class="anim-btn" id="btn-prev" disabled>←</button>
-          <span id="step-display">No steps</span>
-          <button class="anim-btn" id="btn-next" disabled>→</button>
-          <button class="anim-btn" id="btn-play">▶ Play</button>
-          <span id="step-label"></span>
-          <div class="anim-sep"></div>
-          <span id="stats"></span>
-        </div>
 
-        <!-- infinite canvas viewport -->
-        <div id="viewport">
-          <svg id="dot-grid" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern
-                id="pg"
-                x="0"
-                y="0"
-                width="24"
-                height="24"
-                patternUnits="userSpaceOnUse"
-              >
-                <circle cx="12" cy="12" r="0.9" fill="rgba(170,145,100,0.38)" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#pg)" />
-          </svg>
-
-          <div id="diagram-world">
-            <div id="diagram-wrap"></div>
-          </div>
-
-          <!-- zoom controls -->
-          <div id="canvas-controls">
-            <button class="ctrl-btn" id="btn-fit" title="Fit to screen">
-              ⊡
-            </button>
-            <button class="ctrl-btn" id="btn-reset-view" title="Reset view">
-              ⌂
-            </button>
-            <button class="ctrl-btn" id="btn-zoomin" title="Zoom in">+</button>
-            <span id="zoom-label">100%</span>
-            <button class="ctrl-btn" id="btn-zoomout" title="Zoom out">
-              −
-            </button>
-          </div>
-
-          <!-- mini-map -->
-          <div id="minimap-wrap">
-            <canvas id="minimap" width="120" height="80"></canvas>
-            <div id="minimap-viewport-indicator"></div>
-          </div>
-        </div>
+        <div id="canvas-host"></div>
       </div>
     </main>
 
-    <!-- <script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script> -->
     <script type="module">
-      import { render } from '../dist/index.js';
+      import {
+        SketchmarkCanvas,
+        SketchmarkEditor,
+        exportHTML,
+      } from "../dist/index.js";
 
-      // ── Examples ────────────────────────────────────────────────────────────
-     const EXAMPLES = {
+      const EXAMPLES = {
         shapes: `diagram
 title label="Shapes"
 layout grid
@@ -317,525 +258,147 @@ data
 end`,
       };
 
-      // ── State ──────────────────────────────────────────────────────────────
-      let instance = null;
-      let panX = 60,
-        panY = 60,
-        zoom = 1;
-      let isPanning = false;
-      let activePointerId = null;
-      let lastPX = 0,
-        lastPY = 0;
-      let suppressClickUntil = 0;
-      let animUnsub = null;
       let canvasTheme = "light";
-      let hasRenderedOnce = false; // only auto-fit on the very first render
 
-      const world = document.getElementById("diagram-world");
-      const vp = document.getElementById("viewport");
-      const wrap = document.getElementById("diagram-wrap");
-      const grid = document.querySelector("#pg");
-      const errEl = document.getElementById("error");
-      const dslEl = document.getElementById("dsl");
-      const zoomLbl = document.getElementById("zoom-label");
-
-
-      // ── Transform helpers ──────────────────────────────────────────────────
-      function applyTransform() {
-        world.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
-        zoomLbl.textContent = Math.round(zoom * 100) + "%";
-        // update dot grid offset to feel infinite
-        const gw = 24 * zoom;
-        grid.setAttribute("x", String(panX % gw));
-        grid.setAttribute("y", String(panY % gw));
-        grid.setAttribute("width", String(gw));
-        grid.setAttribute("height", String(gw));
-        const dot = grid.querySelector("circle");
-        dot.setAttribute("cx", String(gw / 2));
-        dot.setAttribute("cy", String(gw / 2));
-        dot.setAttribute("r", String(Math.min(1.1, zoom * 0.85)));
-        updateMinimap();
-      }
-
-      function zoomTo(newZoom, pivotX, pivotY) {
-        newZoom = Math.min(4, Math.max(0.08, newZoom));
-        const r = newZoom / zoom;
-        panX = pivotX - (pivotX - panX) * r;
-        panY = pivotY - (pivotY - panY) * r;
-        zoom = newZoom;
-        applyTransform();
-      }
-
-      function fitContent() {
-        if (!instance?.svg) return;
-        const svgW = parseFloat(instance.svg.getAttribute("width") || "400");
-        const svgH = parseFloat(instance.svg.getAttribute("height") || "300");
-        const vpW = vp.clientWidth;
-        const vpH = vp.clientHeight;
-        const newZ = Math.min((vpW - 80) / svgW, (vpH - 80) / svgH, 1);
-        zoom = newZ;
-        panX = (vpW - svgW * newZ) / 2;
-        panY = (vpH - svgH * newZ) / 2;
-        applyTransform();
-      }
-
-      // ── Minimap ────────────────────────────────────────────────────────────
-      const mmWrap = document.getElementById("minimap-wrap");
-      const mmCanvas = document.getElementById("minimap");
-      const mmIndi = document.getElementById("minimap-viewport-indicator");
-
-      function updateMinimap() {
-        if (!instance?.svg) return;
-        const svgW = parseFloat(instance.svg.getAttribute("width") || "400");
-        const svgH = parseFloat(instance.svg.getAttribute("height") || "300");
-        const mW = 120,
-          mH = 80;
-        const scale = Math.min(mW / svgW, mH / svgH) * 0.9;
-        const offX = (mW - svgW * scale) / 2;
-        const offY = (mH - svgH * scale) / 2;
-        // Viewport indicator
-        const vpW = vp.clientWidth,
-          vpH = vp.clientHeight;
-        const ix = offX + (-panX / zoom) * scale;
-        const iy = offY + (-panY / zoom) * scale;
-        const iw = (vpW / zoom) * scale;
-        const ih = (vpH / zoom) * scale;
-        mmIndi.style.left = Math.max(0, ix) + "px";
-        mmIndi.style.top = Math.max(0, iy) + "px";
-        mmIndi.style.width = Math.min(mW - Math.max(0, ix), iw) + "px";
-        mmIndi.style.height = Math.min(mH - Math.max(0, iy), ih) + "px";
-      }
-
-      // ── Pointer events: pan ────────────────────────────────────────────────
-      // Pan starts on any pointerdown inside the viewport (middle-btn anywhere,
-      // left-btn anywhere). A tiny distance threshold separates a click from a drag,
-      // so node click handlers still fire for taps.
-      let panMoved = false;
-
-      vp.addEventListener("pointerdown", (e) => {
-        // middle button always pans; left button pans everywhere
-        if (e.button === 0 || e.button === 1) {
-          if (e.target instanceof Element &&
-              e.target.closest("#canvas-controls, #minimap-wrap")) {
-            return;
-          }
-          isPanning = true;
-          panMoved = false;
-          activePointerId = e.pointerId;
-          lastPX = e.clientX;
-          lastPY = e.clientY;
-          try {
-            vp.setPointerCapture(e.pointerId);
-          } catch (_) {}
-          // don't preventDefault here — lets clicks reach interactive nodes
-        }
-      });
-
-      vp.addEventListener("pointermove", (e) => {
-        if (!isPanning || (activePointerId !== null && e.pointerId !== activePointerId)) return;
-        const dx = e.clientX - lastPX;
-        const dy = e.clientY - lastPY;
-        if (!panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
-          panMoved = true;
-          vp.classList.add("panning");
-        }
-        if (panMoved) {
-          panX += dx;
-          panY += dy;
-          applyTransform();
-        }
-        lastPX = e.clientX;
-        lastPY = e.clientY;
-      });
-
-      function stopPanning(e) {
-        if (activePointerId !== null && e?.pointerId != null && e.pointerId !== activePointerId) {
-          return;
-        }
-        if (panMoved) {
-          suppressClickUntil = performance.now() + 180;
-        }
-        if (activePointerId !== null && vp.hasPointerCapture?.(activePointerId)) {
-          try {
-            vp.releasePointerCapture(activePointerId);
-          } catch (_) {}
-        }
-        activePointerId = null;
-        isPanning = false;
-        panMoved = false;
-        vp.classList.remove("panning");
-      }
-
-      vp.addEventListener("pointerup", stopPanning);
-      vp.addEventListener("pointercancel", stopPanning);
-      vp.addEventListener("lostpointercapture", stopPanning);
-      vp.addEventListener(
-        "click",
-        (e) => {
-          if (performance.now() <= suppressClickUntil) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        },
-        true,
-      );
-
-      vp.addEventListener(
-        "wheel",
-        (e) => {
-          e.preventDefault();
-          const rect = vp.getBoundingClientRect();
-          const pivotX = e.clientX - rect.left;
-          const pivotY = e.clientY - rect.top;
-          const factor = e.deltaY > 0 ? 0.9 : 1.1;
-          zoomTo(zoom * factor, pivotX, pivotY);
-        },
-        { passive: false },
-      );
-
-      // ── Zoom buttons ───────────────────────────────────────────────────────
-      document.getElementById("btn-zoomin").onclick = () =>
-        zoomTo(zoom * 1.2, vp.clientWidth / 2, vp.clientHeight / 2);
-      document.getElementById("btn-zoomout").onclick = () =>
-        zoomTo(zoom * 0.8, vp.clientWidth / 2, vp.clientHeight / 2);
-      document.getElementById("btn-fit").onclick = fitContent;
-      document.getElementById("btn-reset-view").onclick = () => {
-        panX = 60;
-        panY = 60;
-        zoom = 1;
-        applyTransform();
-      };
-
-      // ── Auto-pan to keep animated element in view ─────────────────────────
-      function findSvgElement(svgEl, id) {
-        const prefixes = ["group-", "node-", "edge-", "table-", "chart-", "markdown-", "note-", ""];
-        for (const prefix of prefixes) {
-          try {
-            const el = svgEl.querySelector(`#${CSS.escape(prefix + id)}`);
-            if (el) return el;
-          } catch (_) {}
-        }
-        for (const attr of ["data-id", "data-node", "data-group", "sketchmark-id"]) {
-          try {
-            const el = svgEl.querySelector(`[${attr}="${id}"]`);
-            if (el) return el;
-          } catch (_) {}
-        }
-        return null;
-      }
-
-      function focusAnimatedElement(targetId) {
-        const svgEl = instance?.svg;
-        if (!targetId || !svgEl || !vp) return;
-
-        // for edges like "a-->b" — try both nodes
-        const ids = targetId.split(/-->|->|<--|<->/).map(s => s.trim()).filter(Boolean);
-        const searchIds = ids.length > 1 ? ids : [targetId.trim()];
-
-        let el = null;
-        for (const id of searchIds) {
-          el = findSvgElement(svgEl, id);
-          if (el) break;
-        }
-        if (!el) return;
-
-        let bbox;
-        try { bbox = el.getBoundingClientRect(); } catch (_) { return; }
-        if (bbox.width === 0 && bbox.height === 0) return;
-
-        const vpRect = vp.getBoundingClientRect();
-        const elCX = bbox.left + bbox.width / 2 - vpRect.left;
-        const elCY = bbox.top + bbox.height / 2 - vpRect.top;
-        const vpW = vpRect.width;
-        const vpH = vpRect.height;
-        const MARGIN = 100;
-
-        // Skip if element is already visible with margin
-        if (elCX >= MARGIN && elCX <= vpW - MARGIN &&
-            elCY >= MARGIN && elCY <= vpH - MARGIN) return;
-
-        const targetPanX = panX + (vpW / 2 - elCX);
-        const targetPanY = panY + (vpH / 2 - elCY);
-        const startPanX = panX;
-        const startPanY = panY;
-        const startTs = performance.now();
-        const DURATION = 350;
-
-        function frame(now) {
-          const t = Math.min((now - startTs) / DURATION, 1);
-          const et = 1 - Math.pow(1 - t, 3); // easeOut
-          panX = startPanX + (targetPanX - startPanX) * et;
-          panY = startPanY + (targetPanY - startPanY) * et;
-          applyTransform();
-          if (t < 1) requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
-      }
-
-      // ── Run diagram ────────────────────────────────────────────────────────
-      function getStepTarget(stepItem) {
-        if (!stepItem) return null;
-        if (stepItem.kind === 'beat') return stepItem.children?.[0]?.target ?? null;
-        return stepItem.target ?? null;
-      }
-
-      function getStepLabel(stepItem) {
-        if (!stepItem) return "";
-        if (stepItem.kind === 'beat') {
-          const first = stepItem.children?.[0];
-          return first ? `beat ${first.action} ${first.target}…` : "beat";
-        }
-        return `${stepItem.action} ${stepItem.target}`;
-      }
-
-      function focusCurrentStep() {
-        const anim = instance?.anim;
-        if (!anim || anim.currentStep < 0 || anim.currentStep >= anim.total) return;
-        const targetId = getStepTarget(anim.steps[anim.currentStep]);
-        if (!targetId) return;
-        setTimeout(() => focusAnimatedElement(targetId), 40);
-      }
-
-      function runDiagram(dsl) {
-        dsl = dsl ?? dslEl.value;
-        errEl.style.display = "none";
-        // Destroy previous animation controller (removes caption from document.body)
-        instance?.anim?.destroy();
-        wrap.innerHTML = "";
-        if (animUnsub) {
-          animUnsub();
-          animUnsub = null;
-        }
-        try {
-          instance = render({
-            container: wrap,
-            dsl,
-            renderer: "svg",
-            svgOptions: {
-              interactive: true,
-              showTitle: true,
-              theme: canvasTheme,
-            },
-          });
-          syncAnim();
-          if (instance?.anim?.on) {
-            const unsub = instance.anim.on((event) => {
-              if (event?.type !== "step-change") return;
-              const targetId = getStepTarget(event?.step);
-              if (!targetId) return;
-              requestAnimationFrame(() => {
-                setTimeout(() => focusAnimatedElement(targetId), 40);
-              });
-            });
-            animUnsub = typeof unsub === "function" ? unsub : null;
-          }
-          document.getElementById("stats").textContent =
-            `${instance.scene.nodes.length}n · ${instance.scene.edges.length}e · ${instance.scene.groups.length}g`;
-          mmWrap.classList.add("visible");
-          // Only auto-fit on the very first render.
-          // After that, preserve whatever pan/zoom the user has set.
-          if (!hasRenderedOnce) {
-            hasRenderedOnce = true;
-            requestAnimationFrame(fitContent);
-          } else {
-            // re-apply current transform so the SVG sits in the right place
-            applyTransform();
-          }
-        } catch (e) {
-          errEl.style.display = "block";
-          errEl.textContent = "⚠ " + e.message;
-          console.error(e);
-        }
-      }
-
-      // ── Animation ──────────────────────────────────────────────────────────
-      function syncAnim() {
-        if (!instance) return;
-        const { anim } = instance;
-        const display = document.getElementById("step-display");
-        const label = document.getElementById("step-label");
-        if (!anim.total) {
-          display.textContent = "No steps";
-          label.textContent = "";
-        } else {
-          display.textContent =
-            anim.currentStep < 0
-              ? `${anim.total} steps`
-              : `${anim.currentStep + 1} / ${anim.total}`;
-          label.textContent =
-            anim.currentStep >= 0
-              ? getStepLabel(anim.steps[anim.currentStep])
-              : "";
-        }
-        document.getElementById("btn-prev").disabled = !anim.canPrev;
-        document.getElementById("btn-next").disabled = !anim.canNext;
-      }
-
-      document.getElementById("btn-run").onclick = () => runDiagram();
-      document.getElementById("btn-reset").onclick = () => {
-        instance?.anim.reset();
-        syncAnim();
-      };
-      document.getElementById("btn-prev").onclick = () => {
-        instance?.anim.prev();
-        syncAnim();
-        focusCurrentStep();
-      };
-      document.getElementById("btn-next").onclick = () => {
-        instance?.anim.next();
-        syncAnim();
-        focusCurrentStep();
-      };
-      document.getElementById("btn-play").onclick = async function () {
-        this.disabled = true;
-        await instance?.anim.play(800);
-        syncAnim();
-        this.disabled = false;
-      };
-
-      // ── Export ─────────────────────────────────────────────────────────────
-      document.getElementById("btn-export-svg").onclick = () =>
-        instance?.exportSVG();
-      document.getElementById("btn-export-png").onclick = () =>
-        instance?.exportPNG();
-      document.getElementById("btn-export-html").onclick = () => {
-        if (instance?.svg) {
-          import("../dist/index.js").then((m) =>
-            m.exportHTML(instance.svg, dslEl.value),
-          );
-        }
-      };
-
-      // ── Theme toggle ───────────────────────────────────────────────────────
+      const sidebar = document.getElementById("sidebar");
       const themeBtn = document.getElementById("btn-theme-toggle");
+      const collapseBtn = document.getElementById("collapse-btn");
+      const handle = document.getElementById("resize-handle");
+      const expandStrip = document.getElementById("expand-strip");
+
+      const editor = new SketchmarkEditor({
+        container: document.getElementById("editor-host"),
+        value: EXAMPLES.shapes,
+        showToolbar: false,
+      });
+
+      const canvas = new SketchmarkCanvas({
+        container: document.getElementById("canvas-host"),
+        theme: canvasTheme,
+        preserveViewOnRender: true,
+      });
+
+      canvas.bindEditor(editor, { initialRender: false });
+
+      function renderCurrent() {
+        return canvas.render(editor.getValue());
+      }
+
+      function setExample(key, button) {
+        const example = EXAMPLES[key];
+        if (!example) return;
+
+        document
+          .querySelectorAll(".ex-tab")
+          .forEach((tab) => tab.classList.remove("active"));
+        button?.classList.add("active");
+
+        editor.setValue(example);
+        canvas.render(example);
+        canvas.fitContent();
+      }
+
+      document.getElementById("btn-run").onclick = () => editor.run();
+      document.getElementById("btn-format").onclick = () => editor.format();
+      document.getElementById("btn-clear").onclick = () => {
+        editor.clear();
+        renderCurrent();
+      };
+
+      document.getElementById("btn-export-svg").onclick = () => {
+        const instance = renderCurrent();
+        instance?.exportSVG();
+      };
+
+      document.getElementById("btn-export-png").onclick = async () => {
+        const instance = renderCurrent();
+        await instance?.exportPNG();
+      };
+
+      document.getElementById("btn-export-html").onclick = () => {
+        const instance = renderCurrent();
+        if (instance?.svg) {
+          exportHTML(instance.svg, editor.getValue());
+        }
+      };
+
       themeBtn.onclick = () => {
         canvasTheme = canvasTheme === "light" ? "dark" : "light";
         themeBtn.textContent = canvasTheme === "dark" ? "🌙 dark" : "☀ light";
-        vp.classList.toggle("dark-canvas", canvasTheme === "dark");
-        runDiagram();
+        canvas.setDsl(editor.getValue());
+        canvas.setTheme(canvasTheme);
       };
 
-      // ── Expand strip: click to expand, drag to resize ──────────────────────
-      const expandStrip = document.getElementById("expand-strip");
-      let expandDragging = false,
-        expandStartX = 0;
-
-      expandStrip.addEventListener("mousedown", (e) => {
-        expandDragging = true;
-        expandStartX = e.clientX;
-        document.body.style.cursor = "col-resize";
-        e.preventDefault();
-      });
-
-      document.addEventListener("mousemove", (e) => {
-        if (!expandDragging) return;
-        const dragged = e.clientX - expandStartX;
-        if (Math.abs(dragged) > 6 && sidebar.classList.contains("collapsed")) {
-          // start expanding — uncollapse and set a sensible starting width
-          sidebar.classList.remove("collapsed");
-          sidebar.style.width = "200px";
-        }
-        if (!sidebar.classList.contains("collapsed")) {
-          const newW = Math.min(600, Math.max(180, e.clientX));
-          sidebar.style.width = newW + "px";
-        }
-      });
-
-      document.addEventListener("mouseup", (e) => {
-        if (expandDragging) {
-          // if user just clicked without dragging, toggle collapse
-          if (Math.abs(e.clientX - expandStartX) < 6) {
-            sidebar.classList.remove("collapsed");
-          }
-          expandDragging = false;
-          document.body.style.cursor = "";
-        }
-      });
-
-      // ── Format DSL (naive indent normalise) ────────────────────────────────
-      document.getElementById("btn-format").onclick = () => {
-        const lines = dslEl.value.split("\n");
-        let depth = 0;
-        const result = lines.map((l) => {
-          const t = l.trim();
-          if (t === "}") depth = Math.max(0, depth - 1);
-          const out = "  ".repeat(depth) + t;
-          if (t.endsWith("{")) depth++;
-          return out;
-        });
-        dslEl.value = result.join("\n");
-      };
-
-      document.getElementById("btn-clear").onclick = () => {
-        dslEl.value = "diagram\n\nend";
-        runDiagram();
-      };
-
-      // ── Keyboard shortcut ──────────────────────────────────────────────────
-      dslEl.addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-          e.preventDefault();
-          runDiagram();
-        }
-      });
-
-      // ── Example tabs ───────────────────────────────────────────────────────
       document.querySelectorAll(".ex-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
-          document
-            .querySelectorAll(".ex-tab")
-            .forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-          const ex = EXAMPLES[btn.dataset.example];
-          if (ex) {
-            dslEl.value = ex;
-            hasRenderedOnce = false; // fit the new example on first render
-            runDiagram(ex);
-          }
+          setExample(btn.dataset.example, btn);
         });
       });
-
-      // ── Sidebar collapse ───────────────────────────────────────────────────
-      const sidebar = document.getElementById("sidebar");
-      const collapseBtn = document.getElementById("collapse-btn");
 
       collapseBtn.addEventListener("click", () => {
         sidebar.classList.toggle("collapsed");
       });
 
-      // ── Sidebar resize drag ────────────────────────────────────────────────
-      const handle = document.getElementById("resize-handle");
-      let resizing = false,
-        resizeStartX = 0,
-        resizeStartW = 0;
+      let resizing = false;
+      let resizeStartX = 0;
+      let resizeStartW = 0;
 
-      handle.addEventListener("mousedown", (e) => {
+      handle.addEventListener("mousedown", (event) => {
         resizing = true;
-        resizeStartX = e.clientX;
+        resizeStartX = event.clientX;
         resizeStartW = sidebar.offsetWidth;
         document.body.style.cursor = "col-resize";
-        e.preventDefault();
+        event.preventDefault();
       });
 
-      document.addEventListener("mousemove", (e) => {
+      document.addEventListener("mousemove", (event) => {
         if (!resizing) return;
-        const newW = Math.min(
+        const nextWidth = Math.min(
           600,
-          Math.max(180, resizeStartW + e.clientX - resizeStartX),
+          Math.max(180, resizeStartW + event.clientX - resizeStartX),
         );
-        sidebar.style.width = newW + "px";
+        sidebar.style.width = `${nextWidth}px`;
       });
 
       document.addEventListener("mouseup", () => {
-        if (resizing) {
-          resizing = false;
-          document.body.style.cursor = "";
+        if (!resizing) return;
+        resizing = false;
+        document.body.style.cursor = "";
+      });
+
+      let expandDragging = false;
+      let expandStartX = 0;
+
+      expandStrip.addEventListener("mousedown", (event) => {
+        expandDragging = true;
+        expandStartX = event.clientX;
+        document.body.style.cursor = "col-resize";
+        event.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (event) => {
+        if (!expandDragging) return;
+        const dragged = event.clientX - expandStartX;
+        if (Math.abs(dragged) > 6 && sidebar.classList.contains("collapsed")) {
+          sidebar.classList.remove("collapsed");
+          sidebar.style.width = "200px";
+        }
+        if (!sidebar.classList.contains("collapsed")) {
+          const nextWidth = Math.min(600, Math.max(180, event.clientX));
+          sidebar.style.width = `${nextWidth}px`;
         }
       });
 
-      // ── Boot ───────────────────────────────────────────────────────────────
-      dslEl.value = EXAMPLES.shapes;
-      runDiagram(EXAMPLES.shapes);
+      document.addEventListener("mouseup", (event) => {
+        if (!expandDragging) return;
+        if (Math.abs(event.clientX - expandStartX) < 6) {
+          sidebar.classList.remove("collapsed");
+        }
+        expandDragging = false;
+        document.body.style.cursor = "";
+      });
+
+      canvas.render(EXAMPLES.shapes);
     </script>
   </body>
 </html>

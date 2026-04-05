@@ -1,55 +1,87 @@
-// This is a SERVER component (no 'use client').
-// It can import DSL strings safely because diagrams.ts has no browser APIs.
-// The actual rendering happens inside SketchmarkDiagram which IS a client component.
+import SketchmarkDiagram from "@/components/SketchmarkDiagram";
+import { ARCHITECTURE_DSL, SIMPLE_DSL } from "./diagrams";
 
-import SketchmarkDiagram from '@/components/SketchmarkDiagram';
-import { ARCHITECTURE_DSL, SIMPLE_DSL } from './diagrams';
+const sectionTitle = {
+  fontFamily: "Georgia, serif",
+  fontSize: 22,
+  color: "#1a1208",
+  marginBottom: 14,
+} as const;
+
+const sectionText = {
+  margin: "0 0 18px",
+  color: "#6d5332",
+  fontSize: 14,
+  lineHeight: 1.6,
+  maxWidth: 720,
+} as const;
 
 export default function Home() {
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '60px 24px' }}>
-
-    <h1>✏ sketchmark</h1>
-      <p style={{ fontSize: 13, color: '#9a7848', marginBottom: 48 }}>
-        Hand-drawn diagrams from plain text — Next.js example
+    <main style={{ maxWidth: 1080, margin: "0 auto", padding: "56px 24px 72px" }}>
+      <p
+        style={{
+          margin: "0 0 12px",
+          color: "#9a7848",
+          fontSize: 12,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+        }}
+      >
+        Next.js App Router
       </p>
 
-      {/* ── Example 1: full architecture diagram ── */}
-      <section style={{ marginBottom: 64 }}>
-        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, color: '#1a1208', marginBottom: 16 }}>
-          Architecture diagram with animation
-        </h2>
+      <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.05, color: "#1a1208" }}>
+        Sketchmark embeds in React
+      </h1>
+
+      <p style={{ ...sectionText, marginTop: 14, marginBottom: 52 }}>
+        These examples mount the reusable <code>SketchmarkEmbed</code> widget from a
+        client component. The diagram stays inside a fixed frame, clips overflow,
+        and can keep the active animation target in view.
+      </p>
+
+      <section style={{ marginBottom: 68 }}>
+        <h2 style={sectionTitle}>Animated architecture embed</h2>
+        <p style={sectionText}>
+          This example keeps the built-in playback controls visible and uses a
+          taller frame so the camera has room to follow the highlighted steps.
+        </p>
         <SketchmarkDiagram
           dsl={ARCHITECTURE_DSL}
           showTitle
           showControls
+          width="min(100%, 960px)"
+          height={560}
         />
       </section>
 
-      {/* ── Example 2: simple diagram, no controls ── */}
-      <section style={{ marginBottom: 64 }}>
-        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, color: '#1a1208', marginBottom: 16 }}>
-          Simple diagram (no controls)
-        </h2>
+      <section style={{ marginBottom: 68 }}>
+        <h2 style={sectionTitle}>Static clipped embed</h2>
+        <p style={sectionText}>
+          The same component can also render a smaller static frame with controls
+          hidden when you only want an inline diagram.
+        </p>
         <SketchmarkDiagram
           dsl={SIMPLE_DSL}
           showTitle={false}
           showControls={false}
+          showExports={false}
+          width="min(100%, 420px)"
+          height={220}
         />
       </section>
 
-      {/* ── Example 3: inline DSL ── */}
-      <section style={{ marginBottom: 64 }}>
-        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, color: '#1a1208', marginBottom: 16 }}>
-          Inline DSL (sketch theme)
-        </h2>
-        {/*
-          When writing DSL inline, use .trim() and keep lines flush-left.
-          The backtick must be on its own line so the first DSL line
-          has no leading whitespace.
-        */}
+      <section>
+        <h2 style={sectionTitle}>Inline DSL example</h2>
+        <p style={sectionText}>
+          You can still pass raw DSL directly to the component. Just keep the DSL
+          lines flush-left before calling <code>.trim()</code>.
+        </p>
         <SketchmarkDiagram
           showControls
+          width="min(100%, 860px)"
+          height={460}
           dsl={`
 diagram
 config theme=sketch
@@ -77,7 +109,6 @@ end
 `.trim()}
         />
       </section>
-
     </main>
   );
 }

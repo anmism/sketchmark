@@ -10684,22 +10684,16 @@ class EventEmitter {
     }
 }
 
-// ============================================================
-// sketchmark — Public API
-// ============================================================
-// ── Core Pipeline ─────────────────────────────────────────
 function render(options) {
-    const { container: rawContainer, dsl, renderer = 'svg', injectCSS = true, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
-    // Inject animation CSS once
-    if (injectCSS && !document.getElementById('ai-diagram-css')) {
-        const style = document.createElement('style');
-        style.id = 'ai-diagram-css';
+    const { container: rawContainer, dsl, renderer = "svg", injectCSS = true, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
+    if (injectCSS && !document.getElementById("ai-diagram-css")) {
+        const style = document.createElement("style");
+        style.id = "ai-diagram-css";
         style.textContent = ANIMATION_CSS;
         document.head.appendChild(style);
     }
-    // Resolve container
     let el;
-    if (typeof rawContainer === 'string') {
+    if (typeof rawContainer === "string") {
         el = document.querySelector(rawContainer);
         if (!el)
             throw new Error(`Container "${rawContainer}" not found`);
@@ -10707,19 +10701,22 @@ function render(options) {
     else {
         el = rawContainer;
     }
-    // Pipeline: DSL → AST → Scene → Layout → Render
     const ast = parse(dsl);
     const scene = buildSceneGraph(ast);
     layout(scene);
     let svg;
     let canvas;
     let anim;
-    if (renderer === 'canvas') {
+    if (renderer === "canvas") {
         canvas = el instanceof HTMLCanvasElement
             ? el
-            : (() => { const c = document.createElement('canvas'); el.appendChild(c); return c; })();
+            : (() => {
+                const nextCanvas = document.createElement("canvas");
+                el.appendChild(nextCanvas);
+                return nextCanvas;
+            })();
         renderToCanvas(scene, canvas, canvasOptions);
-        anim = new AnimationController(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), ast.steps);
+        anim = new AnimationController(document.createElementNS("http://www.w3.org/2000/svg", "svg"), ast.steps);
     }
     else {
         svg = renderToSVG(scene, el, {
@@ -10727,32 +10724,1376 @@ function render(options) {
             interactive: true,
             onNodeClick,
         });
-        // Create rough.js instance for annotations (same import as SVG renderer)
         let rc = null;
         try {
             rc = rough.svg(svg);
         }
-        catch { /* rough.js not available — annotations disabled */ }
+        catch {
+            rc = null;
+        }
         const containerEl = el instanceof SVGSVGElement ? undefined : el;
         anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
     }
     onReady?.(anim, svg);
-    const instance = {
-        scene, anim, svg, canvas,
-        update: (newDsl) => { anim?.destroy(); return render({ ...options, dsl: newDsl }); },
-        exportSVG: (filename = 'diagram.svg') => {
+    return {
+        scene,
+        anim,
+        svg,
+        canvas,
+        update: (newDsl) => {
+            anim?.destroy();
+            return render({ ...options, dsl: newDsl });
+        },
+        exportSVG: (filename = "diagram.svg") => {
             if (svg) {
-                Promise.resolve().then(function () { return index; }).then(m => m.exportSVG(svg, { filename }));
+                Promise.resolve().then(function () { return index; }).then((mod) => mod.exportSVG(svg, { filename }));
             }
         },
-        exportPNG: async (filename = 'diagram.png') => {
+        exportPNG: async (filename = "diagram.png") => {
             if (svg) {
-                const m = await Promise.resolve().then(function () { return index; });
-                await m.exportPNG(svg, { filename });
+                const mod = await Promise.resolve().then(function () { return index; });
+                await mod.exportPNG(svg, { filename });
             }
         },
     };
-    return instance;
+}
+
+function resolveContainer(target) {
+    if (typeof target === "string") {
+        const el = document.querySelector(target);
+        if (!el)
+            throw new Error(`Container "${target}" not found`);
+        return el;
+    }
+    return target;
+}
+function injectStyleOnce(id, cssText) {
+    if (document.getElementById(id))
+        return;
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = cssText;
+    document.head.appendChild(style);
+}
+function normalizeNewlines(value) {
+    return value.replace(/\r\n?/g, "\n");
+}
+function toError(error) {
+    return error instanceof Error ? error : new Error(String(error));
+}
+
+const CANVAS_STYLE_ID = "sketchmark-canvas-ui";
+const CANVAS_CSS = `
+.skm-canvas{display:flex;flex-direction:column;width:100%;height:100%;min-height:320px;overflow:hidden;border:1px solid #caba98;border-radius:10px;background:#f8f4ea;color:#3a2010;font-family:"Courier New",monospace}
+.skm-canvas__animbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#eee7d8;border-bottom:1px solid #caba98;flex-shrink:0}
+.skm-canvas__status{min-width:96px;text-align:center;color:#6a4820;font-size:11px}
+.skm-canvas__label{color:#8a6040;font-size:11px;font-style:italic}
+.skm-canvas__spacer{flex:1}
+.skm-canvas__stats{color:#9a7848;font-size:10px}
+.skm-canvas__button{border:1px solid #caba98;background:#f5eedd;color:#3a2010;border-radius:6px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease}
+.skm-canvas__button:hover:not(:disabled){background:#c8a060;border-color:#c8a060;color:#fff}
+.skm-canvas__button:disabled{opacity:.45;cursor:default}
+.skm-canvas__error{display:none;padding:8px 12px;background:#280a0a;border-bottom:1px solid #5a1818;color:#f07070;font-size:11px;line-height:1.4;white-space:pre-wrap;flex-shrink:0}
+.skm-canvas__error.is-visible{display:block}
+.skm-canvas__viewport{position:relative;flex:1;overflow:hidden;background:#f8f4ea;cursor:grab;touch-action:none}
+.skm-canvas__viewport.is-panning{cursor:grabbing}
+.skm-canvas--dark .skm-canvas__viewport{background:#12100a}
+.skm-canvas__grid{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.skm-canvas__world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+.skm-canvas__controls{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
+.skm-canvas__zoom{min-width:40px;text-align:center;color:#8a6040;font-size:10px}
+.skm-canvas__minimap{position:absolute;left:14px;bottom:14px;width:120px;height:80px;background:rgba(255,248,234,.94);border:1px solid #caba98;border-radius:6px;overflow:hidden;z-index:2}
+.skm-canvas__minimap canvas{width:100%;height:100%;display:block}
+.skm-canvas__minimap-viewport{position:absolute;border:1.5px solid #c85428;background:rgba(200,84,40,.08);pointer-events:none}
+.skm-canvas--hide-anim .skm-canvas__animbar,.skm-canvas--hide-controls .skm-canvas__controls,.skm-canvas--hide-minimap .skm-canvas__minimap{display:none}
+`;
+let canvasUid = 0;
+class SketchmarkCanvas {
+    constructor(options) {
+        this.instance = null;
+        this.emitter = new EventEmitter();
+        this.dsl = "";
+        this.panX = 60;
+        this.panY = 60;
+        this.zoom = 1;
+        this.isPanning = false;
+        this.panMoved = false;
+        this.activePointerId = null;
+        this.lastPX = 0;
+        this.lastPY = 0;
+        this.suppressClickUntil = 0;
+        this.hasRenderedOnce = false;
+        this.playInFlight = false;
+        this.minimapToken = 0;
+        this.animUnsub = null;
+        this.editorCleanup = null;
+        this.mirroredEditor = null;
+        this.onPointerDown = (event) => {
+            if (event.button !== 0 && event.button !== 1)
+                return;
+            const target = event.target;
+            if (target instanceof Element && target.closest(".skm-canvas__controls, .skm-canvas__minimap"))
+                return;
+            this.isPanning = true;
+            this.panMoved = false;
+            this.activePointerId = event.pointerId;
+            this.lastPX = event.clientX;
+            this.lastPY = event.clientY;
+            try {
+                this.viewport.setPointerCapture(event.pointerId);
+            }
+            catch {
+                // ignore pointer capture failures
+            }
+        };
+        this.onPointerMove = (event) => {
+            if (!this.isPanning)
+                return;
+            if (this.activePointerId !== null && event.pointerId !== this.activePointerId)
+                return;
+            const dx = event.clientX - this.lastPX;
+            const dy = event.clientY - this.lastPY;
+            if (!this.panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
+                this.panMoved = true;
+                this.viewport.classList.add("is-panning");
+            }
+            if (this.panMoved) {
+                this.panX += dx;
+                this.panY += dy;
+                this.applyTransform();
+            }
+            this.lastPX = event.clientX;
+            this.lastPY = event.clientY;
+        };
+        this.onStopPanning = (event) => {
+            if (this.activePointerId !== null && event?.pointerId != null && event.pointerId !== this.activePointerId)
+                return;
+            if (this.panMoved)
+                this.suppressClickUntil = performance.now() + 180;
+            if (this.activePointerId !== null && this.viewport.hasPointerCapture?.(this.activePointerId)) {
+                try {
+                    this.viewport.releasePointerCapture(this.activePointerId);
+                }
+                catch {
+                    // ignore pointer capture release failures
+                }
+            }
+            this.activePointerId = null;
+            this.isPanning = false;
+            this.panMoved = false;
+            this.viewport.classList.remove("is-panning");
+        };
+        this.onViewportClick = (event) => {
+            if (performance.now() <= this.suppressClickUntil) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        };
+        this.onWheel = (event) => {
+            event.preventDefault();
+            const rect = this.viewport.getBoundingClientRect();
+            const pivotX = event.clientX - rect.left;
+            const pivotY = event.clientY - rect.top;
+            const factor = event.deltaY > 0 ? 0.9 : 1.1;
+            this.zoomTo(this.zoom * factor, pivotX, pivotY);
+        };
+        this.options = options;
+        this.renderer = options.renderer ?? "svg";
+        this.theme = options.theme ?? "light";
+        this.dsl = normalizeNewlines(options.dsl ?? "");
+        injectStyleOnce(CANVAS_STYLE_ID, CANVAS_CSS);
+        const host = resolveContainer(options.container);
+        host.innerHTML = "";
+        this.root = document.createElement("div");
+        this.root.className = "skm-canvas";
+        this.root.classList.toggle("skm-canvas--dark", this.theme === "dark");
+        this.root.classList.toggle("skm-canvas--hide-anim", options.showAnimationBar === false);
+        this.root.classList.toggle("skm-canvas--hide-controls", options.showControls === false);
+        this.root.classList.toggle("skm-canvas--hide-minimap", options.showMinimap === false);
+        const patternId = `skm-grid-${++canvasUid}`;
+        this.root.innerHTML = `
+      <div class="skm-canvas__animbar">
+        <button type="button" class="skm-canvas__button" data-action="reset">Reset</button>
+        <button type="button" class="skm-canvas__button" data-action="prev">Prev</button>
+        <span class="skm-canvas__status">No steps</span>
+        <button type="button" class="skm-canvas__button" data-action="next">Next</button>
+        <button type="button" class="skm-canvas__button" data-action="play">Play</button>
+        <span class="skm-canvas__label"></span>
+        <span class="skm-canvas__spacer"></span>
+        <span class="skm-canvas__stats"></span>
+      </div>
+      <div class="skm-canvas__error"></div>
+      <div class="skm-canvas__viewport">
+        <svg class="skm-canvas__grid" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs><pattern id="${patternId}" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="12" cy="12" r="0.9" fill="rgba(170,145,100,0.38)"></circle></pattern></defs>
+          <rect width="100%" height="100%" fill="url(#${patternId})"></rect>
+        </svg>
+        <div class="skm-canvas__world"><div class="skm-canvas__diagram"></div></div>
+        <div class="skm-canvas__controls">
+          <button type="button" class="skm-canvas__button" data-action="fit">Fit</button>
+          <button type="button" class="skm-canvas__button" data-action="reset-view">Reset</button>
+          <button type="button" class="skm-canvas__button" data-action="zoom-in">+</button>
+          <span class="skm-canvas__zoom">100%</span>
+          <button type="button" class="skm-canvas__button" data-action="zoom-out">-</button>
+        </div>
+        <div class="skm-canvas__minimap"><canvas width="120" height="80"></canvas><div class="skm-canvas__minimap-viewport"></div></div>
+      </div>`;
+        this.errorElement = this.root.querySelector(".skm-canvas__error");
+        this.viewport = this.root.querySelector(".skm-canvas__viewport");
+        this.world = this.root.querySelector(".skm-canvas__world");
+        this.diagramWrap = this.root.querySelector(".skm-canvas__diagram");
+        this.zoomLabel = this.root.querySelector(".skm-canvas__zoom");
+        this.stepDisplay = this.root.querySelector(".skm-canvas__status");
+        this.stepLabel = this.root.querySelector(".skm-canvas__label");
+        this.statsLabel = this.root.querySelector(".skm-canvas__stats");
+        this.minimapCanvas = this.root.querySelector(".skm-canvas__minimap canvas");
+        this.minimapIndicator = this.root.querySelector(".skm-canvas__minimap-viewport");
+        this.playButton = this.root.querySelector('[data-action="play"]');
+        this.prevButton = this.root.querySelector('[data-action="prev"]');
+        this.nextButton = this.root.querySelector('[data-action="next"]');
+        this.resetButton = this.root.querySelector('[data-action="reset"]');
+        this.gridPattern = this.root.querySelector(`#${patternId}`);
+        this.gridDot = this.gridPattern.querySelector("circle");
+        this.root.querySelector('[data-action="fit"]')?.addEventListener("click", () => this.fitContent());
+        this.root.querySelector('[data-action="reset-view"]')?.addEventListener("click", () => this.resetView());
+        this.root.querySelector('[data-action="zoom-in"]')?.addEventListener("click", () => this.zoomTo(this.zoom * 1.2, this.viewport.clientWidth / 2, this.viewport.clientHeight / 2));
+        this.root.querySelector('[data-action="zoom-out"]')?.addEventListener("click", () => this.zoomTo(this.zoom * 0.8, this.viewport.clientWidth / 2, this.viewport.clientHeight / 2));
+        this.resetButton.addEventListener("click", () => this.resetAnimation());
+        this.prevButton.addEventListener("click", () => this.prevStep());
+        this.nextButton.addEventListener("click", () => this.nextStep());
+        this.playButton.addEventListener("click", () => void this.play());
+        this.viewport.addEventListener("pointerdown", this.onPointerDown);
+        this.viewport.addEventListener("pointermove", this.onPointerMove);
+        this.viewport.addEventListener("pointerup", this.onStopPanning);
+        this.viewport.addEventListener("pointercancel", this.onStopPanning);
+        this.viewport.addEventListener("lostpointercapture", this.onStopPanning);
+        this.viewport.addEventListener("click", this.onViewportClick, true);
+        this.viewport.addEventListener("wheel", this.onWheel, { passive: false });
+        host.appendChild(this.root);
+        this.applyTransform();
+        this.syncAnimationUi();
+        if (this.dsl.trim())
+            this.render();
+    }
+    getDsl() {
+        return this.dsl;
+    }
+    setDsl(dsl, renderNow = false) {
+        this.dsl = normalizeNewlines(dsl);
+        if (renderNow)
+            this.render();
+    }
+    bindEditor(editor, options = {}) {
+        this.editorCleanup?.();
+        const renderOnRun = options.renderOnRun !== false;
+        const renderOnChange = options.renderOnChange === true;
+        const mirrorErrors = options.mirrorErrors !== false;
+        const initialRender = options.initialRender !== false;
+        this.mirroredEditor = mirrorErrors ? editor : null;
+        const unsubs = [];
+        if (renderOnRun)
+            unsubs.push(editor.on("run", ({ value }) => this.render(value)));
+        if (renderOnChange)
+            unsubs.push(editor.on("change", ({ value }) => this.render(value)));
+        if (initialRender)
+            this.render(editor.getValue());
+        this.editorCleanup = () => {
+            unsubs.forEach((unsub) => unsub());
+            this.mirroredEditor = null;
+            this.editorCleanup = null;
+        };
+        return this.editorCleanup;
+    }
+    on(event, listener) {
+        this.emitter.on(event, listener);
+        return () => this.emitter.off(event, listener);
+    }
+    render(nextDsl) {
+        if (typeof nextDsl === "string")
+            this.dsl = normalizeNewlines(nextDsl);
+        this.clearError();
+        this.mirroredEditor?.clearError();
+        this.animUnsub?.();
+        this.animUnsub = null;
+        this.instance?.anim?.destroy();
+        this.diagramWrap.innerHTML = "";
+        try {
+            const instance = render({
+                container: this.diagramWrap,
+                dsl: this.dsl,
+                renderer: this.renderer,
+                svgOptions: { interactive: true, showTitle: true, theme: this.options.svgOptions?.theme ?? this.theme, ...this.options.svgOptions },
+                canvasOptions: this.options.canvasOptions,
+                onNodeClick: this.options.onNodeClick,
+            });
+            this.instance = instance;
+            this.statsLabel.textContent = `${instance.scene.nodes.length}n / ${instance.scene.edges.length}e / ${instance.scene.groups.length}g`;
+            if (this.renderer === "svg") {
+                this.animUnsub = instance.anim.on((event) => {
+                    this.syncAnimationUi();
+                    if (event.type === "step-change") {
+                        const targetId = this.getStepTarget(event.step);
+                        if (targetId)
+                            requestAnimationFrame(() => window.setTimeout(() => this.focusAnimatedElement(targetId), 40));
+                        this.emitter.emit("stepchange", { stepIndex: event.stepIndex, step: event.step, canvas: this });
+                    }
+                });
+            }
+            this.syncAnimationUi();
+            this.renderMinimapPreview();
+            if (!this.hasRenderedOnce || this.options.preserveViewOnRender === false) {
+                this.hasRenderedOnce = true;
+                if (this.options.autoFit !== false)
+                    requestAnimationFrame(() => this.fitContent());
+                else
+                    this.applyTransform();
+            }
+            else {
+                this.applyTransform();
+            }
+            this.options.onRender?.(instance, this);
+            this.emitter.emit("render", { instance, canvas: this });
+            return instance;
+        }
+        catch (error) {
+            const normalized = toError(error);
+            this.instance = null;
+            this.statsLabel.textContent = "";
+            this.showError(normalized.message);
+            this.mirroredEditor?.showError(normalized.message);
+            this.syncAnimationUi();
+            this.renderMinimapPreview();
+            this.emitter.emit("error", { error: normalized, canvas: this });
+            return null;
+        }
+    }
+    async play() {
+        if (!this.instance || this.playInFlight || this.renderer !== "svg" || !this.instance.anim.total)
+            return;
+        this.playInFlight = true;
+        this.syncAnimationUi();
+        try {
+            await this.instance.anim.play(this.options.playStepDelay ?? 800);
+        }
+        finally {
+            this.playInFlight = false;
+            this.syncAnimationUi();
+        }
+    }
+    nextStep() {
+        if (!this.instance || this.renderer !== "svg")
+            return;
+        this.instance.anim.next();
+        this.syncAnimationUi();
+        this.focusCurrentStep();
+    }
+    prevStep() {
+        if (!this.instance || this.renderer !== "svg")
+            return;
+        this.instance.anim.prev();
+        this.syncAnimationUi();
+        this.focusCurrentStep();
+    }
+    resetAnimation() {
+        if (!this.instance || this.renderer !== "svg")
+            return;
+        this.instance.anim.reset();
+        this.syncAnimationUi();
+    }
+    fitContent() {
+        const size = this.getContentSize();
+        if (!size)
+            return;
+        const vpW = this.viewport.clientWidth || size.width;
+        const vpH = this.viewport.clientHeight || size.height;
+        const padding = this.options.fitPadding ?? 80;
+        const nextZoom = Math.min((vpW - padding) / size.width, (vpH - padding) / size.height, 1);
+        this.zoom = clamp(nextZoom || 1, this.options.zoomMin ?? 0.08, this.options.zoomMax ?? 4);
+        this.panX = (vpW - size.width * this.zoom) / 2;
+        this.panY = (vpH - size.height * this.zoom) / 2;
+        this.applyTransform();
+    }
+    resetView() {
+        this.panX = 60;
+        this.panY = 60;
+        this.zoom = 1;
+        this.applyTransform();
+    }
+    setTheme(theme) {
+        this.theme = theme;
+        this.root.classList.toggle("skm-canvas--dark", theme === "dark");
+        this.render();
+    }
+    destroy() {
+        this.editorCleanup?.();
+        this.animUnsub?.();
+        this.instance?.anim?.destroy();
+        this.viewport.removeEventListener("pointerdown", this.onPointerDown);
+        this.viewport.removeEventListener("pointermove", this.onPointerMove);
+        this.viewport.removeEventListener("pointerup", this.onStopPanning);
+        this.viewport.removeEventListener("pointercancel", this.onStopPanning);
+        this.viewport.removeEventListener("lostpointercapture", this.onStopPanning);
+        this.viewport.removeEventListener("click", this.onViewportClick, true);
+        this.viewport.removeEventListener("wheel", this.onWheel);
+        this.root.remove();
+    }
+    applyTransform() {
+        this.world.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+        this.zoomLabel.textContent = `${Math.round(this.zoom * 100)}%`;
+        const gridWidth = 24 * this.zoom;
+        this.gridPattern.setAttribute("x", String(this.panX % gridWidth));
+        this.gridPattern.setAttribute("y", String(this.panY % gridWidth));
+        this.gridPattern.setAttribute("width", String(gridWidth));
+        this.gridPattern.setAttribute("height", String(gridWidth));
+        this.gridDot.setAttribute("cx", String(gridWidth / 2));
+        this.gridDot.setAttribute("cy", String(gridWidth / 2));
+        this.gridDot.setAttribute("r", String(Math.min(1.1, this.zoom * 0.85)));
+        this.updateMinimapIndicator();
+        this.emitter.emit("viewchange", { panX: this.panX, panY: this.panY, zoom: this.zoom, canvas: this });
+    }
+    zoomTo(nextZoom, pivotX, pivotY) {
+        const clampedZoom = clamp(nextZoom, this.options.zoomMin ?? 0.08, this.options.zoomMax ?? 4);
+        const ratio = clampedZoom / this.zoom;
+        this.panX = pivotX - (pivotX - this.panX) * ratio;
+        this.panY = pivotY - (pivotY - this.panY) * ratio;
+        this.zoom = clampedZoom;
+        this.applyTransform();
+    }
+    syncAnimationUi() {
+        const anim = this.instance?.anim;
+        const canAnimate = this.renderer === "svg" && !!anim && anim.total > 0;
+        if (!anim || !canAnimate) {
+            this.stepDisplay.textContent = this.renderer === "canvas" ? "Static view" : "No steps";
+            this.stepLabel.textContent = "";
+            this.prevButton.disabled = true;
+            this.nextButton.disabled = true;
+            this.resetButton.disabled = true;
+            this.playButton.disabled = true;
+            return;
+        }
+        this.stepDisplay.textContent = anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
+        this.stepLabel.textContent = anim.currentStep >= 0 ? this.getStepLabel(anim.steps[anim.currentStep]) : "";
+        this.prevButton.disabled = !anim.canPrev;
+        this.nextButton.disabled = !anim.canNext;
+        this.resetButton.disabled = false;
+        this.playButton.disabled = this.playInFlight || !anim.canNext;
+    }
+    getStepTarget(stepItem) {
+        if (!stepItem)
+            return null;
+        return stepItem.kind === "beat" ? stepItem.children?.[0]?.target ?? null : stepItem.target ?? null;
+    }
+    getStepLabel(stepItem) {
+        if (!stepItem)
+            return "";
+        if (stepItem.kind === "beat") {
+            const first = stepItem.children?.[0];
+            return first ? `beat ${first.action} ${first.target ?? ""}`.trim() : "beat";
+        }
+        return `${stepItem.action} ${stepItem.target ?? ""}`.trim();
+    }
+    focusCurrentStep() {
+        const anim = this.instance?.anim;
+        if (!anim || anim.currentStep < 0 || anim.currentStep >= anim.total)
+            return;
+        const targetId = this.getStepTarget(anim.steps[anim.currentStep]);
+        if (targetId)
+            window.setTimeout(() => this.focusAnimatedElement(targetId), 40);
+    }
+    findSvgElement(svg, id) {
+        const prefixes = ["group-", "node-", "edge-", "table-", "chart-", "markdown-", "note-", ""];
+        const esc = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape : (value) => value;
+        for (const prefix of prefixes) {
+            const found = svg.querySelector(`#${esc(prefix + id)}`);
+            if (found)
+                return found;
+        }
+        for (const attr of ["data-id", "data-node", "data-group", "sketchmark-id"]) {
+            const found = svg.querySelector(`[${attr}="${id}"]`);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+    focusAnimatedElement(targetId) {
+        const svg = this.instance?.svg;
+        if (!svg)
+            return;
+        const searchIds = this.splitEdgeTarget(targetId);
+        let target = null;
+        for (const id of searchIds) {
+            target = this.findSvgElement(svg, id);
+            if (target)
+                break;
+        }
+        if (!target)
+            return;
+        const box = target.getBoundingClientRect();
+        if (!box.width && !box.height)
+            return;
+        const vpBox = this.viewport.getBoundingClientRect();
+        const centerX = box.left + box.width / 2 - vpBox.left;
+        const centerY = box.top + box.height / 2 - vpBox.top;
+        const margin = 100;
+        if (centerX >= margin && centerX <= vpBox.width - margin && centerY >= margin && centerY <= vpBox.height - margin)
+            return;
+        const targetPanX = this.panX + (vpBox.width / 2 - centerX);
+        const targetPanY = this.panY + (vpBox.height / 2 - centerY);
+        const startPanX = this.panX;
+        const startPanY = this.panY;
+        const startTs = performance.now();
+        const duration = 350;
+        const frame = (now) => {
+            const t = Math.min((now - startTs) / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            this.panX = startPanX + (targetPanX - startPanX) * eased;
+            this.panY = startPanY + (targetPanY - startPanY) * eased;
+            this.applyTransform();
+            if (t < 1)
+                requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+    }
+    splitEdgeTarget(targetId) {
+        const connectors = ["<-->", "<->", "-->", "<--", "---", "--", "->", "<-"];
+        for (const connector of connectors) {
+            if (targetId.includes(connector)) {
+                return targetId.split(connector).map((part) => part.trim()).filter(Boolean);
+            }
+        }
+        return [targetId.trim()];
+    }
+    getContentSize() {
+        if (this.instance?.svg) {
+            return { width: parseFloat(this.instance.svg.getAttribute("width") || "400"), height: parseFloat(this.instance.svg.getAttribute("height") || "300") };
+        }
+        if (this.instance?.canvas) {
+            return { width: this.instance.canvas.width || 400, height: this.instance.canvas.height || 300 };
+        }
+        return null;
+    }
+    updateMinimapIndicator() {
+        if (this.options.showMinimap === false)
+            return;
+        const size = this.getContentSize();
+        if (!size) {
+            this.minimapIndicator.style.width = "0px";
+            this.minimapIndicator.style.height = "0px";
+            return;
+        }
+        const mW = this.minimapCanvas.width;
+        const mH = this.minimapCanvas.height;
+        const scale = Math.min(mW / size.width, mH / size.height) * 0.9;
+        const offX = (mW - size.width * scale) / 2;
+        const offY = (mH - size.height * scale) / 2;
+        const vpW = this.viewport.clientWidth || size.width;
+        const vpH = this.viewport.clientHeight || size.height;
+        const ix = offX + (-this.panX / this.zoom) * scale;
+        const iy = offY + (-this.panY / this.zoom) * scale;
+        const iw = (vpW / this.zoom) * scale;
+        const ih = (vpH / this.zoom) * scale;
+        this.minimapIndicator.style.left = `${Math.max(0, ix)}px`;
+        this.minimapIndicator.style.top = `${Math.max(0, iy)}px`;
+        this.minimapIndicator.style.width = `${Math.min(mW - Math.max(0, ix), iw)}px`;
+        this.minimapIndicator.style.height = `${Math.min(mH - Math.max(0, iy), ih)}px`;
+    }
+    renderMinimapPreview() {
+        if (this.options.showMinimap === false)
+            return;
+        const ctx = this.minimapCanvas.getContext("2d");
+        const size = this.getContentSize();
+        if (!ctx)
+            return;
+        const width = this.minimapCanvas.width;
+        const height = this.minimapCanvas.height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = this.theme === "dark" ? "#1a140b" : "#fff8ea";
+        ctx.fillRect(0, 0, width, height);
+        if (!size) {
+            this.updateMinimapIndicator();
+            return;
+        }
+        const scale = Math.min(width / size.width, height / size.height) * 0.9;
+        const drawW = size.width * scale;
+        const drawH = size.height * scale;
+        const offX = (width - drawW) / 2;
+        const offY = (height - drawH) / 2;
+        const token = ++this.minimapToken;
+        const drawFallback = () => {
+            if (token !== this.minimapToken)
+                return;
+            ctx.fillStyle = this.theme === "dark" ? "#20180e" : "#f7f1e2";
+            ctx.fillRect(offX, offY, drawW, drawH);
+            ctx.strokeStyle = this.theme === "dark" ? "#5a4525" : "#caba98";
+            ctx.strokeRect(offX, offY, drawW, drawH);
+            this.updateMinimapIndicator();
+        };
+        if (this.instance?.canvas) {
+            try {
+                ctx.drawImage(this.instance.canvas, offX, offY, drawW, drawH);
+                ctx.strokeStyle = this.theme === "dark" ? "#5a4525" : "#caba98";
+                ctx.strokeRect(offX, offY, drawW, drawH);
+            }
+            catch {
+                drawFallback();
+            }
+            this.updateMinimapIndicator();
+            return;
+        }
+        if (!this.instance?.svg || typeof XMLSerializer === "undefined") {
+            drawFallback();
+            return;
+        }
+        try {
+            const serialized = new XMLSerializer().serializeToString(this.instance.svg);
+            const blob = new Blob([serialized], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const image = new Image();
+            image.onload = () => {
+                if (token !== this.minimapToken) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                try {
+                    ctx.drawImage(image, offX, offY, drawW, drawH);
+                    ctx.strokeStyle = this.theme === "dark" ? "#5a4525" : "#caba98";
+                    ctx.strokeRect(offX, offY, drawW, drawH);
+                }
+                catch {
+                    drawFallback();
+                }
+                finally {
+                    URL.revokeObjectURL(url);
+                    this.updateMinimapIndicator();
+                }
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(url);
+                drawFallback();
+            };
+            image.src = url;
+        }
+        catch {
+            drawFallback();
+        }
+    }
+    showError(message) {
+        this.errorElement.textContent = message;
+        this.errorElement.classList.add("is-visible");
+    }
+    clearError() {
+        this.errorElement.textContent = "";
+        this.errorElement.classList.remove("is-visible");
+    }
+}
+
+const EDITOR_STYLE_ID = "sketchmark-editor-ui";
+const DEFAULT_CLEAR_VALUE = "diagram\n\nend";
+const EDITOR_CSS = `
+.skm-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  background: #1c1608;
+  color: #e0c898;
+  border: 1px solid #3a2a12;
+  border-radius: 10px;
+  overflow: hidden;
+  font-family: "Courier New", monospace;
+}
+
+.skm-editor__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #12100a;
+  border-bottom: 1px solid #3a2a12;
+  flex-shrink: 0;
+}
+
+.skm-editor__hint {
+  margin-left: auto;
+  color: #9a7848;
+  font-size: 11px;
+}
+
+.skm-editor__button {
+  border: 1px solid #4a3520;
+  background: #22190e;
+  color: #dcc48a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.skm-editor__button:hover {
+  border-color: #f0c96a;
+  color: #f0c96a;
+}
+
+.skm-editor__button--primary {
+  background: #c85428;
+  border-color: #c85428;
+  color: #fff9ef;
+}
+
+.skm-editor__button--primary:hover {
+  background: #db6437;
+  border-color: #db6437;
+  color: #fff;
+}
+
+.skm-editor__input {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: #1c1608;
+  color: #e0c898;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  tab-size: 2;
+  caret-color: #f0c96a;
+}
+
+.skm-editor__input::placeholder {
+  color: #80633b;
+}
+
+.skm-editor__error {
+  display: none;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  background: #280a0a;
+  border-top: 1px solid #5a1818;
+  color: #f07070;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.skm-editor__error.is-visible {
+  display: block;
+}
+`;
+function defaultFormatter(value) {
+    return normalizeNewlines(value)
+        .split("\n")
+        .map((line) => line.replace(/[ \t]+$/g, ""))
+        .join("\n");
+}
+class SketchmarkEditor {
+    constructor(options) {
+        this.emitter = new EventEmitter();
+        this.options = options;
+        injectStyleOnce(EDITOR_STYLE_ID, EDITOR_CSS);
+        const host = resolveContainer(options.container);
+        host.innerHTML = "";
+        this.root = document.createElement("div");
+        this.root.className = "skm-editor";
+        this.toolbar = document.createElement("div");
+        this.toolbar.className = "skm-editor__toolbar";
+        const runButton = document.createElement("button");
+        runButton.type = "button";
+        runButton.className = "skm-editor__button skm-editor__button--primary";
+        runButton.textContent = options.runLabel ?? "Run";
+        runButton.addEventListener("click", () => this.run());
+        const formatButton = document.createElement("button");
+        formatButton.type = "button";
+        formatButton.className = "skm-editor__button";
+        formatButton.textContent = options.formatLabel ?? "Format";
+        formatButton.addEventListener("click", () => this.format());
+        const clearButton = document.createElement("button");
+        clearButton.type = "button";
+        clearButton.className = "skm-editor__button";
+        clearButton.textContent = options.clearLabel ?? "Clear";
+        clearButton.addEventListener("click", () => this.clear());
+        const hint = document.createElement("span");
+        hint.className = "skm-editor__hint";
+        hint.textContent = "Ctrl+Enter";
+        if (options.showRunButton !== false)
+            this.toolbar.appendChild(runButton);
+        if (options.showFormatButton)
+            this.toolbar.appendChild(formatButton);
+        if (options.showClearButton !== false)
+            this.toolbar.appendChild(clearButton);
+        this.toolbar.appendChild(hint);
+        this.textarea = document.createElement("textarea");
+        this.textarea.className = "skm-editor__input";
+        this.textarea.spellcheck = false;
+        this.textarea.placeholder = options.placeholder ?? "diagram\nbox a label=\"Hello\"\nend";
+        this.textarea.value = normalizeNewlines(options.value ?? DEFAULT_CLEAR_VALUE);
+        this.textarea.addEventListener("input", () => {
+            const payload = { value: this.getValue(), editor: this };
+            options.onChange?.(payload.value, this);
+            this.emitter.emit("change", payload);
+        });
+        this.textarea.addEventListener("keydown", (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                event.preventDefault();
+                this.run();
+            }
+        });
+        this.errorElement = document.createElement("div");
+        this.errorElement.className = "skm-editor__error";
+        if (options.showToolbar !== false) {
+            this.root.appendChild(this.toolbar);
+        }
+        this.root.appendChild(this.textarea);
+        this.root.appendChild(this.errorElement);
+        host.appendChild(this.root);
+        if (options.autoFocus) {
+            this.focus();
+        }
+    }
+    getValue() {
+        return this.textarea.value;
+    }
+    setValue(value, emitChange = false) {
+        this.textarea.value = normalizeNewlines(value);
+        if (emitChange) {
+            const payload = { value: this.getValue(), editor: this };
+            this.options.onChange?.(payload.value, this);
+            this.emitter.emit("change", payload);
+        }
+    }
+    focus() {
+        this.textarea.focus();
+    }
+    format() {
+        const formatter = this.options.formatter ?? defaultFormatter;
+        const value = formatter(this.getValue());
+        this.setValue(value, true);
+        this.emitter.emit("format", { value, editor: this });
+    }
+    clear() {
+        const value = this.options.clearValue ?? DEFAULT_CLEAR_VALUE;
+        this.setValue(value, true);
+        this.clearError();
+        this.emitter.emit("clear", { value: this.getValue(), editor: this });
+    }
+    run() {
+        const value = this.getValue();
+        this.options.onRun?.(value, this);
+        this.emitter.emit("run", { value, editor: this });
+    }
+    showError(message) {
+        this.errorElement.textContent = message;
+        this.errorElement.classList.add("is-visible");
+    }
+    clearError() {
+        this.errorElement.textContent = "";
+        this.errorElement.classList.remove("is-visible");
+    }
+    on(event, listener) {
+        this.emitter.on(event, listener);
+        return () => this.emitter.off(event, listener);
+    }
+    destroy() {
+        this.root.remove();
+    }
+}
+
+const EMBED_STYLE_ID = "sketchmark-embed-ui";
+const EMBED_CSS = `
+.skm-embed {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #caba98;
+  border-radius: 12px;
+  background: #fff8ea;
+  color: #3a2010;
+  font-family: "Courier New", monospace;
+}
+
+.skm-embed--dark {
+  background: #12100a;
+  border-color: #4a3520;
+  color: #f3ddaf;
+}
+
+.skm-embed__viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  background: inherit;
+}
+
+.skm-embed__world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.skm-embed__error {
+  display: none;
+  padding: 8px 12px;
+  background: #280a0a;
+  border-top: 1px solid #5a1818;
+  color: #f07070;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.skm-embed__error.is-visible {
+  display: block;
+}
+
+.skm-embed__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #d8ccb1;
+  background: rgba(255, 248, 234, 0.88);
+  backdrop-filter: blur(6px);
+}
+
+.skm-embed--dark .skm-embed__controls {
+  border-top-color: #3a2a12;
+  background: rgba(26, 18, 8, 0.9);
+}
+
+.skm-embed__controls.is-hidden {
+  display: none;
+}
+
+.skm-embed__button {
+  border: 1px solid #caba98;
+  background: #f5eedd;
+  color: #3a2010;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.skm-embed__button:hover:not(:disabled) {
+  background: #c8a060;
+  border-color: #c8a060;
+  color: #fff;
+}
+
+.skm-embed--dark .skm-embed__button {
+  border-color: #4a3520;
+  background: #22190e;
+  color: #f3ddaf;
+}
+
+.skm-embed--dark .skm-embed__button:hover:not(:disabled) {
+  background: #c8a060;
+  border-color: #c8a060;
+  color: #fff;
+}
+
+.skm-embed__button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.skm-embed__step {
+  margin-left: auto;
+  min-width: 96px;
+  text-align: center;
+  color: #8a6040;
+  font-size: 11px;
+}
+
+.skm-embed--dark .skm-embed__step {
+  color: #d0b176;
+}
+`;
+class SketchmarkEmbed {
+    constructor(options) {
+        this.instance = null;
+        this.emitter = new EventEmitter();
+        this.animUnsub = null;
+        this.playInFlight = false;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.motionFrame = null;
+        this.resizeObserver = null;
+        this.options = options;
+        this.dsl = normalizeNewlines(options.dsl);
+        this.theme = options.theme ?? "light";
+        injectStyleOnce(EMBED_STYLE_ID, EMBED_CSS);
+        const host = resolveContainer(options.container);
+        host.innerHTML = "";
+        this.root = document.createElement("div");
+        this.root.className = "skm-embed";
+        this.root.classList.toggle("skm-embed--dark", this.theme === "dark");
+        this.applySize(options.width, options.height);
+        this.root.innerHTML = `
+      <div class="skm-embed__viewport">
+        <div class="skm-embed__world">
+          <div class="skm-embed__diagram"></div>
+        </div>
+      </div>
+      <div class="skm-embed__error"></div>
+      <div class="skm-embed__controls">
+        <button type="button" class="skm-embed__button" data-action="reset">Reset</button>
+        <button type="button" class="skm-embed__button" data-action="prev">Prev</button>
+        <button type="button" class="skm-embed__button" data-action="next">Next</button>
+        <button type="button" class="skm-embed__button" data-action="play">Play</button>
+        <span class="skm-embed__step">No steps</span>
+      </div>
+    `;
+        this.viewport = this.root.querySelector(".skm-embed__viewport");
+        this.world = this.root.querySelector(".skm-embed__world");
+        this.diagramWrap = this.root.querySelector(".skm-embed__diagram");
+        this.errorElement = this.root.querySelector(".skm-embed__error");
+        this.controlsElement = this.root.querySelector(".skm-embed__controls");
+        this.stepInfoElement = this.root.querySelector(".skm-embed__step");
+        this.btnReset = this.root.querySelector('[data-action="reset"]');
+        this.btnPrev = this.root.querySelector('[data-action="prev"]');
+        this.btnNext = this.root.querySelector('[data-action="next"]');
+        this.btnPlay = this.root.querySelector('[data-action="play"]');
+        this.controlsElement.classList.toggle("is-hidden", options.showControls === false);
+        this.btnReset.addEventListener("click", () => this.resetAnimation());
+        this.btnPrev.addEventListener("click", () => this.prevStep());
+        this.btnNext.addEventListener("click", () => this.nextStep());
+        this.btnPlay.addEventListener("click", () => {
+            void this.play();
+        });
+        if (typeof ResizeObserver !== "undefined") {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.positionViewport(false);
+            });
+            this.resizeObserver.observe(this.viewport);
+        }
+        host.appendChild(this.root);
+        this.render();
+    }
+    getDsl() {
+        return this.dsl;
+    }
+    setDsl(dsl, renderNow = false) {
+        this.dsl = normalizeNewlines(dsl);
+        if (renderNow)
+            this.render();
+    }
+    setSize(width, height) {
+        this.applySize(width, height);
+        this.positionViewport(false);
+    }
+    setTheme(theme) {
+        this.theme = theme;
+        this.root.classList.toggle("skm-embed--dark", theme === "dark");
+        this.render();
+    }
+    on(event, listener) {
+        this.emitter.on(event, listener);
+        return () => this.emitter.off(event, listener);
+    }
+    render(nextDsl) {
+        if (typeof nextDsl === "string") {
+            this.dsl = normalizeNewlines(nextDsl);
+        }
+        this.clearError();
+        this.stopMotion();
+        this.animUnsub?.();
+        this.animUnsub = null;
+        this.instance?.anim?.destroy();
+        this.instance = null;
+        this.diagramWrap.innerHTML = "";
+        try {
+            const instance = render({
+                container: this.diagramWrap,
+                dsl: this.dsl,
+                renderer: "svg",
+                svgOptions: {
+                    showTitle: true,
+                    interactive: true,
+                    transparent: true,
+                    theme: this.options.svgOptions?.theme ?? this.theme,
+                    ...this.options.svgOptions,
+                },
+                onNodeClick: this.options.onNodeClick,
+            });
+            this.instance = instance;
+            this.animUnsub = instance.anim.on((event) => {
+                this.syncControls();
+                if (event.type === "step-change") {
+                    if (this.options.autoFocusOnStep !== false) {
+                        requestAnimationFrame(() => {
+                            window.setTimeout(() => this.positionViewport(true), 40);
+                        });
+                    }
+                    this.emitter.emit("stepchange", {
+                        stepIndex: event.stepIndex,
+                        step: event.step,
+                        embed: this,
+                    });
+                }
+            });
+            this.syncControls();
+            requestAnimationFrame(() => {
+                this.positionViewport(false);
+            });
+            this.options.onRender?.(instance, this);
+            this.emitter.emit("render", { instance, embed: this });
+            return instance;
+        }
+        catch (error) {
+            const normalized = toError(error);
+            this.showError(normalized.message);
+            this.syncControls();
+            this.emitter.emit("error", { error: normalized, embed: this });
+            return null;
+        }
+    }
+    async play() {
+        if (!this.instance || this.playInFlight || !this.instance.anim.total)
+            return;
+        this.playInFlight = true;
+        this.syncControls();
+        try {
+            await this.instance.anim.play(this.options.playStepDelay ?? 800);
+        }
+        finally {
+            this.playInFlight = false;
+            this.syncControls();
+        }
+    }
+    nextStep() {
+        if (!this.instance)
+            return;
+        this.instance.anim.next();
+        this.syncControls();
+        this.positionViewport(true);
+    }
+    prevStep() {
+        if (!this.instance)
+            return;
+        this.instance.anim.prev();
+        this.syncControls();
+        this.positionViewport(true);
+    }
+    resetAnimation() {
+        if (!this.instance)
+            return;
+        this.instance.anim.reset();
+        this.syncControls();
+        this.positionViewport(true);
+    }
+    exportSVG(filename) {
+        this.instance?.exportSVG(filename);
+    }
+    async exportPNG(filename) {
+        await this.instance?.exportPNG(filename);
+    }
+    destroy() {
+        this.stopMotion();
+        this.animUnsub?.();
+        this.instance?.anim?.destroy();
+        this.instance = null;
+        this.resizeObserver?.disconnect();
+        this.root.remove();
+    }
+    applySize(width, height) {
+        this.root.style.width = this.formatSize(width ?? 960);
+        this.root.style.height = this.formatSize(height ?? 540);
+    }
+    formatSize(value) {
+        return typeof value === "number" ? `${value}px` : value;
+    }
+    syncControls() {
+        const anim = this.instance?.anim;
+        if (!anim || !anim.total) {
+            this.stepInfoElement.textContent = "No steps";
+            this.btnReset.disabled = true;
+            this.btnPrev.disabled = true;
+            this.btnNext.disabled = true;
+            this.btnPlay.disabled = true;
+            return;
+        }
+        this.stepInfoElement.textContent =
+            anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
+        this.btnReset.disabled = false;
+        this.btnPrev.disabled = !anim.canPrev;
+        this.btnNext.disabled = !anim.canNext;
+        this.btnPlay.disabled = this.playInFlight || !anim.canNext;
+    }
+    positionViewport(animated) {
+        if (!this.instance?.svg)
+            return;
+        const svg = this.instance.svg;
+        const svgWidth = parseFloat(svg.getAttribute("width") || "0");
+        const svgHeight = parseFloat(svg.getAttribute("height") || "0");
+        if (!svgWidth || !svgHeight)
+            return;
+        const viewportRect = this.viewport.getBoundingClientRect();
+        const viewWidth = viewportRect.width || this.viewport.clientWidth;
+        const viewHeight = viewportRect.height || this.viewport.clientHeight;
+        if (!viewWidth || !viewHeight)
+            return;
+        const sceneIsLarge = svgWidth > viewWidth || svgHeight > viewHeight;
+        const shouldFocus = sceneIsLarge &&
+            this.options.autoFocus !== false &&
+            !!this.getFocusTarget();
+        if (!shouldFocus) {
+            this.animateTo(svgWidth <= viewWidth ? (viewWidth - svgWidth) / 2 : 0, svgHeight <= viewHeight ? (viewHeight - svgHeight) / 2 : 0, animated);
+            return;
+        }
+        const target = this.findTargetElement(this.getFocusTarget());
+        if (!target) {
+            this.animateTo(0, 0, animated);
+            return;
+        }
+        const currentRect = target.getBoundingClientRect();
+        const sceneX = currentRect.left - viewportRect.left - this.offsetX;
+        const sceneY = currentRect.top - viewportRect.top - this.offsetY;
+        const targetCenterX = sceneX + currentRect.width / 2;
+        const targetCenterY = sceneY + currentRect.height / 2;
+        let nextX = viewWidth / 2 - targetCenterX;
+        let nextY = viewHeight / 2 - targetCenterY;
+        const padding = this.options.focusPadding ?? 24;
+        if (svgWidth <= viewWidth) {
+            nextX = (viewWidth - svgWidth) / 2;
+        }
+        else {
+            nextX = clamp(nextX, viewWidth - svgWidth - padding, padding);
+        }
+        if (svgHeight <= viewHeight) {
+            nextY = (viewHeight - svgHeight) / 2;
+        }
+        else {
+            nextY = clamp(nextY, viewHeight - svgHeight - padding, padding);
+        }
+        this.animateTo(nextX, nextY, animated);
+    }
+    animateTo(nextX, nextY, animated) {
+        this.stopMotion();
+        const duration = this.options.focusDuration ?? 320;
+        if (!animated || duration <= 0) {
+            this.offsetX = nextX;
+            this.offsetY = nextY;
+            this.applyTransform();
+            return;
+        }
+        const startX = this.offsetX;
+        const startY = this.offsetY;
+        const start = performance.now();
+        const frame = (now) => {
+            const t = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            this.offsetX = startX + (nextX - startX) * eased;
+            this.offsetY = startY + (nextY - startY) * eased;
+            this.applyTransform();
+            if (t < 1) {
+                this.motionFrame = requestAnimationFrame(frame);
+            }
+            else {
+                this.motionFrame = null;
+            }
+        };
+        this.motionFrame = requestAnimationFrame(frame);
+    }
+    applyTransform() {
+        this.world.style.transform = `translate(${this.offsetX}px, ${this.offsetY}px)`;
+    }
+    getFocusTarget() {
+        const anim = this.instance?.anim;
+        if (!anim || !anim.total)
+            return null;
+        const startIndex = anim.currentStep >= 0 ? anim.currentStep : 0;
+        for (let index = startIndex; index < anim.steps.length; index += 1) {
+            const target = this.getStepTarget(anim.steps[index]);
+            if (target)
+                return target;
+        }
+        for (let index = startIndex - 1; index >= 0; index -= 1) {
+            const target = this.getStepTarget(anim.steps[index]);
+            if (target)
+                return target;
+        }
+        return null;
+    }
+    findTargetElement(targetId) {
+        const svg = this.instance?.svg;
+        if (!svg)
+            return null;
+        const edgeTarget = this.parseEdgeTarget(targetId);
+        const esc = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+            ? CSS.escape
+            : (value) => value;
+        if (edgeTarget) {
+            const edgeEl = svg.querySelector(`#${esc(`edge-${edgeTarget.from}-${edgeTarget.to}`)}`);
+            if (edgeEl)
+                return edgeEl;
+        }
+        const ids = this.splitEdgeTarget(targetId);
+        const prefixes = ["group-", "node-", "edge-", "table-", "chart-", "markdown-", "note-", ""];
+        for (const id of ids) {
+            for (const prefix of prefixes) {
+                const found = svg.querySelector(`#${esc(prefix + id)}`);
+                if (found)
+                    return found;
+            }
+            for (const attr of ["data-id", "data-node", "data-group", "sketchmark-id"]) {
+                const found = svg.querySelector(`[${attr}="${id}"]`);
+                if (found)
+                    return found;
+            }
+        }
+        return null;
+    }
+    getStepTarget(stepItem) {
+        if (!stepItem)
+            return null;
+        return stepItem.kind === "beat" ? stepItem.children?.[0]?.target ?? null : stepItem.target ?? null;
+    }
+    parseEdgeTarget(targetId) {
+        const connectors = ["<-->", "<->", "-->", "<--", "---", "--", "->", "<-"];
+        for (const connector of connectors) {
+            if (targetId.includes(connector)) {
+                const [from, to] = targetId.split(connector).map((part) => part.trim());
+                if (from && to)
+                    return { from, to };
+            }
+        }
+        return null;
+    }
+    splitEdgeTarget(targetId) {
+        const connectors = ["<-->", "<->", "-->", "<--", "---", "--", "->", "<-"];
+        for (const connector of connectors) {
+            if (targetId.includes(connector)) {
+                return targetId.split(connector).map((part) => part.trim()).filter(Boolean);
+            }
+        }
+        return [targetId.trim()];
+    }
+    showError(message) {
+        this.errorElement.textContent = message;
+        this.errorElement.classList.add("is-visible");
+    }
+    clearError() {
+        this.errorElement.textContent = "";
+        this.errorElement.classList.remove("is-visible");
+    }
+    stopMotion() {
+        if (this.motionFrame === null)
+            return;
+        cancelAnimationFrame(this.motionFrame);
+        this.motionFrame = null;
+    }
 }
 
 exports.ANIMATION_CSS = ANIMATION_CSS;
@@ -10761,6 +12102,9 @@ exports.BUILTIN_FONTS = BUILTIN_FONTS;
 exports.EventEmitter = EventEmitter;
 exports.PALETTES = PALETTES;
 exports.ParseError = ParseError;
+exports.SketchmarkCanvas = SketchmarkCanvas;
+exports.SketchmarkEditor = SketchmarkEditor;
+exports.SketchmarkEmbed = SketchmarkEmbed;
 exports.THEME_CONFIG_KEY = THEME_CONFIG_KEY;
 exports.THEME_NAMES = THEME_NAMES;
 exports.buildSceneGraph = buildSceneGraph;

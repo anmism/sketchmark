@@ -3,114 +3,128 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sketchmark — HTML Example</title>
+    <title>Sketchmark - HTML Embed Example</title>
     <style>
       *,
       *::before,
       *::after {
         box-sizing: border-box;
-        margin: 0;
-        padding: 0;
       }
 
       body {
+        margin: 0;
         min-height: 100vh;
-        background: #f8f4ea;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 20px;
-        font-family: monospace;
-      }
-
-      h1 {
-        font-size: 28px;
-        color: #1a1208;
-        margin-bottom: 6px;
-      }
-      h1 em {
-        color: #c85428;
-        font-style: italic;
-      }
-
-      p.sub {
-        font-size: 13px;
-        color: #9a7848;
-        margin-bottom: 40px;
-      }
-
-      #diagram {
-        margin-bottom: 20px;
-      }
-
-      #controls {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-
-      button {
-        background: #1a1208;
-        color: #f8f4ea;
-        border: none;
-        padding: 7px 16px;
+        display: grid;
+        place-items: center;
+        padding: 32px 18px;
+        background:
+          radial-gradient(circle at top, rgba(255, 232, 180, 0.42), transparent 32%),
+          linear-gradient(180deg, #fcf8ef 0%, #f4ebdb 100%);
+        color: #201208;
         font-family: "Courier New", monospace;
-        font-size: 11px;
-        letter-spacing: 0.04em;
-        cursor: pointer;
-        border-radius: 2px;
-        transition: background 0.15s;
-      }
-      button:hover:not(:disabled) {
-        background: #c85428;
-      }
-      button:disabled {
-        opacity: 0.4;
-        cursor: default;
       }
 
-      #step-info {
-        font-size: 12px;
-        color: #9a7848;
-        min-width: 80px;
+      .shell {
+        width: min(100%, 1080px);
+        display: grid;
+        gap: 18px;
+        justify-items: center;
+      }
+
+      .copy {
+        width: min(100%, 820px);
         text-align: center;
       }
 
-      #error {
-        color: #cc0000;
+      .eyebrow {
+        margin: 0 0 12px;
+        color: #9b6d32;
         font-size: 12px;
-        margin-top: 12px;
-        display: none;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 5vw, 42px);
+        line-height: 1.05;
+      }
+
+      .lede {
+        margin: 12px auto 0;
+        max-width: 700px;
+        color: #735431;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      #embed-root {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      button {
+        border: 1px solid #c29f63;
+        border-radius: 999px;
+        background: #1a1208;
+        color: #fff8ea;
+        padding: 10px 16px;
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+      }
+
+      button:hover {
+        background: #c85428;
+        border-color: #c85428;
+        transform: translateY(-1px);
+      }
+
+      .note {
+        margin: 0;
+        color: #876238;
+        font-size: 12px;
+        text-align: center;
       }
     </style>
   </head>
   <body>
-    <h1>✏ sketchmark</h1>
-    <p class="sub">
-      Hand-drawn diagrams from plain text — no build step needed
-    </p>
+    <section class="shell">
+      <div class="copy">
+        <p class="eyebrow">No Build Step</p>
+        <h1>Sketchmark HTML Embed</h1>
+        <p class="lede">
+          This plain HTML example uses <code>SketchmarkEmbed</code> from the CDN.
+          The diagram stays inside a fixed frame, clips overflow, and follows the
+          active step while the animation plays.
+        </p>
+      </div>
 
-    <div id="diagram"></div>
-    <p id="error"></p>
+      <div id="embed-root"></div>
 
-    <div id="controls">
-      <button id="btn-reset">↺ Reset</button>
-      <button id="btn-prev" disabled>← Prev</button>
-      <span id="step-info">—</span>
-      <button id="btn-next" disabled>→ Next</button>
-      <button id="btn-play">▶ Play</button>
-      <button id="btn-svg">↓ SVG</button>
-      <button id="btn-png">↓ PNG</button>
-    </div>
+      <div class="actions">
+        <button id="btn-svg" type="button">Download SVG</button>
+        <button id="btn-png" type="button">Download PNG</button>
+      </div>
+
+      <p class="note">
+        Playback controls live inside the embed itself.
+      </p>
+    </section>
 
     <script type="module">
-      import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
-      // ── DSL string ──────────────────────────────────────────
-      // Keep it at the top level — NOT indented inside render({}).
-      // Indentation becomes part of the string and breaks the parser.
+      import { SketchmarkEmbed } from "https://unpkg.com/sketchmark/dist/index.js";
+
       const dsl = `
 diagram
 title label="How the Internet Delivers a Webpage"
@@ -119,7 +133,6 @@ config gap=50
 config pointer=chalk
 config tts=on
 
-# Define named themes
 theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
 theme success fill="#e8ffe8" stroke="#007700" color="#004400"
 theme warning fill="#fff9e6" stroke="#f0a500" color="#7a5000"
@@ -127,10 +140,10 @@ theme muted   fill="#f5f5f5" stroke="#999999" color="#444444"
 
 box you     label="You"              theme=warning width=120 height=50
 box browser label="Browser"          theme=primary width=120 height=50
-box dns     label="DNS\nServer"      theme=muted   width=120 height=55
-box server  label="Web\nServer"      theme=success width=120 height=55
-box html    label="HTML\nCSS JS"     theme=primary width=120 height=55
-box screen  label="Rendered\nPage"   theme=warning width=120 height=55
+box dns     label="DNS\\nServer"      theme=muted   width=120 height=55
+box server  label="Web\\nServer"      theme=success width=120 height=55
+box html    label="HTML\\nCSS JS"     theme=primary width=120 height=55
+box screen  label="Rendered\\nPage"   theme=warning width=120 height=55
 
 you     --> browser label="types URL"
 browser --> dns     label="lookup"
@@ -139,19 +152,18 @@ browser --> server  label="request"
 server  --> html    label="responds"
 html    --> screen  label="renders"
 
-# Animation with narration, annotations, beats, and pacing
 step narrate "You type a website address into your browser" pace=slow
 step draw you
 step draw browser
 step draw you-->browser
 step underline you
-step narrate "The browser asks a DNS server — the internet's phone book"
+step narrate "The browser asks a DNS server, the internet's phone book"
 step draw dns
 step draw browser-->dns
 step circle dns
 step narrate "DNS translates the domain name into an IP address"
 step draw dns-->browser
-step narrate "Now the browser knows WHERE to go" pace=slow
+step narrate "Now the browser knows where to go" pace=slow
 beat {
   step draw server
   step draw browser-->server
@@ -168,78 +180,34 @@ step narrate "The browser assembles everything into the page you see"
 step draw html-->screen
 step draw screen pace=slow
 step bracket html screen
-step narrate "All of this happens in under a second!" pace=pause
+step narrate "All of this happens in under a second" pace=pause
 end
-`.trim();
+      `.trim();
 
-      // ── Render ──────────────────────────────────────────────
-      let instance;
-
-      try {
-        instance = render({
-          container: document.getElementById("diagram"),
-          dsl,
-          renderer: "svg",
-          svgOptions: {
-            showTitle: true,
-            interactive: true,
-            theme: "light",
-            transparent: true,
-          },
-        });
-      } catch (e) {
-        const errEl = document.getElementById("error");
-        errEl.textContent = "⚠ " + e.message;
-        errEl.style.display = "block";
-      }
-
-      // ── Animation controls ──────────────────────────────────
-      const { anim } = instance;
-
-      const stepInfo = document.getElementById("step-info");
-      const btnPrev = document.getElementById("btn-prev");
-      const btnNext = document.getElementById("btn-next");
-      const btnPlay = document.getElementById("btn-play");
-      const btnReset = document.getElementById("btn-reset");
-      const btnSvg = document.getElementById("btn-svg");
-      const btnPng = document.getElementById("btn-png");
-
-      function syncUI() {
-        btnPrev.disabled = !anim.canPrev;
-        btnNext.disabled = !anim.canNext;
-        stepInfo.textContent = !anim.total
-          ? "no steps"
-          : anim.currentStep < 0
-            ? `${anim.total} steps`
-            : `${anim.currentStep + 1} / ${anim.total}`;
-      }
-
-      syncUI();
-
-      btnReset.addEventListener("click", () => {
-        anim.reset();
-        syncUI();
-      });
-      btnPrev.addEventListener("click", () => {
-        anim.prev();
-        syncUI();
-      });
-      btnNext.addEventListener("click", () => {
-        anim.next();
-        syncUI();
+      const embed = new SketchmarkEmbed({
+        container: document.getElementById("embed-root"),
+        dsl,
+        width: "min(100%, 960px)",
+        height: 560,
+        playStepDelay: 700,
+        focusPadding: 32,
+        focusDuration: 240,
+        showControls: true,
+        theme: "light",
+        svgOptions: {
+          showTitle: true,
+          interactive: true,
+          transparent: true,
+        },
       });
 
-      btnPlay.addEventListener("click", async () => {
-        btnPlay.disabled = true;
-        btnPlay.textContent = "⏳ Playing";
-        await anim.play(700);
-        syncUI();
-        btnPlay.disabled = false;
-        btnPlay.textContent = "▶ Play";
+      document.getElementById("btn-svg").addEventListener("click", () => {
+        embed.exportSVG("html-example.svg");
       });
 
-      btnSvg.addEventListener("click", () => instance.exportSVG());
-      btnPng.addEventListener("click", () => instance.exportPNG());
+      document.getElementById("btn-png").addEventListener("click", () => {
+        void embed.exportPNG("html-example.png");
+      });
     </script>
   </body>
 </html>

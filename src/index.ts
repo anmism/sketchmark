@@ -1,169 +1,111 @@
 // ============================================================
-// sketchmark — Public API
+// sketchmark - Public API
 // ============================================================
 
-// ── Core Pipeline ─────────────────────────────────────────
-export { parse, ParseError }          from './parser';
-export type { DiagramAST }            from './parser';
-export { buildSceneGraph, nodeMap, groupMap,markdownMap } from './scene';  // ← added groupMap
-export type { SceneGraph, SceneNode, SceneEdge, SceneGroup,SceneMarkdown } from './scene';
-export { layout, connPoint }          from './layout';
-
-
-// ── Renderers ─────────────────────────────────────────────
-export { renderToSVG, svgToString } from './renderer/svg';
-export type { SVGRendererOptions }    from './renderer/svg';
-export { renderToCanvas, canvasToPNGBlob, canvasToPNGDataURL } from './renderer/canvas';
-export type { CanvasRendererOptions } from './renderer/canvas';
-
-// ── Animation ─────────────────────────────────────────────
-export { AnimationController, ANIMATION_CSS } from './animation';
-export type { AnimationEvent, AnimationEventType } from './animation';
-
-// ── Export System ─────────────────────────────────────────
-export {
-  exportSVG, exportPNG, exportCanvasPNG, exportHTML, exportGIF, exportMP4,
-  getSVGBlob, svgToPNGDataURL,
-} from './export';
-export type { ExportFormat, ExportOptions } from './export';
-
-// ── AST Types ─────────────────────────────────────────────
+// Core pipeline
+export { parse, ParseError } from "./parser";
+export type { DiagramAST } from "./parser";
+export { buildSceneGraph, nodeMap, groupMap, markdownMap } from "./scene";
 export type {
-  NodeShape, EdgeConnector, LayoutType,
-  AlignItems, JustifyContent,
-  AnimationAction, AnimationTrigger, StyleProps, StepPace,
-  ASTNode, ASTEdge, ASTGroup, ASTStep, ASTBeat, ASTStepItem, ASTChart, ASTTable,
-  GroupChildRef, RootItemRef, ASTMarkdown,
-} from './ast/types';
+  SceneGraph,
+  SceneNode,
+  SceneEdge,
+  SceneGroup,
+  SceneMarkdown,
+} from "./scene";
+export { layout, connPoint } from "./layout";
 
-// ── Utilities ─────────────────────────────────────────────
-export { hashStr, clamp, lerp, parseHex, sleep, throttle, debounce, EventEmitter } from './utils';
+// Renderers
+export { renderToSVG, svgToString } from "./renderer/svg";
+export type { SVGRendererOptions } from "./renderer/svg";
+export {
+  renderToCanvas,
+  canvasToPNGBlob,
+  canvasToPNGDataURL,
+} from "./renderer/canvas";
+export type { CanvasRendererOptions } from "./renderer/canvas";
 
-// ============================================================
-// High-level `render()` — one-call API
-// ============================================================
+// Animation
+export { AnimationController, ANIMATION_CSS } from "./animation";
+export type { AnimationEvent, AnimationEventType } from "./animation";
 
-import { parse }           from './parser';
-import { buildSceneGraph } from './scene';
-import { layout }          from './layout';
-import { renderToSVG }     from './renderer/svg';
-import rough               from 'roughjs/bin/rough';
-import { renderToCanvas }  from './renderer/canvas';
-import { AnimationController, ANIMATION_CSS } from './animation';
-import type { SVGRendererOptions }    from './renderer/svg';
-import type { CanvasRendererOptions } from './renderer/canvas';
+// Export system
+export {
+  exportSVG,
+  exportPNG,
+  exportCanvasPNG,
+  exportHTML,
+  exportGIF,
+  exportMP4,
+  getSVGBlob,
+  svgToPNGDataURL,
+} from "./export";
+export type { ExportFormat, ExportOptions } from "./export";
 
-export interface RenderOptions {
-  /** CSS selector, HTMLElement, or SVGSVGElement */
-  container: string | HTMLElement | SVGSVGElement;
-  /** DSL source text */
-  dsl: string;
-  /** 'svg' (default) | 'canvas' */
-  renderer?: 'svg' | 'canvas';
-  /** Inject animation CSS into <head> */
-  injectCSS?: boolean;
-  /** SVG-specific options */
-  svgOptions?: SVGRendererOptions;
-  /** Canvas-specific options */
-  canvasOptions?: CanvasRendererOptions;
-  /** Called when a node is clicked */
-  onNodeClick?: (nodeId: string) => void;
-  /** Callback with the AnimationController after render */
-  onReady?: (anim: AnimationController, svg?: SVGSVGElement) => void;
-}
+// AST types
+export type {
+  NodeShape,
+  EdgeConnector,
+  LayoutType,
+  AlignItems,
+  JustifyContent,
+  AnimationAction,
+  AnimationTrigger,
+  StyleProps,
+  StepPace,
+  ASTNode,
+  ASTEdge,
+  ASTGroup,
+  ASTStep,
+  ASTBeat,
+  ASTStepItem,
+  ASTChart,
+  ASTTable,
+  GroupChildRef,
+  RootItemRef,
+  ASTMarkdown,
+} from "./ast/types";
 
-export interface DiagramInstance {
-  scene:     ReturnType<typeof buildSceneGraph>;
-  anim:      AnimationController;
-  svg?:      SVGSVGElement;
-  canvas?:   HTMLCanvasElement;
-  /** Re-render with the same or updated options */
-  update:    (dsl: string) => DiagramInstance;
-  exportSVG: (filename?: string) => void;
-  exportPNG: (filename?: string) => Promise<void>;
-}
+// Utilities
+export {
+  hashStr,
+  clamp,
+  lerp,
+  parseHex,
+  sleep,
+  throttle,
+  debounce,
+  EventEmitter,
+} from "./utils";
 
-export function render(options: RenderOptions): DiagramInstance {
-  const {
-    container: rawContainer,
-    dsl,
-    renderer = 'svg',
-    injectCSS = true,
-    svgOptions = {},
-    canvasOptions = {},
-    onNodeClick,
-    onReady,
-  } = options;
+// High-level renderer
+export { render } from "./render";
+export type { RenderOptions, DiagramInstance } from "./render";
 
-  // Inject animation CSS once
-  if (injectCSS && !document.getElementById('ai-diagram-css')) {
-    const style = document.createElement('style');
-    style.id = 'ai-diagram-css';
-    style.textContent = ANIMATION_CSS;
-    document.head.appendChild(style);
-  }
+// UI widgets
+export { SketchmarkCanvas } from "./ui/canvas";
+export type {
+  SketchmarkCanvasOptions,
+  SketchmarkCanvasEvents,
+  SketchmarkCanvasBindEditorOptions,
+} from "./ui/canvas";
+export { SketchmarkEditor } from "./ui/editor";
+export type {
+  SketchmarkEditorOptions,
+  SketchmarkEditorEvents,
+} from "./ui/editor";
+export { SketchmarkEmbed } from "./ui/embed";
+export type {
+  SketchmarkEmbedOptions,
+  SketchmarkEmbedEvents,
+} from "./ui/embed";
 
-  // Resolve container
-  let el: HTMLElement | SVGSVGElement;
-  if (typeof rawContainer === 'string') {
-    el = document.querySelector(rawContainer) as HTMLElement;
-    if (!el) throw new Error(`Container "${rawContainer}" not found`);
-  } else {
-    el = rawContainer;
-  }
-
-  // Pipeline: DSL → AST → Scene → Layout → Render
-  const ast   = parse(dsl);
-  const scene = buildSceneGraph(ast);
-  layout(scene);
-
-  let svg:    SVGSVGElement | undefined;
-  let canvas: HTMLCanvasElement | undefined;
-  let anim:   AnimationController;
-
-  if (renderer === 'canvas') {
-    canvas = el instanceof HTMLCanvasElement
-      ? el
-      : (() => { const c = document.createElement('canvas'); (el as HTMLElement).appendChild(c); return c; })();
-    renderToCanvas(scene, canvas, canvasOptions);
-    anim = new AnimationController(
-      document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement,
-      ast.steps,
-    );
-  } else {
-    svg = renderToSVG(scene, el as HTMLElement, {
-      ...svgOptions,
-      interactive: true,
-      onNodeClick,
-    });
-    // Create rough.js instance for annotations (same import as SVG renderer)
-    let rc: any = null;
-    try {
-      rc = rough.svg(svg);
-    } catch { /* rough.js not available — annotations disabled */ }
-    const containerEl = el instanceof SVGSVGElement ? undefined : el as HTMLElement;
-    anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
-  }
-
-  onReady?.(anim, svg);
-
-  const instance: DiagramInstance = {
-    scene, anim, svg, canvas,
-    update: (newDsl: string) => { anim?.destroy(); return render({ ...options, dsl: newDsl }); },
-    exportSVG: (filename = 'diagram.svg') => {
-      if (svg) { import('./export').then(m => m.exportSVG(svg!, { filename })); }
-    },
-    exportPNG: async (filename = 'diagram.png') => {
-      if (svg) {
-        const m = await import('./export');
-        await m.exportPNG(svg, { filename });
-      }
-    },
-  };
-
-  return instance;
-}
-
-export { PALETTES, resolvePalette, THEME_CONFIG_KEY, listThemes, THEME_NAMES } from './theme';
-export { resolveFont, loadFont, registerFont, BUILTIN_FONTS } from './fonts';
-
+// Themes and fonts
+export {
+  PALETTES,
+  resolvePalette,
+  THEME_CONFIG_KEY,
+  listThemes,
+  THEME_NAMES,
+} from "./theme";
+export { resolveFont, loadFont, registerFont, BUILTIN_FONTS } from "./fonts";

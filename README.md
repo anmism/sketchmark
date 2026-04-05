@@ -68,6 +68,43 @@ const instance = render({
 });
 ```
 
+### Reusable UI Widgets
+
+```javascript
+import { SketchmarkCanvas, SketchmarkEditor } from 'sketchmark';
+
+const editor = new SketchmarkEditor({
+  container: document.getElementById('editor'),
+  value: `
+diagram
+box app label="App"
+box api label="API"
+app --> api
+end
+`.trim(),
+});
+
+const canvas = new SketchmarkCanvas({
+  container: document.getElementById('viewport'),
+});
+
+canvas.bindEditor(editor);
+```
+
+```javascript
+import { SketchmarkEmbed } from 'sketchmark';
+
+const embed = new SketchmarkEmbed({
+  container: document.getElementById('article-embed'),
+  dsl,
+  width: 960,
+  height: 540,
+  playStepDelay: 700,
+});
+```
+
+Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow and follow animation targets as steps advance.
+
 ---
 
 ## Framework Setup
