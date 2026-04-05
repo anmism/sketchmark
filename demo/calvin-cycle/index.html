@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Calvin Cycle — Sketchmark</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: #f8f4ea;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        font-family: monospace;
+      }
+
+      #diagram {
+        margin-bottom: 20px;
+      }
+
+      #controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      button {
+        background: #1a1208;
+        color: #f8f4ea;
+        border: none;
+        padding: 7px 16px;
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background 0.15s;
+      }
+      button:hover:not(:disabled) {
+        background: #2d8a4e;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      #step-info {
+        font-size: 12px;
+        color: #9a7848;
+        min-width: 80px;
+        text-align: center;
+      }
+
+      #error {
+        color: #cc0000;
+        font-size: 12px;
+        margin-top: 12px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="diagram"></div>
+    <p id="error"></p>
+
+    <div id="controls">
+      <button id="btn-reset">↺ Reset</button>
+      <button id="btn-prev" disabled>← Prev</button>
+      <span id="step-info">—</span>
+      <button id="btn-next" disabled>→ Next</button>
+      <button id="btn-play">▶ Play</button>
+      <button id="btn-svg">↓ SVG</button>
+      <button id="btn-png">↓ PNG</button>
+    </div>
+
+    <script type="module">
+      import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
+
+      const dsl = `
+diagram
+title label="The Calvin Cycle"
+layout column
+config gap=40
+config margin=50
+config pointer=chalk
+config tts=on
+config title-size=28
+config title-weight=700
+config font=patrick-hand
+
+# Themes
+theme input    fill="#e3f2fd" stroke="#1565c0" color="#0d47a1"
+theme co2      fill="#ffebee" stroke="#c62828" color="#b71c1c"
+theme cycle    fill="#fff9c4" stroke="#f9a825" color="#5d4037"
+theme energy   fill="#e8f5e9" stroke="#2e7d32" color="#1b5e20"
+theme product  fill="#f3e5f5" stroke="#7b1fa2" color="#4a148c"
+theme enzyme   fill="#fff3e0" stroke="#e65100" color="#bf360c"
+theme neutral  fill="#f5f5f5" stroke="#616161" color="#212121"
+theme light    fill="#fffde7" stroke="#f9a825" color="#f57f17"
+theme water    fill="#e0f7fa" stroke="#00838f" color="#006064"
+theme o2       fill="#e8eaf6" stroke="#283593" color="#1a237e"
+theme carbon   fill="#fce4ec" stroke="#880e4f" color="#880e4f"
+
+# === PHASE 1: INPUTS ===
+group inputs label="Inputs" layout=row gap=30 fill="#fafafa" stroke="#bdbdbd" padding=20 {
+  box h2o    label="6 H₂O\n(from soil)" theme=water width=110 height=55
+  box light  label="Photons\nof Light"   theme=light width=110 height=55
+  box co2in  label="6 CO₂\n(from air)"  theme=co2   width=110 height=55
+  box stomata label="Stomata"            theme=neutral width=100 height=45
+}
+
+# === PHASE 2: CARBON FIXATION ===
+group fixation label="Phase 1 — Carbon Fixation" layout=row gap=30 fill="#fff8e1" stroke="#ffb300" padding=20 {
+  box rubp    label="6 RuBP\n(5-carbon)" theme=cycle  width=130 height=55
+  box rubisco label="RuBisCO\n(enzyme)"  theme=enzyme width=130 height=55
+  box inter   label="6 Intermediate\n(6-carbon)" theme=cycle width=160 height=55
+}
+
+# === PHASE 3: REDUCTION ===
+group reduction label="Phase 2 — Reduction" layout=row gap=30 fill="#e8f5e9" stroke="#66bb6a" padding=20 {
+  box pga     label="12 PGA\n(3-carbon)" theme=cycle   width=130 height=55
+  box atp1    label="12 ATP"              theme=energy  width=90  height=45
+  box nadph   label="12 NADPH"            theme=energy  width=110 height=45
+  box pgal    label="12 PGAL\n(3-carbon)" theme=cycle   width=130 height=55
+}
+
+# === LIGHT REACTIONS ===
+group lightdep label="Light-Dependent Reactions\n(in thylakoids)" layout=column gap=15 fill="#e3f2fd" stroke="#1565c0" padding=20 {
+  box o2out  label="O₂\n(released)" theme=o2     width=110 height=50
+  box adp    label="12 ADP"         theme=neutral width=100 height=40
+  box nadp   label="12 NADP⁺"      theme=neutral width=110 height=40
+}
+
+# === PHASE 4: REGENERATION & OUTPUT ===
+group output label="Phase 3 — Regeneration & Output" layout=row gap=30 fill="#f3e5f5" stroke="#ab47bc" padding=20 {
+  box pgal10 label="10 PGAL\n(recycled)"  theme=cycle   width=140 height=55
+  box atp2   label="6 ATP\n(used)"        theme=energy  width=100 height=50
+  box pgal2  label="2 PGAL"               theme=product width=100 height=50
+  box glucose label="1 Glucose\n(C₆H₁₂O₆)" theme=product width=150 height=55
+}
+
+# === CARBON FIXATION NOTE ===
+markdown carbonnote width=220
+"""
+### Carbon Fixation
+Atmospheric **CO₂** (inorganic) is converted into **organic** compounds
+"""
+
+# === CONNECTIONS ===
+# Inputs flow
+co2in   -> rubisco  label="CO₂ enters"
+h2o     -> lightdep label="H₂O split"
+light   -> lightdep label="energy"
+stomata -> co2in    label="air intake"
+
+# Carbon fixation
+rubp    -> inter    label="combines\nwith CO₂"
+rubisco -> inter    label="catalyzes"
+
+# Reduction
+inter   -> pga     label="breaks apart"
+atp1    -> pgal    label="energy"
+nadph   -> pgal    label="electrons"
+pga     -> pgal    label="reduced"
+
+# Light reactions produce ATP and NADPH
+lightdep -> atp1   label="produces"
+lightdep -> nadph  label="produces"
+pgal    -> adp     label="returns"
+pgal    -> nadp    label="returns"
+
+# Regeneration & output
+pgal    -> pgal10  label="10 of 12"
+pgal    -> pgal2   label="2 of 12"
+pgal10  -> rubp    label="regenerates"
+atp2    -> pgal10  label="energy for\nregeneration"
+pgal2   -> glucose label="combine"
+
+# === ANIMATION ===
+step narrate "The Calvin Cycle converts CO₂ into glucose using energy from light reactions" pace=slow
+
+# Draw inputs
+step narrate "Water enters through roots, light hits the leaf, and CO₂ enters through stomata"
+beat {
+  step draw h2o
+  step draw light
+  step draw stomata
+}
+step draw co2in
+step draw stomata->co2in
+
+# Carbon fixation phase
+step narrate "Phase 1: Carbon Fixation — RuBisCO combines CO₂ with RuBP" pace=slow
+step draw rubp
+step draw rubisco
+step circle rubisco
+step draw co2in->rubisco
+step draw rubp->inter
+step draw rubisco->inter
+step draw inter
+step underline inter
+
+# Reduction phase
+step narrate "Phase 2: Reduction — ATP and NADPH convert PGA into PGAL"
+step draw inter->pga
+step draw pga
+
+# Light reactions
+step narrate "The light-dependent reactions in the thylakoids provide ATP and NADPH"
+step draw lightdep
+step draw o2out
+step draw h2o->lightdep
+step draw light->lightdep
+beat {
+  step draw atp1
+  step draw nadph
+}
+step draw lightdep->atp1
+step draw lightdep->nadph
+
+# PGAL production
+step narrate "PGA is reduced to PGAL using ATP and NADPH" pace=slow
+step draw atp1->pgal
+step draw nadph->pgal
+step draw pga->pgal
+step draw pgal
+step circle pgal
+
+# Return ADP and NADP+
+step narrate "Spent energy carriers return to light reactions"
+beat {
+  step draw adp
+  step draw nadp
+  step draw pgal->adp
+  step draw pgal->nadp
+}
+
+# Output phase
+step narrate "Phase 3: Of the 12 PGAL molecules, 10 are recycled and 2 make glucose" pace=slow
+step draw pgal->pgal10
+step draw pgal10
+step draw atp2
+step draw atp2->pgal10
+
+step narrate "The 10 PGAL molecules regenerate 6 RuBP — completing the cycle!"
+step draw pgal10->rubp
+step circle rubp
+
+step narrate "The remaining 2 PGAL combine to form 1 glucose molecule" pace=slow
+step draw pgal->pgal2
+step draw pgal2
+step draw pgal2->glucose
+step draw glucose
+step circle glucose
+
+step narrate "Carbon Fixation: atmospheric inorganic carbon becomes organic compounds"
+step draw carbonnote
+
+step narrate "The Calvin Cycle runs 6 times to produce 1 glucose from 6 CO₂!" pace=pause
+end
+`.trim();
+
+      let instance;
+
+      try {
+        instance = render({
+          container: document.getElementById("diagram"),
+          dsl,
+          renderer: "svg",
+          svgOptions: {
+            showTitle: true,
+            interactive: true,
+            theme: "light",
+            transparent: true,
+          },
+        });
+      } catch (e) {
+        const errEl = document.getElementById("error");
+        errEl.textContent = "⚠ " + e.message;
+        errEl.style.display = "block";
+      }
+
+      const { anim } = instance;
+
+      const stepInfo = document.getElementById("step-info");
+      const btnPrev = document.getElementById("btn-prev");
+      const btnNext = document.getElementById("btn-next");
+      const btnPlay = document.getElementById("btn-play");
+      const btnReset = document.getElementById("btn-reset");
+      const btnSvg = document.getElementById("btn-svg");
+      const btnPng = document.getElementById("btn-png");
+
+      function syncUI() {
+        btnPrev.disabled = !anim.canPrev;
+        btnNext.disabled = !anim.canNext;
+        stepInfo.textContent = !anim.total
+          ? "no steps"
+          : anim.currentStep < 0
+            ? `${anim.total} steps`
+            : `${anim.currentStep + 1} / ${anim.total}`;
+      }
+
+      syncUI();
+
+      btnReset.addEventListener("click", () => {
+        anim.reset();
+        syncUI();
+      });
+      btnPrev.addEventListener("click", () => {
+        anim.prev();
+        syncUI();
+      });
+      btnNext.addEventListener("click", () => {
+        anim.next();
+        syncUI();
+      });
+
+      btnPlay.addEventListener("click", async () => {
+        btnPlay.disabled = true;
+        btnPlay.textContent = "⏳ Playing";
+        await anim.play(700);
+        syncUI();
+        btnPlay.disabled = false;
+        btnPlay.textContent = "▶ Play";
+      });
+
+      btnSvg.addEventListener("click", () => instance.exportSVG());
+      btnPng.addEventListener("click", () => instance.exportPNG());
+    </script>
+  </body>
+</html>

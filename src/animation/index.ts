@@ -34,6 +34,31 @@ const getChartEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `chart-${id}`);
 const getMarkdownEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `markdown-${id}`);
+const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .mdg";
+
+function resolveNonEdgeDrawEl(svg: SVGSVGElement, target: string): SVGGElement | null {
+  return (
+    getGroupEl(svg, target) ??
+    getTableEl(svg, target) ??
+    getNoteEl(svg, target) ??
+    getChartEl(svg, target) ??
+    getMarkdownEl(svg, target) ??
+    getNodeEl(svg, target) ??
+    null
+  );
+}
+
+function hideDrawEl(el: SVGGElement): void {
+  if (el.classList.contains("ng")) {
+    el.classList.add("hidden");
+    return;
+  }
+  el.classList.add("gg-hidden");
+}
+
+function showDrawEl(el: SVGGElement): void {
+  el.classList.remove("hidden", "gg-hidden");
+}
 
 function resolveEl(svg: SVGSVGElement, target: string): SVGGElement | null {
   // check edge first — target contains connector like "a-->b"
@@ -42,12 +67,7 @@ function resolveEl(svg: SVGSVGElement, target: string): SVGGElement | null {
 
   // everything else resolved by prefixed id
   return (
-    getNodeEl(svg, target) ??
-    getGroupEl(svg, target) ??
-    getTableEl(svg, target) ??
-    getNoteEl(svg, target) ??
-    getChartEl(svg, target) ??
-    getMarkdownEl(svg, target) ??
+    resolveNonEdgeDrawEl(svg, target) ??
     null
   );
 }
@@ -263,6 +283,7 @@ function prepareNodeForDraw(el: SVGGElement): void {
 }
 
 function revealNodeInstant(el: SVGGElement): void {
+  showDrawEl(el);
   clearNodeDrawStyles(el);
 }
 
@@ -321,6 +342,7 @@ function animateTextReveal(textEl: SVGElement, delayMs: number, durationMs: numb
 }
 
 function animateNodeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStrokeDur): void {
+  showDrawEl(el);
   const guide = nodeGuidePathEl(el);
   if (!guide) {
     const firstPath = el.querySelector("path");
@@ -383,6 +405,19 @@ function flattenSteps(items: ASTStepItem[]): ASTStep[] {
     else out.push(item);
   }
   return out;
+}
+
+function forEachPlaybackStep(
+  items: ASTStepItem[],
+  visit: (step: ASTStep, stepIndex: number) => void,
+): void {
+  items.forEach((item, stepIndex) => {
+    if (item.kind === "beat") {
+      item.children.forEach((child) => visit(child, stepIndex));
+      return;
+    }
+    visit(item, stepIndex);
+  });
 }
 
 // ── Draw target helpers ───────────────────────────────────
@@ -615,6 +650,9 @@ export class AnimationController {
   readonly drawTargetNotes: Set<string>;
   readonly drawTargetCharts: Set<string>;
   readonly drawTargetMarkdowns: Set<string>;
+  private readonly _drawStepIndexByElementId: Map<string, number>;
+  private readonly _parentGroupByElementId: Map<string, string>;
+  private readonly _groupDescendantIds: Map<string, Set<string>>;
 
   // ── Narration caption ──
   private _captionEl: HTMLDivElement | null = null;
@@ -655,7 +693,7 @@ export class AnimationController {
 
     for (const s of flattenSteps(steps)) {
       if (s.action !== "draw" || parseEdgeTarget(s.target)) continue;
-      if (svg.querySelector(`#group-${s.target}`)) {
+      if (resolveNonEdgeDrawEl(svg, s.target)?.id === `group-${s.target}`) {
         this.drawTargetGroups.add(`group-${s.target}`);
         this.drawTargetNodes.delete(`node-${s.target}`);
       }
@@ -677,6 +715,11 @@ export class AnimationController {
       }
     }
 
+    this._drawStepIndexByElementId = this._buildDrawStepIndex();
+    const { parentGroupByElementId, groupDescendantIds } = this._buildGroupVisibilityIndex();
+    this._parentGroupByElementId = parentGroupByElementId;
+    this._groupDescendantIds = groupDescendantIds;
+
     this._clearAll();
 
     // Init narration caption
@@ -695,6 +738,121 @@ export class AnimationController {
     // Init TTS from config: `config tts=on`
     this._tts = this._config?.tts === true || this._config?.tts === "on";
     if (this._tts) this._warmUpSpeech();
+  }
+
+  private _buildDrawStepIndex(): Map<string, number> {
+    const drawStepIndexByElementId = new Map<string, number>();
+
+    forEachPlaybackStep(this.steps, (step, stepIndex) => {
+      if (step.action !== "draw" || parseEdgeTarget(step.target)) return;
+      const el = resolveNonEdgeDrawEl(this.svg, step.target);
+      if (el && !drawStepIndexByElementId.has(el.id)) {
+        drawStepIndexByElementId.set(el.id, stepIndex);
+      }
+    });
+
+    return drawStepIndexByElementId;
+  }
+
+  private _buildGroupVisibilityIndex(): {
+    parentGroupByElementId: Map<string, string>;
+    groupDescendantIds: Map<string, Set<string>>;
+  } {
+    const parentGroupByElementId = new Map<string, string>();
+    const directChildIdsByGroup = new Map<string, Set<string>>();
+
+    this.svg.querySelectorAll<SVGGElement>(POSITIONABLE_SELECTOR).forEach((el) => {
+      const parentGroupId = el.dataset.parentGroup;
+      if (!parentGroupId) return;
+
+      const parentGroupElId = `group-${parentGroupId}`;
+      parentGroupByElementId.set(el.id, parentGroupElId);
+      const children = directChildIdsByGroup.get(parentGroupElId) ?? new Set<string>();
+      children.add(el.id);
+      directChildIdsByGroup.set(parentGroupElId, children);
+    });
+
+    const groupDescendantIds = new Map<string, Set<string>>();
+    const visit = (groupElId: string): Set<string> => {
+      if (groupDescendantIds.has(groupElId)) return groupDescendantIds.get(groupElId)!;
+
+      const descendants = new Set<string>();
+      const directChildren = directChildIdsByGroup.get(groupElId);
+      if (directChildren) {
+        for (const childId of directChildren) {
+          descendants.add(childId);
+          if (childId.startsWith("group-")) {
+            visit(childId).forEach((nestedId) => descendants.add(nestedId));
+          }
+        }
+      }
+
+      groupDescendantIds.set(groupElId, descendants);
+      return descendants;
+    };
+
+    this.svg.querySelectorAll<SVGGElement>(".gg").forEach((el) => {
+      visit(el.id);
+    });
+
+    return { parentGroupByElementId, groupDescendantIds };
+  }
+
+  private _hideGroupDescendants(groupElId: string): void {
+    const descendants = this._groupDescendantIds.get(groupElId);
+    if (!descendants) return;
+
+    for (const descendantId of descendants) {
+      const el = getEl(this.svg, descendantId);
+      if (el) hideDrawEl(el);
+    }
+  }
+
+  private _isDeferredForGroupReveal(
+    elementId: string,
+    stepIndex: number,
+    groupElId: string,
+  ): boolean {
+    let currentId: string | undefined = elementId;
+
+    while (currentId) {
+      const firstDrawStep = this._drawStepIndexByElementId.get(currentId);
+      if (firstDrawStep != null && firstDrawStep > stepIndex) return true;
+      if (currentId === groupElId) break;
+      currentId = this._parentGroupByElementId.get(currentId);
+    }
+
+    return false;
+  }
+
+  private _revealGroupSubtree(groupElId: string, stepIndex: number): void {
+    const descendants = this._groupDescendantIds.get(groupElId);
+    if (!descendants) return;
+
+    for (const descendantId of descendants) {
+      if (this._isDeferredForGroupReveal(descendantId, stepIndex, groupElId)) continue;
+      const el = getEl(this.svg, descendantId);
+      if (el) showDrawEl(el);
+    }
+  }
+
+  private _resolveCascadeTargets(target: string): SVGGElement[] {
+    const edge = parseEdgeTarget(target);
+    if (edge) {
+      const el = getEdgeEl(this.svg, edge.from, edge.to);
+      return el ? [el] : [];
+    }
+
+    const el = resolveEl(this.svg, target);
+    if (!el) return [];
+    if (!el.id.startsWith("group-")) return [el];
+
+    const ids = new Set<string>([el.id]);
+    this._groupDescendantIds.get(el.id)?.forEach((id) => ids.add(id));
+
+    return Array.from(ids)
+      .map((id) => getEl(this.svg, id))
+      .filter((candidate): candidate is SVGGElement => candidate != null);
   }
 
   /** The narration caption element — mount it anywhere via `yourContainer.appendChild(anim.captionElement)` */
@@ -972,6 +1130,10 @@ export class AnimationController {
         el.classList.remove("hl", "faded");
       });
 
+    for (const groupElId of this.drawTargetGroups) {
+      this._hideGroupDescendants(groupElId);
+    }
+
     // Clear narration caption
     if (this._captionEl) {
       this._captionEl.style.opacity = "0";
@@ -1035,7 +1197,7 @@ export class AnimationController {
         this._doDraw(s, silent);
         break;
       case "erase":
-        this._doErase(s.target, s.duration);
+        this._doErase(s.target, silent, s.duration);
         break;
       case "show":
         this._doShowHide(s.target, true, silent, s.duration);
@@ -1092,7 +1254,9 @@ export class AnimationController {
 
   // ── fade / unfade ─────────────────────────────────────────
   private _doFade(target: string, doFade: boolean): void {
-    resolveEl(this.svg, target)?.classList.toggle("faded", doFade);
+    for (const el of this._resolveCascadeTargets(target)) {
+      el.classList.toggle("faded", doFade);
+    }
   }
 
   private _writeTransform(
@@ -1201,11 +1365,12 @@ export class AnimationController {
     // Check if target is a group (has #group-{target} element)
     const groupEl = getGroupEl(this.svg, target);
     if (groupEl) {
+      showDrawEl(groupEl);
+      this._revealGroupSubtree(groupEl.id, this._step);
       // ── Group draw ──────────────────────────────────────
       if (silent) {
         clearDrawStyles(groupEl);
         groupEl.style.transition = "none";
-        groupEl.classList.remove("gg-hidden");
         groupEl.style.opacity = "1";
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
@@ -1214,7 +1379,6 @@ export class AnimationController {
           }),
         );
       } else {
-        groupEl.classList.remove("gg-hidden");
         // Groups use slightly longer stroke-draw (bigger box, dashed border = more paths)
         const firstPath = groupEl.querySelector("path");
         if (!firstPath?.style.strokeDasharray) prepareForDraw(groupEl);
@@ -1337,6 +1501,7 @@ export class AnimationController {
     // ── Node draw ──────────────────────────────────────
     const nodeEl = getNodeEl(this.svg, target);
     if (!nodeEl) return;
+    showDrawEl(nodeEl);
     if (silent) {
       revealNodeInstant(nodeEl);
     } else {
@@ -1348,20 +1513,20 @@ export class AnimationController {
   }
 
   // ── erase ─────────────────────────────────────────────────
-  private _doErase(target: string, duration: number = 400): void {
-    const el = resolveEl(this.svg, target); // handles edges too now
-    if (el) {
-      el.style.transition = `opacity ${duration}ms`;
+  private _doErase(target: string, silent: boolean, duration: number = 400): void {
+    for (const el of this._resolveCascadeTargets(target)) {
+      el.style.transition = silent ? "none" : `opacity ${duration}ms`;
       el.style.opacity = "0";
     }
   }
 
   // ── show / hide ───────────────────────────────────────────
   private _doShowHide(target: string, show: boolean, silent: boolean, duration: number = 400): void {
-    const el = resolveEl(this.svg, target);
-    if (!el) return;
-    el.style.transition = silent ? "none" : `opacity ${duration}ms`;
-    el.style.opacity = show ? "1" : "0";
+    for (const el of this._resolveCascadeTargets(target)) {
+      if (show) showDrawEl(el);
+      el.style.transition = silent ? "none" : `opacity ${duration}ms`;
+      el.style.opacity = show ? "1" : "0";
+    }
   }
 
   // ── pulse ─────────────────────────────────────────────────

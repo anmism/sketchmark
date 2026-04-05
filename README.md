@@ -587,7 +587,7 @@ step <action> <target> [options]
 | Action | Target | Options | Description |
 |--------|--------|---------|-------------|
 | `highlight` | node/edge/group | — | Pulsing glow highlight (only one element at a time) |
-| `draw` | node/edge/group/table/chart/markdown | `duration=N` | Animated stroke-drawing reveal with text writing effect |
+| `draw` | node/edge/group/table/chart/markdown | `duration=N` | Animated reveal; drawing a group also reveals its subtree unless descendants have their own later draw step |
 | `fade` | node/edge/group | — | Fade to 22% opacity |
 | `unfade` | node/edge/group | — | Restore from fade |
 | `erase` | node/edge/group | `duration=N` | Fade to invisible (opacity 0) |
@@ -808,6 +808,20 @@ The pointer only appears during annotation steps — it follows the guide path a
 ### Pre-hidden Elements (Draw Targets)
 
 Any element targeted by a `step draw` action starts **hidden** and only appears when that step fires. Elements NOT targeted by `draw` are always visible.
+
+For groups, this applies to the whole subtree:
+
+- `step draw group1` pre-hides the group and all descendant nodes, nested groups, tables, charts, notes, and markdown blocks.
+- When the group step fires, descendants without their own later `draw` step are revealed immediately.
+- Descendants with an explicit later `draw` step stay hidden until that later step.
+- Edges are still independent; a group draw does not automatically reveal connected edges.
+
+For group targets, these actions also apply recursively to the same subtree:
+
+- `fade` / `unfade`
+- `show` / `hide`
+- `erase`
+- Edges still remain explicit for these actions too.
 
 ---
 

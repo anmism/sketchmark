@@ -7701,6 +7701,21 @@ function mkGroup(id, cls) {
         g.setAttribute("class", cls);
     return g;
 }
+function buildParentGroupLookup(sg) {
+    const parentGroups = new Map();
+    for (const g of sg.groups) {
+        if (g.parentId)
+            parentGroups.set(`group:${g.id}`, g.parentId);
+        for (const child of g.children) {
+            parentGroups.set(`${child.kind}:${child.id}`, g.id);
+        }
+    }
+    return parentGroups;
+}
+function setParentGroupData(el, groupId) {
+    if (groupId)
+        el.dataset.parentGroup = groupId;
+}
 // ── Node shapes ───────────────────────────────────────────────────────────
 function renderShape$1(rc, n, palette) {
     const s = n.style ?? {};
@@ -7797,6 +7812,7 @@ function renderToSVG(sg, container, options = {}) {
     }
     // ── Groups ───────────────────────────────────────────────
     const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
+    const parentGroups = buildParentGroupLookup(sg);
     const sortedGroups = [...sg.groups].sort((a, b) => groupDepth(a, gmMap) - groupDepth(b, gmMap));
     const GL = mkGroup("grp-layer");
     for (const g of sortedGroups) {
@@ -7804,6 +7820,7 @@ function renderToSVG(sg, container, options = {}) {
             continue;
         const gs = g.style ?? {};
         const gg = mkGroup(`group-${g.id}`, "gg");
+        setParentGroupData(gg, g.parentId);
         if (gs.opacity != null)
             gg.setAttribute("opacity", String(gs.opacity));
         gg.appendChild(rc.rectangle(g.x, g.y, g.w, g.h, {
@@ -7908,6 +7925,7 @@ function renderToSVG(sg, container, options = {}) {
         const idPrefix = shapeDef?.idPrefix ?? "node";
         const cssClass = shapeDef?.cssClass ?? "ng";
         const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
+        setParentGroupData(ng, n.groupId ?? parentGroups.get(`node:${n.id}`));
         ng.dataset.nodeShape = n.shape;
         ng.dataset.x = String(n.x);
         ng.dataset.y = String(n.y);
@@ -7989,6 +8007,7 @@ function renderToSVG(sg, container, options = {}) {
     const TL = mkGroup("table-layer");
     for (const t of sg.tables) {
         const tg = mkGroup(`table-${t.id}`, "tg");
+        setParentGroupData(tg, parentGroups.get(`table:${t.id}`));
         const gs = t.style ?? {};
         const fill = String(gs.fill ?? palette.tableFill);
         const strk = String(gs.stroke ?? palette.tableStroke);
@@ -8089,6 +8108,7 @@ function renderToSVG(sg, container, options = {}) {
     const MDL = mkGroup('markdown-layer');
     for (const m of sg.markdowns) {
         const mg = mkGroup(`markdown-${m.id}`, 'mdg');
+        setParentGroupData(mg, parentGroups.get(`markdown:${m.id}`));
         const gs = m.style ?? {};
         const mFont = resolveStyleFont(gs, diagramFont);
         const baseColor = String(gs.color ?? palette.nodeText);
@@ -8152,7 +8172,9 @@ function renderToSVG(sg, container, options = {}) {
     // ── Charts ────────────────────────────────────────────────
     const CL = mkGroup("chart-layer");
     for (const c of sg.charts) {
-        CL.appendChild(renderRoughChartSVG(rc, c, palette, themeName !== "light"));
+        const cg = renderRoughChartSVG(rc, c, palette, themeName !== "light");
+        setParentGroupData(cg, parentGroups.get(`chart:${c.id}`));
+        CL.appendChild(cg);
     }
     svg.appendChild(CL);
     return svg;
@@ -8865,18 +8887,33 @@ const getTableEl = (svg, id) => getEl(svg, `table-${id}`);
 const getNoteEl = (svg, id) => getEl(svg, `note-${id}`);
 const getChartEl = (svg, id) => getEl(svg, `chart-${id}`);
 const getMarkdownEl = (svg, id) => getEl(svg, `markdown-${id}`);
+const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .mdg";
+function resolveNonEdgeDrawEl(svg, target) {
+    return (getGroupEl(svg, target) ??
+        getTableEl(svg, target) ??
+        getNoteEl(svg, target) ??
+        getChartEl(svg, target) ??
+        getMarkdownEl(svg, target) ??
+        getNodeEl(svg, target) ??
+        null);
+}
+function hideDrawEl(el) {
+    if (el.classList.contains("ng")) {
+        el.classList.add("hidden");
+        return;
+    }
+    el.classList.add("gg-hidden");
+}
+function showDrawEl(el) {
+    el.classList.remove("hidden", "gg-hidden");
+}
 function resolveEl(svg, target) {
     // check edge first — target contains connector like "a-->b"
     const edge = parseEdgeTarget(target);
     if (edge)
         return getEdgeEl(svg, edge.from, edge.to);
     // everything else resolved by prefixed id
-    return (getNodeEl(svg, target) ??
-        getGroupEl(svg, target) ??
-        getTableEl(svg, target) ??
-        getNoteEl(svg, target) ??
-        getChartEl(svg, target) ??
-        getMarkdownEl(svg, target) ??
+    return (resolveNonEdgeDrawEl(svg, target) ??
         null);
 }
 function pathLength(p) {
@@ -9066,6 +9103,7 @@ function prepareNodeForDraw(el) {
     el.appendChild(guide);
 }
 function revealNodeInstant(el) {
+    showDrawEl(el);
     clearNodeDrawStyles(el);
 }
 // ── Text writing reveal (clipPath) ───────────────────────
@@ -9114,6 +9152,7 @@ function animateTextReveal(textEl, delayMs, durationMs = ANIMATION.textRevealMs)
     }, delayMs);
 }
 function animateNodeDraw(el, strokeDur = ANIMATION.nodeStrokeDur) {
+    showDrawEl(el);
     const guide = nodeGuidePathEl(el);
     if (!guide) {
         const firstPath = el.querySelector("path");
@@ -9167,6 +9206,15 @@ function flattenSteps(items) {
             out.push(item);
     }
     return out;
+}
+function forEachPlaybackStep(items, visit) {
+    items.forEach((item, stepIndex) => {
+        if (item.kind === "beat") {
+            item.children.forEach((child) => visit(child, stepIndex));
+            return;
+        }
+        visit(item, stepIndex);
+    });
 }
 // ── Draw target helpers ───────────────────────────────────
 function getDrawTargetEdgeIds(steps) {
@@ -9352,7 +9400,7 @@ class AnimationController {
         for (const s of flattenSteps(steps)) {
             if (s.action !== "draw" || parseEdgeTarget(s.target))
                 continue;
-            if (svg.querySelector(`#group-${s.target}`)) {
+            if (resolveNonEdgeDrawEl(svg, s.target)?.id === `group-${s.target}`) {
                 this.drawTargetGroups.add(`group-${s.target}`);
                 this.drawTargetNodes.delete(`node-${s.target}`);
             }
@@ -9373,6 +9421,10 @@ class AnimationController {
                 this.drawTargetNodes.delete(`node-${s.target}`);
             }
         }
+        this._drawStepIndexByElementId = this._buildDrawStepIndex();
+        const { parentGroupByElementId, groupDescendantIds } = this._buildGroupVisibilityIndex();
+        this._parentGroupByElementId = parentGroupByElementId;
+        this._groupDescendantIds = groupDescendantIds;
         this._clearAll();
         // Init narration caption
         if (this._container)
@@ -9390,6 +9442,104 @@ class AnimationController {
         this._tts = this._config?.tts === true || this._config?.tts === "on";
         if (this._tts)
             this._warmUpSpeech();
+    }
+    _buildDrawStepIndex() {
+        const drawStepIndexByElementId = new Map();
+        forEachPlaybackStep(this.steps, (step, stepIndex) => {
+            if (step.action !== "draw" || parseEdgeTarget(step.target))
+                return;
+            const el = resolveNonEdgeDrawEl(this.svg, step.target);
+            if (el && !drawStepIndexByElementId.has(el.id)) {
+                drawStepIndexByElementId.set(el.id, stepIndex);
+            }
+        });
+        return drawStepIndexByElementId;
+    }
+    _buildGroupVisibilityIndex() {
+        const parentGroupByElementId = new Map();
+        const directChildIdsByGroup = new Map();
+        this.svg.querySelectorAll(POSITIONABLE_SELECTOR).forEach((el) => {
+            const parentGroupId = el.dataset.parentGroup;
+            if (!parentGroupId)
+                return;
+            const parentGroupElId = `group-${parentGroupId}`;
+            parentGroupByElementId.set(el.id, parentGroupElId);
+            const children = directChildIdsByGroup.get(parentGroupElId) ?? new Set();
+            children.add(el.id);
+            directChildIdsByGroup.set(parentGroupElId, children);
+        });
+        const groupDescendantIds = new Map();
+        const visit = (groupElId) => {
+            if (groupDescendantIds.has(groupElId))
+                return groupDescendantIds.get(groupElId);
+            const descendants = new Set();
+            const directChildren = directChildIdsByGroup.get(groupElId);
+            if (directChildren) {
+                for (const childId of directChildren) {
+                    descendants.add(childId);
+                    if (childId.startsWith("group-")) {
+                        visit(childId).forEach((nestedId) => descendants.add(nestedId));
+                    }
+                }
+            }
+            groupDescendantIds.set(groupElId, descendants);
+            return descendants;
+        };
+        this.svg.querySelectorAll(".gg").forEach((el) => {
+            visit(el.id);
+        });
+        return { parentGroupByElementId, groupDescendantIds };
+    }
+    _hideGroupDescendants(groupElId) {
+        const descendants = this._groupDescendantIds.get(groupElId);
+        if (!descendants)
+            return;
+        for (const descendantId of descendants) {
+            const el = getEl(this.svg, descendantId);
+            if (el)
+                hideDrawEl(el);
+        }
+    }
+    _isDeferredForGroupReveal(elementId, stepIndex, groupElId) {
+        let currentId = elementId;
+        while (currentId) {
+            const firstDrawStep = this._drawStepIndexByElementId.get(currentId);
+            if (firstDrawStep != null && firstDrawStep > stepIndex)
+                return true;
+            if (currentId === groupElId)
+                break;
+            currentId = this._parentGroupByElementId.get(currentId);
+        }
+        return false;
+    }
+    _revealGroupSubtree(groupElId, stepIndex) {
+        const descendants = this._groupDescendantIds.get(groupElId);
+        if (!descendants)
+            return;
+        for (const descendantId of descendants) {
+            if (this._isDeferredForGroupReveal(descendantId, stepIndex, groupElId))
+                continue;
+            const el = getEl(this.svg, descendantId);
+            if (el)
+                showDrawEl(el);
+        }
+    }
+    _resolveCascadeTargets(target) {
+        const edge = parseEdgeTarget(target);
+        if (edge) {
+            const el = getEdgeEl(this.svg, edge.from, edge.to);
+            return el ? [el] : [];
+        }
+        const el = resolveEl(this.svg, target);
+        if (!el)
+            return [];
+        if (!el.id.startsWith("group-"))
+            return [el];
+        const ids = new Set([el.id]);
+        this._groupDescendantIds.get(el.id)?.forEach((id) => ids.add(id));
+        return Array.from(ids)
+            .map((id) => getEl(this.svg, id))
+            .filter((candidate) => candidate != null);
     }
     /** The narration caption element — mount it anywhere via `yourContainer.appendChild(anim.captionElement)` */
     get captionElement() {
@@ -9660,6 +9810,9 @@ class AnimationController {
             el.style.opacity = "";
             el.classList.remove("hl", "faded");
         });
+        for (const groupElId of this.drawTargetGroups) {
+            this._hideGroupDescendants(groupElId);
+        }
         // Clear narration caption
         if (this._captionEl) {
             this._captionEl.style.opacity = "0";
@@ -9722,7 +9875,7 @@ class AnimationController {
                 this._doDraw(s, silent);
                 break;
             case "erase":
-                this._doErase(s.target, s.duration);
+                this._doErase(s.target, silent, s.duration);
                 break;
             case "show":
                 this._doShowHide(s.target, true, silent, s.duration);
@@ -9778,7 +9931,9 @@ class AnimationController {
     }
     // ── fade / unfade ─────────────────────────────────────────
     _doFade(target, doFade) {
-        resolveEl(this.svg, target)?.classList.toggle("faded", doFade);
+        for (const el of this._resolveCascadeTargets(target)) {
+            el.classList.toggle("faded", doFade);
+        }
     }
     _writeTransform(el, target, silent, duration = 420) {
         const t = this._transforms.get(target) ?? {
@@ -9877,11 +10032,12 @@ class AnimationController {
         // Check if target is a group (has #group-{target} element)
         const groupEl = getGroupEl(this.svg, target);
         if (groupEl) {
+            showDrawEl(groupEl);
+            this._revealGroupSubtree(groupEl.id, this._step);
             // ── Group draw ──────────────────────────────────────
             if (silent) {
                 clearDrawStyles(groupEl);
                 groupEl.style.transition = "none";
-                groupEl.classList.remove("gg-hidden");
                 groupEl.style.opacity = "1";
                 requestAnimationFrame(() => requestAnimationFrame(() => {
                     groupEl.style.transition = "";
@@ -9889,7 +10045,6 @@ class AnimationController {
                 }));
             }
             else {
-                groupEl.classList.remove("gg-hidden");
                 // Groups use slightly longer stroke-draw (bigger box, dashed border = more paths)
                 const firstPath = groupEl.querySelector("path");
                 if (!firstPath?.style.strokeDasharray)
@@ -10000,6 +10155,7 @@ class AnimationController {
         const nodeEl = getNodeEl(this.svg, target);
         if (!nodeEl)
             return;
+        showDrawEl(nodeEl);
         if (silent) {
             revealNodeInstant(nodeEl);
         }
@@ -10011,20 +10167,20 @@ class AnimationController {
         }
     }
     // ── erase ─────────────────────────────────────────────────
-    _doErase(target, duration = 400) {
-        const el = resolveEl(this.svg, target); // handles edges too now
-        if (el) {
-            el.style.transition = `opacity ${duration}ms`;
+    _doErase(target, silent, duration = 400) {
+        for (const el of this._resolveCascadeTargets(target)) {
+            el.style.transition = silent ? "none" : `opacity ${duration}ms`;
             el.style.opacity = "0";
         }
     }
     // ── show / hide ───────────────────────────────────────────
     _doShowHide(target, show, silent, duration = 400) {
-        const el = resolveEl(this.svg, target);
-        if (!el)
-            return;
-        el.style.transition = silent ? "none" : `opacity ${duration}ms`;
-        el.style.opacity = show ? "1" : "0";
+        for (const el of this._resolveCascadeTargets(target)) {
+            if (show)
+                showDrawEl(el);
+            el.style.transition = silent ? "none" : `opacity ${duration}ms`;
+            el.style.opacity = show ? "1" : "0";
+        }
     }
     // ── pulse ─────────────────────────────────────────────────
     _doPulse(target, duration = 500) {

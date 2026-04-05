@@ -29,6 +29,9 @@ export declare class AnimationController {
     readonly drawTargetNotes: Set<string>;
     readonly drawTargetCharts: Set<string>;
     readonly drawTargetMarkdowns: Set<string>;
+    private readonly _drawStepIndexByElementId;
+    private readonly _parentGroupByElementId;
+    private readonly _groupDescendantIds;
     private _captionEl;
     private _captionTextEl;
     private _annotationLayer;
@@ -39,6 +42,12 @@ export declare class AnimationController {
     private _speechDone;
     get drawTargets(): Set<string>;
     constructor(svg: SVGSVGElement, steps: ASTStepItem[], _container?: HTMLElement | undefined, _rc?: any | undefined, _config?: Record<string, string | number | boolean> | undefined);
+    private _buildDrawStepIndex;
+    private _buildGroupVisibilityIndex;
+    private _hideGroupDescendants;
+    private _isDeferredForGroupReveal;
+    private _revealGroupSubtree;
+    private _resolveCascadeTargets;
     /** The narration caption element — mount it anywhere via `yourContainer.appendChild(anim.captionElement)` */
     get captionElement(): HTMLDivElement | null;
     /** Enable/disable browser text-to-speech for narrate steps */

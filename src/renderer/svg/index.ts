@@ -187,6 +187,23 @@ function mkGroup(id?: string, cls?: string): SVGGElement {
   return g;
 }
 
+function buildParentGroupLookup(sg: SceneGraph): Map<string, string> {
+  const parentGroups = new Map<string, string>();
+
+  for (const g of sg.groups) {
+    if (g.parentId) parentGroups.set(`group:${g.id}`, g.parentId);
+    for (const child of g.children) {
+      parentGroups.set(`${child.kind}:${child.id}`, g.id);
+    }
+  }
+
+  return parentGroups;
+}
+
+function setParentGroupData(el: SVGGElement, groupId?: string): void {
+  if (groupId) el.dataset.parentGroup = groupId;
+}
+
 
 // ── Node shapes ───────────────────────────────────────────────────────────
 function renderShape(
@@ -337,6 +354,7 @@ export function renderToSVG(
 
   // ── Groups ───────────────────────────────────────────────
   const gmMap = new Map(sg.groups.map((g) => [g.id, g]));
+  const parentGroups = buildParentGroupLookup(sg);
   const sortedGroups = [...sg.groups].sort(
     (a, b) => groupDepth(a, gmMap) - groupDepth(b, gmMap),
   );
@@ -346,6 +364,7 @@ export function renderToSVG(
     if (!g.w) continue;
     const gs = g.style ?? {};
     const gg = mkGroup(`group-${g.id}`, "gg");
+    setParentGroupData(gg, g.parentId);
 
     if (gs.opacity != null) gg.setAttribute("opacity", String(gs.opacity));
 
@@ -505,6 +524,7 @@ export function renderToSVG(
     const idPrefix = shapeDef?.idPrefix ?? "node";
     const cssClass = shapeDef?.cssClass ?? "ng";
     const ng = mkGroup(`${idPrefix}-${n.id}`, cssClass);
+    setParentGroupData(ng, n.groupId ?? parentGroups.get(`node:${n.id}`));
     ng.dataset.nodeShape = n.shape;
     ng.dataset.x = String(n.x);
     ng.dataset.y = String(n.y);
@@ -605,6 +625,7 @@ export function renderToSVG(
   const TL = mkGroup("table-layer");
   for (const t of sg.tables) {
     const tg = mkGroup(`table-${t.id}`, "tg");
+    setParentGroupData(tg, parentGroups.get(`table:${t.id}`));
     const gs = t.style ?? {};
     const fill = String(gs.fill ?? palette.tableFill);
     const strk = String(gs.stroke ?? palette.tableStroke);
@@ -755,6 +776,7 @@ export function renderToSVG(
  
   for (const m of sg.markdowns) {
     const mg         = mkGroup(`markdown-${m.id}`, 'mdg');
+    setParentGroupData(mg, parentGroups.get(`markdown:${m.id}`));
     const gs         = m.style ?? {};
     const mFont      = resolveStyleFont(gs as Record<string,unknown>, diagramFont);
     const baseColor  = String(gs.color ?? palette.nodeText);
@@ -822,7 +844,9 @@ export function renderToSVG(
   // ── Charts ────────────────────────────────────────────────
   const CL = mkGroup("chart-layer");
   for (const c of sg.charts) {
-    CL.appendChild(renderRoughChartSVG(rc, c, palette, themeName !== "light"));
+    const cg = renderRoughChartSVG(rc, c, palette, themeName !== "light");
+    setParentGroupData(cg, parentGroups.get(`chart:${c.id}`));
+    CL.appendChild(cg);
   }
   svg.appendChild(CL);
 
