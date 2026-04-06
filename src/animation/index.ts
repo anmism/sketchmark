@@ -891,7 +891,16 @@ export class AnimationController {
 
   /** Enable/disable browser text-to-speech for narrate steps */
   get tts(): boolean { return this._tts; }
-  set tts(on: boolean) { this._tts = on; if (!on) this._cancelSpeech(); }
+  set tts(on: boolean) {
+    const next = !!on;
+    const changed = next !== this._tts;
+    this._tts = next;
+    if (!next) {
+      this._cancelSpeech();
+      return;
+    }
+    if (changed) this._warmUpSpeech();
+  }
 
   get currentStep(): number {
     return this._step;

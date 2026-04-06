@@ -107,6 +107,12 @@ const EMBED_CSS = `
   color: #fff;
 }
 
+.skm-embed__button.is-active {
+  background: #c8a060;
+  border-color: #c8a060;
+  color: #fff;
+}
+
 .skm-embed--dark .skm-embed__button {
   border-color: #4a3520;
   background: #22190e;
@@ -158,6 +164,8 @@ export interface SketchmarkEmbedOptions {
   height?: EmbedSize;
   theme?: EmbedTheme;
   showControls?: boolean;
+  showCaption?: boolean;
+  tts?: boolean;
   playStepDelay?: number;
   fitPadding?: number;
   zoomMin?: number;
@@ -197,10 +205,14 @@ export class SketchmarkEmbed {
   private readonly btnFit: HTMLButtonElement;
   private readonly btnZoomIn: HTMLButtonElement;
   private readonly btnZoomOut: HTMLButtonElement;
+  private readonly btnCaption: HTMLButtonElement;
+  private readonly btnTts: HTMLButtonElement;
   private animUnsub: (() => void) | null = null;
   private playInFlight = false;
   private dsl: string;
   private theme: EmbedTheme;
+  private showCaption = true;
+  private ttsOverride: boolean | null = null;
   private zoom = 1;
   private offsetX = 0;
   private offsetY = 0;
@@ -212,6 +224,8 @@ export class SketchmarkEmbed {
     this.options = options;
     this.dsl = normalizeNewlines(options.dsl);
     this.theme = options.theme ?? "light";
+    this.showCaption = options.showCaption !== false;
+    this.ttsOverride = typeof options.tts === "boolean" ? options.tts : null;
 
     injectStyleOnce(EMBED_STYLE_ID, EMBED_CSS);
 
@@ -243,6 +257,10 @@ export class SketchmarkEmbed {
           <button type="button" class="skm-embed__button" data-action="next">Next</button>
           <button type="button" class="skm-embed__button" data-action="play">Play</button>
         </div>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="toggle-caption">Caption On</button>
+          <button type="button" class="skm-embed__button" data-action="toggle-tts">TTS Off</button>
+        </div>
         <span class="skm-embed__step">No steps</span>
       </div>
     `;
@@ -261,6 +279,8 @@ export class SketchmarkEmbed {
     this.btnPrev = this.root.querySelector('[data-action="prev"]') as HTMLButtonElement;
     this.btnNext = this.root.querySelector('[data-action="next"]') as HTMLButtonElement;
     this.btnPlay = this.root.querySelector('[data-action="play"]') as HTMLButtonElement;
+    this.btnCaption = this.root.querySelector('[data-action="toggle-caption"]') as HTMLButtonElement;
+    this.btnTts = this.root.querySelector('[data-action="toggle-tts"]') as HTMLButtonElement;
 
     this.controlsElement.classList.toggle("is-hidden", options.showControls === false);
 
@@ -273,6 +293,8 @@ export class SketchmarkEmbed {
     this.btnPlay.addEventListener("click", () => {
       void this.play();
     });
+    this.btnCaption.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
+    this.btnTts.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
 
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(() => {
@@ -292,6 +314,18 @@ export class SketchmarkEmbed {
   setDsl(dsl: string, renderNow = false): void {
     this.dsl = normalizeNewlines(dsl);
     if (renderNow) this.render();
+  }
+
+  setCaptionVisible(visible: boolean): void {
+    this.showCaption = visible;
+    this.applyCaptionVisibility(this.instance);
+    this.syncToggleControls();
+  }
+
+  setTtsEnabled(enabled: boolean): void {
+    this.ttsOverride = enabled;
+    this.applyTtsSetting(this.instance);
+    this.syncToggleControls();
   }
 
   setSize(width?: EmbedSize, height?: EmbedSize): void {
@@ -347,6 +381,8 @@ export class SketchmarkEmbed {
       });
 
       this.instance = instance;
+      this.applyCaptionVisibility(instance);
+      this.applyTtsSetting(instance);
       this.animUnsub = instance.anim.on((event) => {
         this.syncControls();
         if (event.type === "step-change") {
@@ -459,6 +495,7 @@ export class SketchmarkEmbed {
   private syncControls(): void {
     this.syncAnimationControls();
     this.syncViewControls();
+    this.syncToggleControls();
   }
 
   private syncAnimationControls(): void {
@@ -647,6 +684,41 @@ export class SketchmarkEmbed {
     this.zoom = clampedZoom;
     this.applyTransform();
     this.syncViewControls();
+  }
+
+  private applyCaptionVisibility(instance: DiagramInstance | null): void {
+    const caption = instance?.anim.captionElement;
+    if (!caption) return;
+    caption.style.display = this.showCaption ? "" : "none";
+    caption.setAttribute("aria-hidden", this.showCaption ? "false" : "true");
+  }
+
+  private applyTtsSetting(instance: DiagramInstance | null): void {
+    if (!instance || this.ttsOverride === null) return;
+    instance.anim.tts = this.ttsOverride;
+  }
+
+  private getTtsEnabled(): boolean {
+    if (this.ttsOverride !== null) return this.ttsOverride;
+    return !!this.instance?.anim.tts;
+  }
+
+  private syncToggleControls(): void {
+    const hasView = !!this.instance?.svg;
+    const canToggleTts =
+      hasView &&
+      typeof speechSynthesis !== "undefined";
+    const ttsEnabled = this.getTtsEnabled();
+
+    this.btnCaption.textContent = this.showCaption ? "Caption On" : "Caption Off";
+    this.btnCaption.classList.toggle("is-active", this.showCaption);
+    this.btnCaption.setAttribute("aria-pressed", this.showCaption ? "true" : "false");
+    this.btnCaption.disabled = !hasView;
+
+    this.btnTts.textContent = ttsEnabled ? "TTS On" : "TTS Off";
+    this.btnTts.classList.toggle("is-active", ttsEnabled);
+    this.btnTts.setAttribute("aria-pressed", ttsEnabled ? "true" : "false");
+    this.btnTts.disabled = !canToggleTts;
   }
 
   private getTargetBox(

@@ -19,6 +19,8 @@ export interface SketchmarkCanvasOptions {
     showAnimationBar?: boolean;
     showControls?: boolean;
     showMinimap?: boolean;
+    showCaption?: boolean;
+    tts?: boolean;
     svgOptions?: SVGRendererOptions;
     canvasOptions?: CanvasRendererOptions;
     onNodeClick?: (nodeId: string) => void;
@@ -71,11 +73,15 @@ export declare class SketchmarkCanvas {
     private readonly prevButton;
     private readonly nextButton;
     private readonly resetButton;
+    private readonly captionButton;
+    private readonly ttsButton;
     private readonly gridPattern;
     private readonly gridDot;
     private readonly renderer;
     private dsl;
     private theme;
+    private showCaption;
+    private ttsOverride;
     private panX;
     private panY;
     private zoom;
@@ -99,6 +105,8 @@ export declare class SketchmarkCanvas {
     constructor(options: SketchmarkCanvasOptions);
     getDsl(): string;
     setDsl(dsl: string, renderNow?: boolean): void;
+    setCaptionVisible(visible: boolean): void;
+    setTtsEnabled(enabled: boolean): void;
     bindEditor(editor: SketchmarkEditor, options?: SketchmarkCanvasBindEditorOptions): () => void;
     on<K extends keyof SketchmarkCanvasEvents>(event: K, listener: (payload: SketchmarkCanvasEvents[K]) => void): () => void;
     render(nextDsl?: string): DiagramInstance | null;
@@ -112,6 +120,10 @@ export declare class SketchmarkCanvas {
     destroy(): void;
     private applyTransform;
     private zoomTo;
+    private applyCaptionVisibility;
+    private applyTtsSetting;
+    private getTtsEnabled;
+    private syncToggleUi;
     private syncAnimationUi;
     private getStepTarget;
     private getStepLabel;

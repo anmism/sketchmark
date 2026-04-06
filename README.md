@@ -86,6 +86,8 @@ end
 
 const canvas = new SketchmarkCanvas({
   container: document.getElementById('viewport'),
+  showCaption: false,
+  tts: true,
 });
 
 canvas.bindEditor(editor);
@@ -100,13 +102,15 @@ const embed = new SketchmarkEmbed({
   width: 960,
   height: 540,
   playStepDelay: 700,
+  showCaption: false,
+  tts: true,
   fitPadding: 24,
   zoomMin: 0.08,
   zoomMax: 4,
 });
 ```
 
-Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, and expose built-in `+`, `-`, and reset-to-fit controls alongside step playback.
+Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, and expose built-in zoom, playback, caption, and TTS controls.
 
 ---
 
@@ -663,6 +667,8 @@ step narrate "This is the most important step" pace=slow
 
 - Caption is rendered as a fixed-position `<div>` on `document.body` (independent of diagram pan/zoom).
 - Access via `anim.captionElement` to reparent it anywhere.
+- `SketchmarkCanvas` and `SketchmarkEmbed` support `showCaption: false` to hide the caption bar UI.
+- Both widget UIs also include a built-in caption toggle button by default.
 - Supports built-in browser text-to-speech (see [TTS](#text-to-speech)).
 
 ### Annotations
@@ -804,6 +810,10 @@ anim.tts = false;          // disable (stops current speech)
 // Reparent the narration caption to a custom container
 myDiv.appendChild(anim.captionElement);
 
+// UI widgets can suppress the visible caption bar
+const embed = new SketchmarkEmbed({ container, dsl, showCaption: false });
+embed.setCaptionVisible(true);
+
 // Event listener
 const unsub = anim.on((event) => {
   console.log(event.type);      // 'step-change' | 'animation-start' | 'animation-end' | 'animation-reset'
@@ -816,7 +826,7 @@ unsub(); // unsubscribe
 
 ### Text-to-Speech
 
-Enable browser-native speech synthesis for narrate steps:
+Enable browser-native speech synthesis for narrate steps. You can drive it from the diagram config or from the JS API. If both are provided, the JS option wins. `SketchmarkCanvas` and `SketchmarkEmbed` also include a built-in TTS toggle button by default.
 
 ```
 # In DSL
@@ -824,8 +834,17 @@ config tts=on
 ```
 
 ```javascript
-// Or via API
+// Direct render option
+const instance = render({ container, dsl, tts: true });
+
+// Widget options
+const canvas = new SketchmarkCanvas({ container, dsl, tts: true });
+const embed = new SketchmarkEmbed({ container, dsl, tts: true });
+
+// Or toggle at runtime
 anim.tts = true;
+canvas.setTtsEnabled(false);
+embed.setTtsEnabled(true);
 
 // Custom TTS (e.g. ElevenLabs) via event listener
 anim.tts = false; // disable built-in
@@ -1216,6 +1235,7 @@ interface RenderOptions {
   dsl:            string;                               // DSL source text
   renderer?:      'svg' | 'canvas';                    // default: 'svg'
   injectCSS?:     boolean;                              // inject animation CSS (default: true)
+  tts?:           boolean;                              // override diagram TTS config
   svgOptions?:    SVGRendererOptions;
   canvasOptions?: CanvasRendererOptions;
   onNodeClick?:   (nodeId: string) => void;            // click handler

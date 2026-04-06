@@ -11,6 +11,8 @@ export interface SketchmarkEmbedOptions {
     height?: EmbedSize;
     theme?: EmbedTheme;
     showControls?: boolean;
+    showCaption?: boolean;
+    tts?: boolean;
     playStepDelay?: number;
     fitPadding?: number;
     zoomMin?: number;
@@ -57,10 +59,14 @@ export declare class SketchmarkEmbed {
     private readonly btnFit;
     private readonly btnZoomIn;
     private readonly btnZoomOut;
+    private readonly btnCaption;
+    private readonly btnTts;
     private animUnsub;
     private playInFlight;
     private dsl;
     private theme;
+    private showCaption;
+    private ttsOverride;
     private zoom;
     private offsetX;
     private offsetY;
@@ -70,6 +76,8 @@ export declare class SketchmarkEmbed {
     constructor(options: SketchmarkEmbedOptions);
     getDsl(): string;
     setDsl(dsl: string, renderNow?: boolean): void;
+    setCaptionVisible(visible: boolean): void;
+    setTtsEnabled(enabled: boolean): void;
     setSize(width?: EmbedSize, height?: EmbedSize): void;
     setTheme(theme: EmbedTheme): void;
     on<K extends keyof SketchmarkEmbedEvents>(event: K, listener: (payload: SketchmarkEmbedEvents[K]) => void): () => void;
@@ -100,6 +108,10 @@ export declare class SketchmarkEmbed {
     private getZoomMax;
     private zoomAroundViewportCenter;
     private zoomTo;
+    private applyCaptionVisibility;
+    private applyTtsSetting;
+    private getTtsEnabled;
+    private syncToggleControls;
     private getTargetBox;
     private getFocusTarget;
     private findTargetElement;

@@ -16,13 +16,14 @@ import type { SketchmarkEditor } from "./editor";
 const CANVAS_STYLE_ID = "sketchmark-canvas-ui";
 const CANVAS_CSS = `
 .skm-canvas{display:flex;flex-direction:column;width:100%;height:100%;min-height:320px;overflow:hidden;border:1px solid #caba98;border-radius:10px;background:#f8f4ea;color:#3a2010;font-family:"Courier New",monospace}
-.skm-canvas__animbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#eee7d8;border-bottom:1px solid #caba98;flex-shrink:0}
+.skm-canvas__animbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#eee7d8;border-bottom:1px solid #caba98;flex-shrink:0;flex-wrap:wrap}
 .skm-canvas__status{min-width:96px;text-align:center;color:#6a4820;font-size:11px}
 .skm-canvas__label{color:#8a6040;font-size:11px;font-style:italic}
 .skm-canvas__spacer{flex:1}
 .skm-canvas__stats{color:#9a7848;font-size:10px}
 .skm-canvas__button{border:1px solid #caba98;background:#f5eedd;color:#3a2010;border-radius:6px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease}
 .skm-canvas__button:hover:not(:disabled){background:#c8a060;border-color:#c8a060;color:#fff}
+.skm-canvas__button.is-active{background:#c8a060;border-color:#c8a060;color:#fff}
 .skm-canvas__button:disabled{opacity:.45;cursor:default}
 .skm-canvas__error{display:none;padding:8px 12px;background:#280a0a;border-bottom:1px solid #5a1818;color:#f07070;font-size:11px;line-height:1.4;white-space:pre-wrap;flex-shrink:0}
 .skm-canvas__error.is-visible{display:block}
@@ -55,6 +56,8 @@ export interface SketchmarkCanvasOptions {
   showAnimationBar?: boolean;
   showControls?: boolean;
   showMinimap?: boolean;
+  showCaption?: boolean;
+  tts?: boolean;
   svgOptions?: SVGRendererOptions;
   canvasOptions?: CanvasRendererOptions;
   onNodeClick?: (nodeId: string) => void;
@@ -104,12 +107,16 @@ export class SketchmarkCanvas {
   private readonly prevButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
   private readonly resetButton: HTMLButtonElement;
+  private readonly captionButton: HTMLButtonElement;
+  private readonly ttsButton: HTMLButtonElement;
   private readonly gridPattern: SVGPatternElement;
   private readonly gridDot: SVGCircleElement;
   private readonly renderer: "svg" | "canvas";
 
   private dsl = "";
   private theme: CanvasTheme;
+  private showCaption = true;
+  private ttsOverride: boolean | null = null;
   private panX = 60;
   private panY = 60;
   private zoom = 1;
@@ -196,6 +203,8 @@ export class SketchmarkCanvas {
     this.options = options;
     this.renderer = options.renderer ?? "svg";
     this.theme = options.theme ?? "light";
+    this.showCaption = options.showCaption !== false;
+    this.ttsOverride = typeof options.tts === "boolean" ? options.tts : null;
     this.dsl = normalizeNewlines(options.dsl ?? "");
     injectStyleOnce(CANVAS_STYLE_ID, CANVAS_CSS);
 
@@ -217,6 +226,8 @@ export class SketchmarkCanvas {
         <span class="skm-canvas__status">No steps</span>
         <button type="button" class="skm-canvas__button" data-action="next">Next</button>
         <button type="button" class="skm-canvas__button" data-action="play">Play</button>
+        <button type="button" class="skm-canvas__button" data-action="toggle-caption">Caption On</button>
+        <button type="button" class="skm-canvas__button" data-action="toggle-tts">TTS Off</button>
         <span class="skm-canvas__label"></span>
         <span class="skm-canvas__spacer"></span>
         <span class="skm-canvas__stats"></span>
@@ -252,6 +263,8 @@ export class SketchmarkCanvas {
     this.prevButton = this.root.querySelector('[data-action="prev"]') as HTMLButtonElement;
     this.nextButton = this.root.querySelector('[data-action="next"]') as HTMLButtonElement;
     this.resetButton = this.root.querySelector('[data-action="reset"]') as HTMLButtonElement;
+    this.captionButton = this.root.querySelector('[data-action="toggle-caption"]') as HTMLButtonElement;
+    this.ttsButton = this.root.querySelector('[data-action="toggle-tts"]') as HTMLButtonElement;
     this.gridPattern = this.root.querySelector(`#${patternId}`) as SVGPatternElement;
     this.gridDot = this.gridPattern.querySelector("circle") as SVGCircleElement;
 
@@ -263,6 +276,8 @@ export class SketchmarkCanvas {
     this.prevButton.addEventListener("click", () => this.prevStep());
     this.nextButton.addEventListener("click", () => this.nextStep());
     this.playButton.addEventListener("click", () => void this.play());
+    this.captionButton.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
+    this.ttsButton.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
 
     this.viewport.addEventListener("pointerdown", this.onPointerDown);
     this.viewport.addEventListener("pointermove", this.onPointerMove);
@@ -285,6 +300,18 @@ export class SketchmarkCanvas {
   setDsl(dsl: string, renderNow = false): void {
     this.dsl = normalizeNewlines(dsl);
     if (renderNow) this.render();
+  }
+
+  setCaptionVisible(visible: boolean): void {
+    this.showCaption = visible;
+    this.applyCaptionVisibility(this.instance);
+    this.syncToggleUi();
+  }
+
+  setTtsEnabled(enabled: boolean): void {
+    this.ttsOverride = enabled;
+    this.applyTtsSetting(this.instance);
+    this.syncToggleUi();
   }
 
   bindEditor(editor: SketchmarkEditor, options: SketchmarkCanvasBindEditorOptions = {}): () => void {
@@ -330,6 +357,8 @@ export class SketchmarkCanvas {
         onNodeClick: this.options.onNodeClick,
       });
       this.instance = instance;
+      this.applyCaptionVisibility(instance);
+      this.applyTtsSetting(instance);
       this.statsLabel.textContent = `${instance.scene.nodes.length}n / ${instance.scene.edges.length}e / ${instance.scene.groups.length}g`;
       if (this.renderer === "svg") {
         this.animUnsub = instance.anim.on((event) => {
@@ -462,6 +491,41 @@ export class SketchmarkCanvas {
     this.applyTransform();
   }
 
+  private applyCaptionVisibility(instance: DiagramInstance | null): void {
+    const caption = instance?.anim.captionElement;
+    if (!caption) return;
+    caption.style.display = this.showCaption ? "" : "none";
+    caption.setAttribute("aria-hidden", this.showCaption ? "false" : "true");
+  }
+
+  private applyTtsSetting(instance: DiagramInstance | null): void {
+    if (!instance || this.ttsOverride === null) return;
+    instance.anim.tts = this.ttsOverride;
+  }
+
+  private getTtsEnabled(): boolean {
+    if (this.ttsOverride !== null) return this.ttsOverride;
+    return !!this.instance?.anim.tts;
+  }
+
+  private syncToggleUi(): void {
+    const canToggleCaption = this.renderer === "svg" && !!this.instance;
+    const canToggleTts =
+      canToggleCaption &&
+      typeof speechSynthesis !== "undefined";
+    const ttsEnabled = this.getTtsEnabled();
+
+    this.captionButton.textContent = this.showCaption ? "Caption On" : "Caption Off";
+    this.captionButton.classList.toggle("is-active", this.showCaption);
+    this.captionButton.setAttribute("aria-pressed", this.showCaption ? "true" : "false");
+    this.captionButton.disabled = !canToggleCaption;
+
+    this.ttsButton.textContent = ttsEnabled ? "TTS On" : "TTS Off";
+    this.ttsButton.classList.toggle("is-active", ttsEnabled);
+    this.ttsButton.setAttribute("aria-pressed", ttsEnabled ? "true" : "false");
+    this.ttsButton.disabled = !canToggleTts;
+  }
+
   private syncAnimationUi(): void {
     const anim = this.instance?.anim;
     const canAnimate = this.renderer === "svg" && !!anim && anim.total > 0;
@@ -472,6 +536,7 @@ export class SketchmarkCanvas {
       this.nextButton.disabled = true;
       this.resetButton.disabled = true;
       this.playButton.disabled = true;
+      this.syncToggleUi();
       return;
     }
     this.stepDisplay.textContent = anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
@@ -480,6 +545,7 @@ export class SketchmarkCanvas {
     this.nextButton.disabled = !anim.canNext;
     this.resetButton.disabled = false;
     this.playButton.disabled = this.playInFlight || !anim.canNext;
+    this.syncToggleUi();
   }
 
   private getStepTarget(stepItem?: ASTStepItem): string | null {

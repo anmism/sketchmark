@@ -13,6 +13,7 @@ export interface RenderOptions {
   dsl: string;
   renderer?: "svg" | "canvas";
   injectCSS?: boolean;
+  tts?: boolean;
   svgOptions?: SVGRendererOptions;
   canvasOptions?: CanvasRendererOptions;
   onNodeClick?: (nodeId: string) => void;
@@ -35,6 +36,7 @@ export function render(options: RenderOptions): DiagramInstance {
     dsl,
     renderer = "svg",
     injectCSS = true,
+    tts,
     svgOptions = {},
     canvasOptions = {},
     onNodeClick,
@@ -94,6 +96,10 @@ export function render(options: RenderOptions): DiagramInstance {
 
     const containerEl = el instanceof SVGSVGElement ? undefined : (el as HTMLElement);
     anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
+  }
+
+  if (typeof tts === "boolean") {
+    anim.tts = tts;
   }
 
   onReady?.(anim, svg);

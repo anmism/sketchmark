@@ -9444,8 +9444,17 @@ var AIDiagram = (function (exports) {
         }
         /** Enable/disable browser text-to-speech for narrate steps */
         get tts() { return this._tts; }
-        set tts(on) { this._tts = on; if (!on)
-            this._cancelSpeech(); }
+        set tts(on) {
+            const next = !!on;
+            const changed = next !== this._tts;
+            this._tts = next;
+            if (!next) {
+                this._cancelSpeech();
+                return;
+            }
+            if (changed)
+                this._warmUpSpeech();
+        }
         get currentStep() {
             return this._step;
         }
@@ -10724,7 +10733,7 @@ var AIDiagram = (function (exports) {
     }
 
     function render(options) {
-        const { container: rawContainer, dsl, renderer = "svg", injectCSS = true, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
+        const { container: rawContainer, dsl, renderer = "svg", injectCSS = true, tts, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
         if (injectCSS && !document.getElementById("ai-diagram-css")) {
             const style = document.createElement("style");
             style.id = "ai-diagram-css";
@@ -10772,6 +10781,9 @@ var AIDiagram = (function (exports) {
             }
             const containerEl = el instanceof SVGSVGElement ? undefined : el;
             anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
+        }
+        if (typeof tts === "boolean") {
+            anim.tts = tts;
         }
         onReady?.(anim, svg);
         return {
@@ -10824,13 +10836,14 @@ var AIDiagram = (function (exports) {
     const CANVAS_STYLE_ID = "sketchmark-canvas-ui";
     const CANVAS_CSS = `
 .skm-canvas{display:flex;flex-direction:column;width:100%;height:100%;min-height:320px;overflow:hidden;border:1px solid #caba98;border-radius:10px;background:#f8f4ea;color:#3a2010;font-family:"Courier New",monospace}
-.skm-canvas__animbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#eee7d8;border-bottom:1px solid #caba98;flex-shrink:0}
+.skm-canvas__animbar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#eee7d8;border-bottom:1px solid #caba98;flex-shrink:0;flex-wrap:wrap}
 .skm-canvas__status{min-width:96px;text-align:center;color:#6a4820;font-size:11px}
 .skm-canvas__label{color:#8a6040;font-size:11px;font-style:italic}
 .skm-canvas__spacer{flex:1}
 .skm-canvas__stats{color:#9a7848;font-size:10px}
 .skm-canvas__button{border:1px solid #caba98;background:#f5eedd;color:#3a2010;border-radius:6px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease}
 .skm-canvas__button:hover:not(:disabled){background:#c8a060;border-color:#c8a060;color:#fff}
+.skm-canvas__button.is-active{background:#c8a060;border-color:#c8a060;color:#fff}
 .skm-canvas__button:disabled{opacity:.45;cursor:default}
 .skm-canvas__error{display:none;padding:8px 12px;background:#280a0a;border-bottom:1px solid #5a1818;color:#f07070;font-size:11px;line-height:1.4;white-space:pre-wrap;flex-shrink:0}
 .skm-canvas__error.is-visible{display:block}
@@ -10852,6 +10865,8 @@ var AIDiagram = (function (exports) {
             this.instance = null;
             this.emitter = new EventEmitter();
             this.dsl = "";
+            this.showCaption = true;
+            this.ttsOverride = null;
             this.panX = 60;
             this.panY = 60;
             this.zoom = 1;
@@ -10939,6 +10954,8 @@ var AIDiagram = (function (exports) {
             this.options = options;
             this.renderer = options.renderer ?? "svg";
             this.theme = options.theme ?? "light";
+            this.showCaption = options.showCaption !== false;
+            this.ttsOverride = typeof options.tts === "boolean" ? options.tts : null;
             this.dsl = normalizeNewlines(options.dsl ?? "");
             injectStyleOnce(CANVAS_STYLE_ID, CANVAS_CSS);
             const host = resolveContainer(options.container);
@@ -10957,6 +10974,8 @@ var AIDiagram = (function (exports) {
         <span class="skm-canvas__status">No steps</span>
         <button type="button" class="skm-canvas__button" data-action="next">Next</button>
         <button type="button" class="skm-canvas__button" data-action="play">Play</button>
+        <button type="button" class="skm-canvas__button" data-action="toggle-caption">Caption On</button>
+        <button type="button" class="skm-canvas__button" data-action="toggle-tts">TTS Off</button>
         <span class="skm-canvas__label"></span>
         <span class="skm-canvas__spacer"></span>
         <span class="skm-canvas__stats"></span>
@@ -10991,6 +11010,8 @@ var AIDiagram = (function (exports) {
             this.prevButton = this.root.querySelector('[data-action="prev"]');
             this.nextButton = this.root.querySelector('[data-action="next"]');
             this.resetButton = this.root.querySelector('[data-action="reset"]');
+            this.captionButton = this.root.querySelector('[data-action="toggle-caption"]');
+            this.ttsButton = this.root.querySelector('[data-action="toggle-tts"]');
             this.gridPattern = this.root.querySelector(`#${patternId}`);
             this.gridDot = this.gridPattern.querySelector("circle");
             this.root.querySelector('[data-action="fit"]')?.addEventListener("click", () => this.fitContent());
@@ -11001,6 +11022,8 @@ var AIDiagram = (function (exports) {
             this.prevButton.addEventListener("click", () => this.prevStep());
             this.nextButton.addEventListener("click", () => this.nextStep());
             this.playButton.addEventListener("click", () => void this.play());
+            this.captionButton.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
+            this.ttsButton.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
             this.viewport.addEventListener("pointerdown", this.onPointerDown);
             this.viewport.addEventListener("pointermove", this.onPointerMove);
             this.viewport.addEventListener("pointerup", this.onStopPanning);
@@ -11021,6 +11044,16 @@ var AIDiagram = (function (exports) {
             this.dsl = normalizeNewlines(dsl);
             if (renderNow)
                 this.render();
+        }
+        setCaptionVisible(visible) {
+            this.showCaption = visible;
+            this.applyCaptionVisibility(this.instance);
+            this.syncToggleUi();
+        }
+        setTtsEnabled(enabled) {
+            this.ttsOverride = enabled;
+            this.applyTtsSetting(this.instance);
+            this.syncToggleUi();
         }
         bindEditor(editor, options = {}) {
             this.editorCleanup?.();
@@ -11066,6 +11099,8 @@ var AIDiagram = (function (exports) {
                     onNodeClick: this.options.onNodeClick,
                 });
                 this.instance = instance;
+                this.applyCaptionVisibility(instance);
+                this.applyTtsSetting(instance);
                 this.statsLabel.textContent = `${instance.scene.nodes.length}n / ${instance.scene.edges.length}e / ${instance.scene.groups.length}g`;
                 if (this.renderer === "svg") {
                     this.animUnsub = instance.anim.on((event) => {
@@ -11198,6 +11233,37 @@ var AIDiagram = (function (exports) {
             this.zoom = clampedZoom;
             this.applyTransform();
         }
+        applyCaptionVisibility(instance) {
+            const caption = instance?.anim.captionElement;
+            if (!caption)
+                return;
+            caption.style.display = this.showCaption ? "" : "none";
+            caption.setAttribute("aria-hidden", this.showCaption ? "false" : "true");
+        }
+        applyTtsSetting(instance) {
+            if (!instance || this.ttsOverride === null)
+                return;
+            instance.anim.tts = this.ttsOverride;
+        }
+        getTtsEnabled() {
+            if (this.ttsOverride !== null)
+                return this.ttsOverride;
+            return !!this.instance?.anim.tts;
+        }
+        syncToggleUi() {
+            const canToggleCaption = this.renderer === "svg" && !!this.instance;
+            const canToggleTts = canToggleCaption &&
+                typeof speechSynthesis !== "undefined";
+            const ttsEnabled = this.getTtsEnabled();
+            this.captionButton.textContent = this.showCaption ? "Caption On" : "Caption Off";
+            this.captionButton.classList.toggle("is-active", this.showCaption);
+            this.captionButton.setAttribute("aria-pressed", this.showCaption ? "true" : "false");
+            this.captionButton.disabled = !canToggleCaption;
+            this.ttsButton.textContent = ttsEnabled ? "TTS On" : "TTS Off";
+            this.ttsButton.classList.toggle("is-active", ttsEnabled);
+            this.ttsButton.setAttribute("aria-pressed", ttsEnabled ? "true" : "false");
+            this.ttsButton.disabled = !canToggleTts;
+        }
         syncAnimationUi() {
             const anim = this.instance?.anim;
             const canAnimate = this.renderer === "svg" && !!anim && anim.total > 0;
@@ -11208,6 +11274,7 @@ var AIDiagram = (function (exports) {
                 this.nextButton.disabled = true;
                 this.resetButton.disabled = true;
                 this.playButton.disabled = true;
+                this.syncToggleUi();
                 return;
             }
             this.stepDisplay.textContent = anim.currentStep < 0 ? `${anim.total} steps` : `${anim.currentStep + 1} / ${anim.total}`;
@@ -11216,6 +11283,7 @@ var AIDiagram = (function (exports) {
             this.nextButton.disabled = !anim.canNext;
             this.resetButton.disabled = false;
             this.playButton.disabled = this.playInFlight || !anim.canNext;
+            this.syncToggleUi();
         }
         getStepTarget(stepItem) {
             if (!stepItem)
@@ -11915,6 +11983,12 @@ var AIDiagram = (function (exports) {
   color: #fff;
 }
 
+.skm-embed__button.is-active {
+  background: #c8a060;
+  border-color: #c8a060;
+  color: #fff;
+}
+
 .skm-embed--dark .skm-embed__button {
   border-color: #4a3520;
   background: #22190e;
@@ -11961,6 +12035,8 @@ var AIDiagram = (function (exports) {
             this.emitter = new EventEmitter();
             this.animUnsub = null;
             this.playInFlight = false;
+            this.showCaption = true;
+            this.ttsOverride = null;
             this.zoom = 1;
             this.offsetX = 0;
             this.offsetY = 0;
@@ -11970,6 +12046,8 @@ var AIDiagram = (function (exports) {
             this.options = options;
             this.dsl = normalizeNewlines(options.dsl);
             this.theme = options.theme ?? "light";
+            this.showCaption = options.showCaption !== false;
+            this.ttsOverride = typeof options.tts === "boolean" ? options.tts : null;
             injectStyleOnce(EMBED_STYLE_ID, EMBED_CSS);
             const host = resolveContainer(options.container);
             host.innerHTML = "";
@@ -11997,6 +12075,10 @@ var AIDiagram = (function (exports) {
           <button type="button" class="skm-embed__button" data-action="next">Next</button>
           <button type="button" class="skm-embed__button" data-action="play">Play</button>
         </div>
+        <div class="skm-embed__controls-group">
+          <button type="button" class="skm-embed__button" data-action="toggle-caption">Caption On</button>
+          <button type="button" class="skm-embed__button" data-action="toggle-tts">TTS Off</button>
+        </div>
         <span class="skm-embed__step">No steps</span>
       </div>
     `;
@@ -12014,6 +12096,8 @@ var AIDiagram = (function (exports) {
             this.btnPrev = this.root.querySelector('[data-action="prev"]');
             this.btnNext = this.root.querySelector('[data-action="next"]');
             this.btnPlay = this.root.querySelector('[data-action="play"]');
+            this.btnCaption = this.root.querySelector('[data-action="toggle-caption"]');
+            this.btnTts = this.root.querySelector('[data-action="toggle-tts"]');
             this.controlsElement.classList.toggle("is-hidden", options.showControls === false);
             this.btnFit.addEventListener("click", () => this.resetView());
             this.btnZoomIn.addEventListener("click", () => this.zoomIn());
@@ -12024,6 +12108,8 @@ var AIDiagram = (function (exports) {
             this.btnPlay.addEventListener("click", () => {
                 void this.play();
             });
+            this.btnCaption.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
+            this.btnTts.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
             if (typeof ResizeObserver !== "undefined") {
                 this.resizeObserver = new ResizeObserver(() => {
                     this.positionViewport(false);
@@ -12040,6 +12126,16 @@ var AIDiagram = (function (exports) {
             this.dsl = normalizeNewlines(dsl);
             if (renderNow)
                 this.render();
+        }
+        setCaptionVisible(visible) {
+            this.showCaption = visible;
+            this.applyCaptionVisibility(this.instance);
+            this.syncToggleControls();
+        }
+        setTtsEnabled(enabled) {
+            this.ttsOverride = enabled;
+            this.applyTtsSetting(this.instance);
+            this.syncToggleControls();
         }
         setSize(width, height) {
             this.applySize(width, height);
@@ -12085,6 +12181,8 @@ var AIDiagram = (function (exports) {
                     onNodeClick: this.options.onNodeClick,
                 });
                 this.instance = instance;
+                this.applyCaptionVisibility(instance);
+                this.applyTtsSetting(instance);
                 this.animUnsub = instance.anim.on((event) => {
                     this.syncControls();
                     if (event.type === "step-change") {
@@ -12189,6 +12287,7 @@ var AIDiagram = (function (exports) {
         syncControls() {
             this.syncAnimationControls();
             this.syncViewControls();
+            this.syncToggleControls();
         }
         syncAnimationControls() {
             const anim = this.instance?.anim;
@@ -12349,6 +12448,37 @@ var AIDiagram = (function (exports) {
             this.zoom = clampedZoom;
             this.applyTransform();
             this.syncViewControls();
+        }
+        applyCaptionVisibility(instance) {
+            const caption = instance?.anim.captionElement;
+            if (!caption)
+                return;
+            caption.style.display = this.showCaption ? "" : "none";
+            caption.setAttribute("aria-hidden", this.showCaption ? "false" : "true");
+        }
+        applyTtsSetting(instance) {
+            if (!instance || this.ttsOverride === null)
+                return;
+            instance.anim.tts = this.ttsOverride;
+        }
+        getTtsEnabled() {
+            if (this.ttsOverride !== null)
+                return this.ttsOverride;
+            return !!this.instance?.anim.tts;
+        }
+        syncToggleControls() {
+            const hasView = !!this.instance?.svg;
+            const canToggleTts = hasView &&
+                typeof speechSynthesis !== "undefined";
+            const ttsEnabled = this.getTtsEnabled();
+            this.btnCaption.textContent = this.showCaption ? "Caption On" : "Caption Off";
+            this.btnCaption.classList.toggle("is-active", this.showCaption);
+            this.btnCaption.setAttribute("aria-pressed", this.showCaption ? "true" : "false");
+            this.btnCaption.disabled = !hasView;
+            this.btnTts.textContent = ttsEnabled ? "TTS On" : "TTS Off";
+            this.btnTts.classList.toggle("is-active", ttsEnabled);
+            this.btnTts.setAttribute("aria-pressed", ttsEnabled ? "true" : "false");
+            this.btnTts.disabled = !canToggleTts;
         }
         getTargetBox(target, viewportRect) {
             if (target instanceof SVGGraphicsElement) {

@@ -7,6 +7,7 @@ export interface RenderOptions {
     dsl: string;
     renderer?: "svg" | "canvas";
     injectCSS?: boolean;
+    tts?: boolean;
     svgOptions?: SVGRendererOptions;
     canvasOptions?: CanvasRendererOptions;
     onNodeClick?: (nodeId: string) => void;
