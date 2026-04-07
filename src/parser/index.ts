@@ -343,6 +343,8 @@ export function parse(src: string): DiagramAST {
       label: props.label || "",
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
+      ...(props.x ? { x: parseFloat(props.x) } : {}),
+      ...(props.y ? { y: parseFloat(props.y) } : {}),
       ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
       ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
       ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
@@ -387,6 +389,12 @@ export function parse(src: string): DiagramAST {
       style: propsToStyle(props),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
+      ...(props.x ? { x: parseFloat(props.x) } : {}),
+      ...(props.y ? { y: parseFloat(props.y) } : {}),
+      ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
+      ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
+      ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
+      ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
     };
   }
 
@@ -446,6 +454,8 @@ export function parse(src: string): DiagramAST {
       justify: props.justify as JustifyContent | undefined,
       theme: props.theme,
       style: propsToStyle(props),
+      x: props.x !== undefined ? parseFloat(props.x) : undefined,
+      y: props.y !== undefined ? parseFloat(props.y) : undefined,
       width: props.width !== undefined ? parseFloat(props.width) : undefined,
       height: props.height !== undefined ? parseFloat(props.height) : undefined,
     };
@@ -639,6 +649,8 @@ export function parse(src: string): DiagramAST {
       chartType: chartType.replace("-chart", "") as ASTChart["chartType"],
       label: props.label ?? props.title,
       data: { headers, rows },
+      x: props.x ? parseFloat(props.x) : undefined,
+      y: props.y ? parseFloat(props.y) : undefined,
       width: props.width ? parseFloat(props.width) : undefined,
       height: props.height ? parseFloat(props.height) : undefined,
       theme: props.theme,
@@ -671,6 +683,8 @@ export function parse(src: string): DiagramAST {
       id,
       label: props.label ?? "",
       rows: [],
+      x: props.x ? parseFloat(props.x) : undefined,
+      y: props.y ? parseFloat(props.y) : undefined,
       theme: props.theme,
       style: propsToStyle(props),
     };
@@ -734,6 +748,8 @@ export function parse(src: string): DiagramAST {
       kind: "markdown",
       id,
       content: content.trim(),
+      x: props.x ? parseFloat(props.x) : undefined,
+      y: props.y ? parseFloat(props.y) : undefined,
       width: props.width ? parseFloat(props.width) : undefined,
       height: props.height ? parseFloat(props.height) : undefined,
       theme: props.theme,

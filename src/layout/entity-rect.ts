@@ -15,6 +15,8 @@ export interface EntityRect {
   y: number;
   w: number;
   h: number;
+  authoredX?: number;
+  authoredY?: number;
 }
 
 export function buildEntityMap(sg: SceneGraph): Map<string, EntityRect> {

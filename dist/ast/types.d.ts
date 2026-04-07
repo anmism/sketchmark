@@ -1,6 +1,6 @@
 export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon' | 'note' | 'line' | 'path';
 export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
-export type LayoutType = 'row' | 'column' | 'grid';
+export type LayoutType = 'row' | 'column' | 'grid' | 'absolute';
 export type AlignItems = 'start' | 'center' | 'end';
 export type JustifyContent = 'start' | 'center' | 'end' | 'space-between' | 'space-around';
 export type AnimationAction = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate' | 'narrate' | 'circle' | 'underline' | 'crossout' | 'bracket' | 'tick' | 'strikeoff';
@@ -65,6 +65,8 @@ export interface ASTNode {
     pathData?: string;
     width?: number;
     height?: number;
+    x?: number;
+    y?: number;
     deg?: number;
     dx?: number;
     dy?: number;
@@ -98,6 +100,8 @@ export interface ASTGroup {
     justify?: JustifyContent;
     theme?: string;
     style?: StyleProps;
+    x?: number;
+    y?: number;
     width?: number;
     height?: number;
 }
@@ -133,6 +137,8 @@ export interface ASTChart {
     data: ASTChartData;
     width?: number;
     height?: number;
+    x?: number;
+    y?: number;
     theme?: string;
     style?: StyleProps;
 }
@@ -145,6 +151,8 @@ export interface ASTTable {
     id: string;
     label: string;
     rows: ASTTableRow[];
+    x?: number;
+    y?: number;
     theme?: string;
     style?: StyleProps;
 }
@@ -154,6 +162,8 @@ export interface ASTMarkdown {
     content: string;
     width?: number;
     height?: number;
+    x?: number;
+    y?: number;
     theme?: string;
     style?: StyleProps;
 }

@@ -505,6 +505,8 @@ var AIDiagram = (function (exports) {
                 label: props.label || "",
                 ...(props.width ? { width: parseFloat(props.width) } : {}),
                 ...(props.height ? { height: parseFloat(props.height) } : {}),
+                ...(props.x ? { x: parseFloat(props.x) } : {}),
+                ...(props.y ? { y: parseFloat(props.y) } : {}),
                 ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
                 ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
                 ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
@@ -543,6 +545,12 @@ var AIDiagram = (function (exports) {
                 style: propsToStyle(props),
                 ...(props.width ? { width: parseFloat(props.width) } : {}),
                 ...(props.height ? { height: parseFloat(props.height) } : {}),
+                ...(props.x ? { x: parseFloat(props.x) } : {}),
+                ...(props.y ? { y: parseFloat(props.y) } : {}),
+                ...(props.deg ? { deg: parseFloat(props.deg) } : {}),
+                ...(props.dx ? { dx: parseFloat(props.dx) } : {}),
+                ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
+                ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
             };
         }
         function parseGroup() {
@@ -582,6 +590,8 @@ var AIDiagram = (function (exports) {
                 justify: props.justify,
                 theme: props.theme,
                 style: propsToStyle(props),
+                x: props.x !== undefined ? parseFloat(props.x) : undefined,
+                y: props.y !== undefined ? parseFloat(props.y) : undefined,
                 width: props.width !== undefined ? parseFloat(props.width) : undefined,
                 height: props.height !== undefined ? parseFloat(props.height) : undefined,
             };
@@ -753,6 +763,8 @@ var AIDiagram = (function (exports) {
                 chartType: chartType.replace("-chart", ""),
                 label: props.label ?? props.title,
                 data: { headers, rows },
+                x: props.x ? parseFloat(props.x) : undefined,
+                y: props.y ? parseFloat(props.y) : undefined,
                 width: props.width ? parseFloat(props.width) : undefined,
                 height: props.height ? parseFloat(props.height) : undefined,
                 theme: props.theme,
@@ -778,6 +790,8 @@ var AIDiagram = (function (exports) {
                 id,
                 label: props.label ?? "",
                 rows: [],
+                x: props.x ? parseFloat(props.x) : undefined,
+                y: props.y ? parseFloat(props.y) : undefined,
                 theme: props.theme,
                 style: propsToStyle(props),
             };
@@ -833,6 +847,8 @@ var AIDiagram = (function (exports) {
                 kind: "markdown",
                 id,
                 content: content.trim(),
+                x: props.x ? parseFloat(props.x) : undefined,
+                y: props.y ? parseFloat(props.y) : undefined,
                 width: props.width ? parseFloat(props.width) : undefined,
                 height: props.height ? parseFloat(props.height) : undefined,
                 theme: props.theme,
@@ -3441,6 +3457,8 @@ var AIDiagram = (function (exports) {
                 groupId: nodeParentById.get(n.id),
                 width: n.width,
                 height: n.height,
+                authoredX: n.x,
+                authoredY: n.y,
                 deg: n.deg,
                 dx: n.dx,
                 dy: n.dy,
@@ -3469,6 +3487,8 @@ var AIDiagram = (function (exports) {
                 align: (g.align ?? "start"),
                 justify: (g.justify ?? "start"),
                 style: { ...ast.styles[g.id], ...themeStyle, ...g.style },
+                authoredX: g.x,
+                authoredY: g.y,
                 width: g.width,
                 height: g.height,
                 x: 0,
@@ -3488,6 +3508,8 @@ var AIDiagram = (function (exports) {
                 headerH: TABLE.headerH,
                 labelH: TABLE.labelH,
                 style: { ...ast.styles[t.id], ...themeStyle, ...t.style },
+                authoredX: t.x,
+                authoredY: t.y,
                 x: 0,
                 y: 0,
                 w: 0,
@@ -3502,6 +3524,8 @@ var AIDiagram = (function (exports) {
                 label: c.label,
                 data: c.data,
                 style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
+                authoredX: c.x,
+                authoredY: c.y,
                 x: 0,
                 y: 0,
                 w: c.width ?? CHART.defaultW,
@@ -3517,6 +3541,8 @@ var AIDiagram = (function (exports) {
                 style: { ...ast.styles[m.id], ...themeStyle, ...m.style },
                 width: m.width,
                 height: m.height,
+                authoredX: m.x,
+                authoredY: m.y,
                 x: 0,
                 y: 0,
                 w: 0,
@@ -4364,6 +4390,12 @@ var AIDiagram = (function (exports) {
     function iH(r, em) {
         return em.get(r.id).h;
     }
+    function iAuthX(r, em) {
+        return em.get(r.id).authoredX ?? 0;
+    }
+    function iAuthY(r, em) {
+        return em.get(r.id).authoredY ?? 0;
+    }
     function setPos(r, x, y, em) {
         const e = em.get(r.id);
         e.x = Math.round(x);
@@ -4409,6 +4441,12 @@ var AIDiagram = (function (exports) {
             const cellH = Math.max(...hs);
             g.w = cols * cellW + (cols - 1) * gap + pad * 2;
             g.h = rows * cellH + (rows - 1) * gap + pad * 2 + labelH;
+        }
+        else if (layout === "absolute") {
+            const maxRight = Math.max(0, ...kids.map((r) => iAuthX(r, em) + iW(r, em)));
+            const maxBottom = Math.max(0, ...kids.map((r) => iAuthY(r, em) + iH(r, em)));
+            g.w = maxRight + pad * 2;
+            g.h = maxBottom + pad * 2 + labelH;
         }
         else {
             // column (default)
@@ -4498,6 +4536,11 @@ var AIDiagram = (function (exports) {
             const cellH = Math.max(...kids.map((r) => iH(r, em)));
             kids.forEach((ref, i) => {
                 setPos(ref, contentX + (i % cols) * (cellW + gap), contentY + Math.floor(i / cols) * (cellH + gap), em);
+            });
+        }
+        else if (layout === "absolute") {
+            kids.forEach((ref) => {
+                setPos(ref, contentX + iAuthX(ref, em), contentY + iAuthY(ref, em), em);
             });
         }
         else {
@@ -4682,6 +4725,7 @@ var AIDiagram = (function (exports) {
         const rootCols = Number(sg.config["columns"] ?? 1);
         const useGrid = rootLayout === "grid" && rootCols > 0;
         const useColumn = rootLayout === "column";
+        const useAbsolute = rootLayout === "absolute";
         if (useGrid) {
             // ── Grid: per-row heights, per-column widths (no wasted space) ──
             const cols = rootCols;
@@ -4712,6 +4756,13 @@ var AIDiagram = (function (exports) {
                 e.x = colX[idx % cols];
                 e.y = rowY[Math.floor(idx / cols)];
             });
+        }
+        else if (useAbsolute) {
+            for (const ref of rootOrder) {
+                const e = em.get(ref.id);
+                e.x = MARGIN + (e.authoredX ?? 0);
+                e.y = MARGIN + (e.authoredY ?? 0);
+            }
         }
         else {
             // ── Row or Column linear flow ──────────────────────────

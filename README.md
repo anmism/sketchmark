@@ -263,13 +263,24 @@ Every diagram follows this structure:
 ```
 diagram
 [title label="My Title"]
-[layout row|column|grid]
+[layout row|column|grid|absolute]
 [config key=value ...]
 [theme name fill="..." stroke="..." color="..."]
 
 [nodes, edges, groups, tables, charts, markdown blocks]
 
 [step action target ...]
+end
+```
+
+When `layout=absolute`, authored elements use `x`/`y` coordinates instead of flow layout:
+
+```
+diagram
+layout absolute
+box start  x=40  y=60  label="Start"
+box finish x=240 y=140 label="Finish"
+start --> finish
 end
 ```
 
@@ -330,6 +341,8 @@ note    myNote label="Remember this!"
 | `label` | string | Display text (required) | `label="Hello World"` |
 | `width` | number | Override auto-width (px) | `width=140` |
 | `height` | number | Override auto-height (px) | `height=55` |
+| `x` | number | Authored X position when parent/root uses `layout=absolute` | `x=80` |
+| `y` | number | Authored Y position when parent/root uses `layout=absolute` | `y=40` |
 | `theme` | string | Named theme preset | `theme=primary` |
 | `fill` | CSS color | Background fill color | `fill="#e8f4ff"` |
 | `stroke` | CSS color | Border/outline color | `stroke="#0044cc"` |
@@ -349,8 +362,8 @@ note    myNote label="Remember this!"
 | `name` | string | Iconify icon name (for `icon`) | `name="mdi:cog"` |
 | `value` | string | SVG path data (for `path`) | `value="M 0 0 L 50 0"` |
 | `deg` | number | Static rotation (degrees) | `deg=45` |
-| `dx` | number | Static X translation (px) | `dx=20` |
-| `dy` | number | Static Y translation (px) | `dy=-10` |
+| `dx` | number | Static visual X translation after layout (px) | `dx=20` |
+| `dy` | number | Static visual Y translation after layout (px) | `dy=-10` |
 | `factor` | number | Static scale factor | `factor=1.2` |
 
 ---
@@ -420,10 +433,10 @@ group outer label="Outer Group" layout=column items=[a,b,inner]
 General form:
 
 ```
-group <id> [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
+group <id> [label="..."] [layout=row|column|grid|absolute] [gap=N] [padding=N]
            [columns=N] [align=start|center|end]
            [justify=start|center|end|space-between|space-around]
-           [theme=...] [fill="..."] [stroke="..."] [width=N] [height=N]
+           [theme=...] [fill="..."] [stroke="..."] [x=N] [y=N] [width=N] [height=N]
            [items=[id1,id2,...]]
 ```
 
@@ -437,18 +450,22 @@ group <id> [label="..."] [layout=row|column|grid] [gap=N] [padding=N]
 | Property | Type | Description |
 |----------|------|-------------|
 | `label` | string | Group title (shown at top) |
-| `layout` | row / column / grid | Child arrangement direction |
+| `layout` | row / column / grid / absolute | Child arrangement direction |
 | `gap` | number | Space between children (px) |
 | `padding` | number | Inner padding (px) |
 | `columns` | number | Column count (for `layout=grid`) |
 | `align` | start/center/end | Cross-axis alignment (align-items) |
 | `justify` | start/center/end/space-between/space-around | Main-axis alignment |
+| `x` | number | Authored X position when parent/root uses `layout=absolute` |
+| `y` | number | Authored Y position when parent/root uses `layout=absolute` |
 | `width` | number | Minimum width override |
 | `height` | number | Minimum height override |
 | `theme` | string | Named theme preset |
 | `fill` | CSS color | Background color |
 | `stroke` | CSS color | Border color |
 | `stroke-width` | number | Border thickness |
+
+For absolute groups, child `x`/`y` coordinates are relative to the group's inner content box.
 
 #### `bare` keyword
 
@@ -465,7 +482,7 @@ bare myContainer layout=row items=[a,b]
 ## Tables
 
 ```
-table <id> [label="..."] [theme=...] [fill="..."] [stroke="..."]
+table <id> [label="..."] [x=N] [y=N] [theme=...] [fill="..."] [stroke="..."]
 {
   header Col1 Col2 Col3
   row    "Value A" "Value B" "Value C"
@@ -478,13 +495,14 @@ table <id> [label="..."] [theme=...] [fill="..."] [stroke="..."]
 - `"value"` must use a double-quoted string literal. 
 - Column widths auto-size to content.
 - Tables support `fill`, `stroke`, `color`, `font-size`, `font`, `text-align`, `letter-spacing`, `theme`, `opacity` style props (same as nodes).
+- Tables also accept `x` and `y` when the parent/root uses `layout=absolute`.
 
 ---
 
 ## Charts
 
 ```
-<chart-type> <id> [label="Title"] [width=N] [height=N] [theme=...] [style props]
+<chart-type> <id> [label="Title"] [x=N] [y=N] [width=N] [height=N] [theme=...] [style props]
 data
   [["Category", "Series1", "Series2"],
    ["Jan", 120, 80],
@@ -520,6 +538,8 @@ data
    ["Gamma", 27]]
 ```
 
+Charts also accept `x` and `y` when the parent/root uses `layout=absolute`.
+
 ---
 
 ## Markdown Blocks
@@ -527,7 +547,7 @@ data
 Renders inline rich text with headings and bold/italic:
 
 ```
-markdown <id> [width=N] [height=N] [theme=...] [style props]
+markdown <id> [x=N] [y=N] [width=N] [height=N] [theme=...] [style props]
 """
 # Heading 1
 ## Heading 2
@@ -542,6 +562,7 @@ Another paragraph here.
 - Triple-quote `"""` delimiters for the content block.
 - Supported formatting: `# H1`, `## H2`, `### H3`, `**bold**`, `*italic*`, blank lines.
 - Style props: `color`, `font`, `font-size`, `text-align`, `padding`, `fill`, `stroke`, `opacity`, `letter-spacing`.
+- Markdown blocks also accept `x` and `y` when the parent/root uses `layout=absolute`.
 
 ---
 
@@ -976,6 +997,8 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 
 ### Nodes
 
+Nodes can also opt into authored absolute `x`/`y` positioning when their parent or the root diagram uses `layout=absolute`.
+
 | Feature | Supported | Notes |
 |---------|-----------|-------|
 | box | ✅ | Default shape |
@@ -1017,6 +1040,8 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | Edge from/to groups | ✅ | Uses group center |
 
 ### Groups
+
+Groups support `layout=absolute` in addition to flow layouts. In absolute groups, child `x`/`y` coordinates are measured from the group's inner content box.
 
 | Feature | Supported | Notes |
 |---------|-----------|-------|
@@ -1101,7 +1126,7 @@ exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 | `end` | Structure | `end` |
 | `title` | Meta | `title label="My Diagram"` |
 | `description` | Meta | `description "Some text"` |
-| `layout` | Meta | `layout row` / `layout column` / `layout grid` |
+| `layout` | Meta | `layout row` / `layout column` / `layout grid` / `layout absolute` |
 | `config` | Meta | `config gap=60` |
 | `theme` | Styling | `theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"` |
 | `style` | Styling | `style nodeId fill="#ff0" stroke="#000"` |

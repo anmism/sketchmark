@@ -32,6 +32,8 @@ export interface SceneNode extends SceneRect {
   groupId?: string; // immediate parent group id
   width?: number; // user-specified size override
   height?: number;
+  authoredX?: number;
+  authoredY?: number;
   deg?: number;    // static rotation (degrees)
   dx?: number;     // static x translation
   dy?: number;     // static y translation
@@ -64,7 +66,7 @@ export interface SceneGroup {
   parentId?: string; // parent group id (set for nested groups)
   children: GroupChildRef[]; // mixed node/group children — supports nesting
   // ── layout props ──────────────────────────────────────
-  layout: "row" | "column" | "grid";
+  layout: "row" | "column" | "grid" | "absolute";
   columns: number;
   padding: number;
   gap: number;
@@ -72,6 +74,8 @@ export interface SceneGroup {
   justify: "start" | "center" | "end" | "space-between" | "space-around";
   // ── visual ───────────────────────────────────────────
   style: StyleProps;
+  authoredX?: number;
+  authoredY?: number;
   x: number;
   y: number;
   w: number;
@@ -89,6 +93,8 @@ export interface SceneTable {
   headerH: number; // header row height
   labelH: number; // label strip height
   style: StyleProps;
+  authoredX?: number;
+  authoredY?: number;
   x: number;
   y: number;
   w: number;
@@ -106,6 +112,8 @@ export interface SceneChart {
   label?: string;
   data: { headers: string[]; rows: (string | number)[][] };
   style: StyleProps;
+  authoredX?: number;
+  authoredY?: number;
   x: number;
   y: number;
   w: number;
@@ -119,6 +127,8 @@ export interface SceneMarkdown {
   style:   StyleProps;
   width?:  number;
   height?: number;
+  authoredX?: number;
+  authoredY?: number;
   x: number; y: number; w: number; h: number;
 }
 
@@ -162,6 +172,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       groupId: nodeParentById.get(n.id),
       width: n.width,
       height: n.height,
+      authoredX: n.x,
+      authoredY: n.y,
       deg: n.deg,
       dx: n.dx,
       dy: n.dy,
@@ -191,6 +203,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       align: (g.align ?? "start") as SceneGroup["align"],
       justify: (g.justify ?? "start") as SceneGroup["justify"],
       style: { ...ast.styles[g.id], ...themeStyle, ...g.style },
+      authoredX: g.x,
+      authoredY: g.y,
       width: g.width,
       height: g.height,
       x: 0,
@@ -211,6 +225,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       headerH: TABLE.headerH,
       labelH: TABLE.labelH,
       style: { ...ast.styles[t.id], ...themeStyle, ...t.style },
+      authoredX: t.x,
+      authoredY: t.y,
       x: 0,
       y: 0,
       w: 0,
@@ -226,6 +242,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       label: c.label,
       data: c.data,
       style: { ...ast.styles[c.id], ...themeStyle, ...c.style },
+      authoredX: c.x,
+      authoredY: c.y,
       x: 0,
       y: 0,
       w: c.width ?? CHART.defaultW,
@@ -242,6 +260,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       style: { ...ast.styles[m.id], ...themeStyle, ...m.style },
       width: m.width,
       height: m.height,
+      authoredX: m.x,
+      authoredY: m.y,
       x: 0,
       y: 0,
       w: 0,

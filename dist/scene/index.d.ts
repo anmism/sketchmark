@@ -15,6 +15,8 @@ export interface SceneNode extends SceneRect {
     groupId?: string;
     width?: number;
     height?: number;
+    authoredX?: number;
+    authoredY?: number;
     deg?: number;
     dx?: number;
     dy?: number;
@@ -44,13 +46,15 @@ export interface SceneGroup {
     label: string;
     parentId?: string;
     children: GroupChildRef[];
-    layout: "row" | "column" | "grid";
+    layout: "row" | "column" | "grid" | "absolute";
     columns: number;
     padding: number;
     gap: number;
     align: "start" | "center" | "end";
     justify: "start" | "center" | "end" | "space-between" | "space-around";
     style: StyleProps;
+    authoredX?: number;
+    authoredY?: number;
     x: number;
     y: number;
     w: number;
@@ -67,6 +71,8 @@ export interface SceneTable {
     headerH: number;
     labelH: number;
     style: StyleProps;
+    authoredX?: number;
+    authoredY?: number;
     x: number;
     y: number;
     w: number;
@@ -85,6 +91,8 @@ export interface SceneChart {
         rows: (string | number)[][];
     };
     style: StyleProps;
+    authoredX?: number;
+    authoredY?: number;
     x: number;
     y: number;
     w: number;
@@ -97,6 +105,8 @@ export interface SceneMarkdown {
     style: StyleProps;
     width?: number;
     height?: number;
+    authoredX?: number;
+    authoredY?: number;
     x: number;
     y: number;
     w: number;

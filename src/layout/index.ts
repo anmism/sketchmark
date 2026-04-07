@@ -102,6 +102,14 @@ function iH(r: GroupChildRef, em: Map<string, EntityRect>): number {
   return em.get(r.id)!.h;
 }
 
+function iAuthX(r: GroupChildRef, em: Map<string, EntityRect>): number {
+  return em.get(r.id)!.authoredX ?? 0;
+}
+
+function iAuthY(r: GroupChildRef, em: Map<string, EntityRect>): number {
+  return em.get(r.id)!.authoredY ?? 0;
+}
+
 function setPos(r: GroupChildRef, x: number, y: number, em: Map<string, EntityRect>): void {
   const e = em.get(r.id)!;
   e.x = Math.round(x);
@@ -152,6 +160,17 @@ function measure(
     const cellH = Math.max(...hs);
     g.w = cols * cellW + (cols - 1) * gap + pad * 2;
     g.h = rows * cellH + (rows - 1) * gap + pad * 2 + labelH;
+  } else if (layout === "absolute") {
+    const maxRight = Math.max(
+      0,
+      ...kids.map((r) => iAuthX(r, em) + iW(r, em)),
+    );
+    const maxBottom = Math.max(
+      0,
+      ...kids.map((r) => iAuthY(r, em) + iH(r, em)),
+    );
+    g.w = maxRight + pad * 2;
+    g.h = maxBottom + pad * 2 + labelH;
   } else {
     // column (default)
     g.w = Math.max(...ws) + pad * 2;
@@ -258,6 +277,10 @@ function place(
         contentY + Math.floor(i / cols) * (cellH + gap),
         em,
       );
+    });
+  } else if (layout === "absolute") {
+    kids.forEach((ref) => {
+      setPos(ref, contentX + iAuthX(ref, em), contentY + iAuthY(ref, em), em);
     });
   } else {
     // column (default)
@@ -527,6 +550,7 @@ export function layout(sg: SceneGraph): SceneGraph {
   const rootCols = Number(sg.config["columns"] ?? 1);
   const useGrid = rootLayout === "grid" && rootCols > 0;
   const useColumn = rootLayout === "column";
+  const useAbsolute = rootLayout === "absolute";
 
   if (useGrid) {
     // ── Grid: per-row heights, per-column widths (no wasted space) ──
@@ -563,6 +587,12 @@ export function layout(sg: SceneGraph): SceneGraph {
       e.x = colX[idx % cols];
       e.y = rowY[Math.floor(idx / cols)];
     });
+  } else if (useAbsolute) {
+    for (const ref of rootOrder) {
+      const e = em.get(ref.id)!;
+      e.x = MARGIN + (e.authoredX ?? 0);
+      e.y = MARGIN + (e.authoredY ?? 0);
+    }
   } else {
     // ── Row or Column linear flow ──────────────────────────
     let pos = MARGIN;

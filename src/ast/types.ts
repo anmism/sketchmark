@@ -11,7 +11,7 @@ export type EdgeConnector =
   | '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 
 // export type LayoutDirection  = 'LR' | 'TB' | 'RL' | 'BT';
-export type LayoutType       = 'row' | 'column' | 'grid';
+export type LayoutType       = 'row' | 'column' | 'grid' | 'absolute';
 export type AlignItems       = 'start' | 'center' | 'end';
 export type JustifyContent   = 'start' | 'center' | 'end' | 'space-between' | 'space-around';
 export type AnimationAction  = 'highlight' | 'fade' | 'unfade' | 'draw' | 'erase' | 'show' | 'hide' | 'pulse' | 'move' | 'color' | 'scale' | 'rotate' | 'narrate' | 'circle' | 'underline' | 'crossout' | 'bracket' | 'tick' | 'strikeoff';
@@ -54,7 +54,7 @@ export type RootItemRef =
 export interface ASTNode {
   kind: 'node'; id: string; shape: NodeShape; label: string;
   groupId?: string; imageUrl?: string; iconName?: string; pathData?: string;
-  width?: number; height?: number;
+  width?: number; height?: number; x?: number; y?: number;
   deg?: number; dx?: number; dy?: number; factor?: number;
   theme?: string;
   style?: StyleProps; meta?: Record<string, string>;
@@ -81,6 +81,8 @@ export interface ASTGroup {
   justify?:  JustifyContent;
   theme?:    string;
   style?:    StyleProps;
+  x?:        number;
+  y?:        number;
   width?:    number;
   height?:   number;
 }
@@ -107,7 +109,7 @@ export interface ASTChartData { headers: string[]; rows: (string | number)[][]; 
 export interface ASTChart {
   kind: 'chart'; id: string;
   chartType: 'bar' | 'line' | 'pie' | 'donut' | 'scatter' | 'area';
-  label?: string; data: ASTChartData; width?: number; height?: number;
+  label?: string; data: ASTChartData; width?: number; height?: number; x?: number; y?: number;
   theme?: string;
   style?: StyleProps;
 }
@@ -122,6 +124,8 @@ export interface ASTTable {
   id:     string;
   label:  string;
   rows:   ASTTableRow[];
+  x?:     number;
+  y?:     number;
   theme?: string;
   style?: StyleProps;
 }
@@ -132,6 +136,8 @@ export interface ASTMarkdown {
   content: string;     
   width?:  number;
   height?: number;
+  x?:      number;
+  y?:      number;
   theme?:  string;
   style?:  StyleProps;
 }
