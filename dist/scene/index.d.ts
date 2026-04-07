@@ -36,6 +36,8 @@ export interface SceneEdge {
     to: string;
     connector: string;
     label?: string;
+    fromAnchor?: string;
+    toAnchor?: string;
     dashed: boolean;
     bidirectional: boolean;
     style: StyleProps;

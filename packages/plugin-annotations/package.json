@@ -1,0 +1,47 @@
+{
+  "name": "@sketchmark/plugin-annotations",
+  "version": "0.1.0",
+  "description": "Annotation plugin for Sketchmark. Adds lightweight geometry-style marks like angle arcs, right angles, equal ticks, midpoint marks, and dimension lines.",
+  "keywords": [
+    "sketchmark",
+    "plugin",
+    "annotations",
+    "geometry",
+    "education",
+    "diagram"
+  ],
+  "author": "sketchmark contributors",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "sketchmark": "^1.1.6"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anmism/sketchmark"
+  },
+  "bugs": {
+    "url": "https://github.com/anmism/sketchmark/issues"
+  },
+  "homepage": "https://github.com/anmism/sketchmark#readme"
+}

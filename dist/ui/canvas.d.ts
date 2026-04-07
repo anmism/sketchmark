@@ -4,10 +4,12 @@ import type { ASTStepItem } from "../ast/types";
 import type { SVGRendererOptions } from "../renderer/svg";
 import type { CanvasRendererOptions } from "../renderer/canvas";
 import type { SketchmarkEditor } from "./editor";
+import type { SketchmarkPlugin } from "../plugins";
 type CanvasTheme = "light" | "dark";
 export interface SketchmarkCanvasOptions {
     container: ContainerTarget;
     dsl?: string;
+    plugins?: readonly SketchmarkPlugin[];
     renderer?: "svg" | "canvas";
     theme?: CanvasTheme;
     autoFit?: boolean;

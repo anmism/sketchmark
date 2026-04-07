@@ -52,6 +52,7 @@ end`);
         { kind: "node", id: "b" },
       ],
     });
+    expect(ast.groups[0].padding).toBe(0);
     expect(ast.groups[0].style.fill).toBe("none");
     expect(ast.groups[0].style.stroke).toBe("none");
   });

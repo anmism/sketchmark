@@ -5,6 +5,7 @@
 // Core pipeline
 export { parse, ParseError } from "./parser";
 export type { DiagramAST } from "./parser";
+export type { ParseOptions, SketchmarkPlugin } from "./plugins";
 export { buildSceneGraph, nodeMap, groupMap, markdownMap } from "./scene";
 export type {
   SceneGraph,
@@ -46,6 +47,7 @@ export type { ExportFormat, ExportOptions } from "./export";
 export type {
   NodeShape,
   EdgeConnector,
+  EdgeAnchor,
   LayoutType,
   AlignItems,
   JustifyContent,

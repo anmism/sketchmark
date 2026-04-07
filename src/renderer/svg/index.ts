@@ -417,8 +417,8 @@ export function renderToSVG(
       dstCY = dst.y + dst.h / 2;
     const srcCX = src.x + src.w / 2,
       srcCY = src.y + src.h / 2;
-    const [x1, y1] = getConnPoint(src, dstCX, dstCY);
-    const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+    const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
+    const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
 
     const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
     if (e.style?.opacity != null) eg.setAttribute("opacity", String(e.style.opacity));
@@ -531,6 +531,7 @@ export function renderToSVG(
     ng.dataset.w = String(n.w);
     ng.dataset.h = String(n.h);
     if (n.pathData) ng.dataset.pathData = n.pathData;
+    if (n.meta?.animationParent) ng.dataset.animationParent = n.meta.animationParent;
     if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
 
     // ── Static transform (deg, dx, dy, factor) ──────────

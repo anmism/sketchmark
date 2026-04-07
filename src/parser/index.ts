@@ -3,6 +3,10 @@
 // ============================================================
 
 import { tokenize, Token } from "./tokenizer";
+import {
+  applyPluginAstTransforms,
+  applyPluginPreprocessors,
+} from "../plugins";
 import type {
   DiagramAST,
   ASTNode,
@@ -14,6 +18,7 @@ import type {
   ASTTable,
   NodeShape,
   EdgeConnector,
+  EdgeAnchor,
   LayoutType,
   StyleProps,
   AnimationAction,
@@ -24,6 +29,7 @@ import type {
   StepPace,
   GroupChildRef,
 } from "../ast/types";
+import type { ParseOptions } from "../plugins";
 
 export type { DiagramAST } from "../ast/types";
 
@@ -111,10 +117,12 @@ function isPropKeyToken(t?: Token): t is Token {
   return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
 }
 
-export function parse(src: string): DiagramAST {
+export function parse(src: string, options: ParseOptions = {}): DiagramAST {
   resetUid();
 
-  const tokens = tokenize(src).filter(
+  const preparedSource = applyPluginPreprocessors(src, options.plugins);
+
+  const tokens = tokenize(preparedSource).filter(
     (t) => t.type !== "NEWLINE" || t.value === "\n",
   );
 
@@ -336,6 +344,7 @@ export function parse(src: string): DiagramAST {
     const id = requireExplicitId(keywordTok, toks);
     const props = parseSimpleProps(toks, 1);
 
+    const meta = extractNodeMeta(props);
     const node: ASTNode = {
       kind: "node",
       id,
@@ -350,6 +359,7 @@ export function parse(src: string): DiagramAST {
       ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
       ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
       ...(props.theme ? { theme: props.theme } : {}),
+      ...(meta ? { meta } : {}),
       style: propsToStyle(props),
     };
 
@@ -380,12 +390,14 @@ export function parse(src: string): DiagramAST {
 
     Object.assign(props, parseSimpleProps(toks, j));
 
+    const meta = extractNodeMeta(props);
     return {
       kind: "node",
       id,
       shape: "note",
       label: (props.label ?? "").replace(/\\n/g, "\n"),
       theme: props.theme,
+      ...(meta ? { meta } : {}),
       style: propsToStyle(props),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -396,6 +408,16 @@ export function parse(src: string): DiagramAST {
       ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
       ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
     };
+  }
+
+  function extractNodeMeta(props: Record<string, string>): Record<string, string> | undefined {
+    const meta: Record<string, string> = {};
+
+    if (props["animation-parent"]) {
+      meta.animationParent = props["animation-parent"];
+    }
+
+    return Object.keys(meta).length ? meta : undefined;
   }
 
   function parseGroup(): ASTGroup {
@@ -498,6 +520,8 @@ export function parse(src: string): DiagramAST {
       to: toTok.value,
       connector: connector as EdgeConnector,
       label: props.label,
+      fromAnchor: props["anchor-from"] as EdgeAnchor | undefined,
+      toAnchor: props["anchor-to"] as EdgeAnchor | undefined,
       dashed,
       bidirectional,
       style: propsToStyle(props),
@@ -848,6 +872,7 @@ export function parse(src: string): DiagramAST {
 
       if (isBare) {
         grp.label = "";
+        grp.padding = grp.padding ?? 0;
         grp.style = {
           ...grp.style,
           fill: grp.style?.fill ?? "none",
@@ -1053,5 +1078,5 @@ export function parse(src: string): DiagramAST {
     }
   }
 
-  return ast;
+  return applyPluginAstTransforms(ast, options.plugins);
 }

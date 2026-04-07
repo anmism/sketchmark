@@ -1,0 +1,46 @@
+{
+  "name": "@sketchmark/plugin-chem-molecule",
+  "version": "0.1.0",
+  "description": "Primitive molecule diagrams for Sketchmark. Compiles lightweight chem.* commands into standard Sketchmark groups and nodes.",
+  "keywords": [
+    "sketchmark",
+    "plugin",
+    "chemistry",
+    "molecule",
+    "diagram"
+  ],
+  "author": "sketchmark contributors",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "sketchmark": "^1.1.6"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anmism/sketchmark"
+  },
+  "bugs": {
+    "url": "https://github.com/anmism/sketchmark/issues"
+  },
+  "homepage": "https://github.com/anmism/sketchmark#readme"
+}

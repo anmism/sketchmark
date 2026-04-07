@@ -22,6 +22,6 @@ export declare function getConnPoint(src: {
     w: number;
     h: number;
     shape?: string;
-}, dstCX: number, dstCY: number): [number, number];
+}, dstCX: number, dstCY: number, anchor?: string): [number, number];
 export declare function groupDepth(g: SceneGroup, gm: Map<string, SceneGroup>): number;
 //# sourceMappingURL=shared.d.ts.map

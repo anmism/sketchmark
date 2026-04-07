@@ -10,6 +10,7 @@ import {
 import type { DiagramInstance } from "../render";
 import type { ASTStepItem } from "../ast/types";
 import type { SVGRendererOptions } from "../renderer/svg";
+import type { SketchmarkPlugin } from "../plugins";
 
 const EMBED_STYLE_ID = "sketchmark-embed-ui";
 
@@ -160,6 +161,7 @@ type EmbedSize = number | string;
 export interface SketchmarkEmbedOptions {
   container: ContainerTarget;
   dsl: string;
+  plugins?: readonly SketchmarkPlugin[];
   width?: EmbedSize;
   height?: EmbedSize;
   theme?: EmbedTheme;
@@ -369,6 +371,7 @@ export class SketchmarkEmbed {
       const instance = render({
         container: this.diagramWrap,
         dsl: this.dsl,
+        plugins: this.options.plugins,
         renderer: "svg",
         svgOptions: {
           showTitle: true,

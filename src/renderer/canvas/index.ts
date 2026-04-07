@@ -241,8 +241,8 @@ export function renderToCanvas(
 
     const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
     const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-    const [x1, y1] = getConnPoint(src, dstCX, dstCY);
-    const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+    const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
+    const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
 
     if (e.style?.opacity != null) ctx.globalAlpha = Number(e.style.opacity);
     const ecol   = String(e.style?.stroke ?? palette.edgeStroke);

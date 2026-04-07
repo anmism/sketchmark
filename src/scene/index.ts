@@ -54,6 +54,8 @@ export interface SceneEdge {
   to: string;
   connector: string;
   label?: string;
+  fromAnchor?: string;
+  toAnchor?: string;
   dashed: boolean;
   bidirectional: boolean;
   style: StyleProps;
@@ -275,6 +277,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     to: e.to,
     connector: e.connector,
     label: e.label,
+    fromAnchor: e.fromAnchor,
+    toAnchor: e.toAnchor,
     dashed: e.dashed ?? false,
     bidirectional: e.bidirectional ?? false,
     style: e.style ?? {},

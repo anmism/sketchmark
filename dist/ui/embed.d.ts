@@ -2,11 +2,13 @@ import { type ContainerTarget } from "./shared";
 import type { DiagramInstance } from "../render";
 import type { ASTStepItem } from "../ast/types";
 import type { SVGRendererOptions } from "../renderer/svg";
+import type { SketchmarkPlugin } from "../plugins";
 type EmbedTheme = "light" | "dark";
 type EmbedSize = number | string;
 export interface SketchmarkEmbedOptions {
     container: ContainerTarget;
     dsl: string;
+    plugins?: readonly SketchmarkPlugin[];
     width?: EmbedSize;
     height?: EmbedSize;
     theme?: EmbedTheme;

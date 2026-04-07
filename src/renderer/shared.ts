@@ -11,7 +11,7 @@ import type {
   SceneTable,
   SceneChart,
 } from "../scene";
-import { connPoint } from "../layout";
+import { anchoredConnPoint } from "../layout";
 import { resolveFont, loadFont } from "../fonts";
 
 // ── Hash string to seed ───────────────────────────────────────────────────
@@ -103,14 +103,9 @@ export function getConnPoint(
   src:   { x: number; y: number; w: number; h: number; shape?: string },
   dstCX: number,
   dstCY: number,
+  anchor?: string,
 ): [number, number] {
-  if ("shape" in src && (src as SceneNode).shape) {
-    return connPoint(
-      src as SceneNode,
-      { x: dstCX - 1, y: dstCY - 1, w: 2, h: 2, shape: "box" } as SceneNode,
-    );
-  }
-  return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
+  return anchoredConnPoint(src, anchor, dstCX, dstCY);
 }
 
 // ── Group depth (for paint order) ────────────────────────────────────────

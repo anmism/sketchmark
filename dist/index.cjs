@@ -146,10 +146,16 @@ function tokenize$1(src) {
                         val += "\n";
                     else if (esc === "t")
                         val += "\t";
+                    else if (esc === "r")
+                        val += "\r";
                     else if (esc === "\\")
                         val += "\\";
+                    else if (esc === q)
+                        val += q;
+                    else if (esc)
+                        val += `\\${esc}`;
                     else
-                        val += esc;
+                        val += "\\";
                 }
                 else
                     val += src[i];
@@ -224,6 +230,47 @@ function tokenize$1(src) {
     }
     add("EOF", "");
     return tokens;
+}
+
+function pluginMessage(plugin, stage, error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return `Plugin "${plugin.name}" ${stage} failed: ${detail}`;
+}
+function applyPluginPreprocessors(source, plugins = []) {
+    let nextSource = source;
+    for (const plugin of plugins) {
+        if (!plugin.preprocess)
+            continue;
+        try {
+            const transformed = plugin.preprocess(nextSource);
+            if (typeof transformed !== "string") {
+                throw new Error("preprocess must return a string");
+            }
+            nextSource = transformed;
+        }
+        catch (error) {
+            throw new Error(pluginMessage(plugin, "preprocess", error));
+        }
+    }
+    return nextSource;
+}
+function applyPluginAstTransforms(ast, plugins = []) {
+    let nextAst = ast;
+    for (const plugin of plugins) {
+        if (!plugin.transformAst)
+            continue;
+        try {
+            const transformed = plugin.transformAst(nextAst);
+            if (!transformed || transformed.kind !== "diagram") {
+                throw new Error('transformAst must return a DiagramAST with kind="diagram"');
+            }
+            nextAst = transformed;
+        }
+        catch (error) {
+            throw new Error(pluginMessage(plugin, "transformAst", error));
+        }
+    }
+    return nextAst;
 }
 
 // ============================================================
@@ -312,9 +359,10 @@ function isValueToken(t) {
 function isPropKeyToken(t) {
     return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
 }
-function parse(src) {
+function parse(src, options = {}) {
     resetUid();
-    const tokens = tokenize$1(src).filter((t) => t.type !== "NEWLINE" || t.value === "\n");
+    const preparedSource = applyPluginPreprocessors(src, options.plugins);
+    const tokens = tokenize$1(preparedSource).filter((t) => t.type !== "NEWLINE" || t.value === "\n");
     const flat = [];
     let lastNL = false;
     for (const t of tokens) {
@@ -497,6 +545,7 @@ function parse(src) {
         const toks = lineTokens();
         const id = requireExplicitId(keywordTok, toks);
         const props = parseSimpleProps(toks, 1);
+        const meta = extractNodeMeta(props);
         const node = {
             kind: "node",
             id,
@@ -511,6 +560,7 @@ function parse(src) {
             ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
             ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
             ...(props.theme ? { theme: props.theme } : {}),
+            ...(meta ? { meta } : {}),
             style: propsToStyle(props),
         };
         if (props.url)
@@ -535,12 +585,14 @@ function parse(src) {
             j = 2;
         }
         Object.assign(props, parseSimpleProps(toks, j));
+        const meta = extractNodeMeta(props);
         return {
             kind: "node",
             id,
             shape: "note",
             label: (props.label ?? "").replace(/\\n/g, "\n"),
             theme: props.theme,
+            ...(meta ? { meta } : {}),
             style: propsToStyle(props),
             ...(props.width ? { width: parseFloat(props.width) } : {}),
             ...(props.height ? { height: parseFloat(props.height) } : {}),
@@ -551,6 +603,13 @@ function parse(src) {
             ...(props.dy ? { dy: parseFloat(props.dy) } : {}),
             ...(props.factor ? { factor: parseFloat(props.factor) } : {}),
         };
+    }
+    function extractNodeMeta(props) {
+        const meta = {};
+        if (props["animation-parent"]) {
+            meta.animationParent = props["animation-parent"];
+        }
+        return Object.keys(meta).length ? meta : undefined;
     }
     function parseGroup() {
         const keywordTok = cur();
@@ -624,6 +683,8 @@ function parse(src) {
             to: toTok.value,
             connector: connector,
             label: props.label,
+            fromAnchor: props["anchor-from"],
+            toAnchor: props["anchor-to"],
             dashed,
             bidirectional,
             style: propsToStyle(props),
@@ -937,6 +998,7 @@ function parse(src) {
             registerAuthoredId(grp.id, "group", t);
             if (isBare) {
                 grp.label = "";
+                grp.padding = grp.padding ?? 0;
                 grp.style = {
                     ...grp.style,
                     fill: grp.style?.fill ?? "none",
@@ -1107,7 +1169,7 @@ function parse(src) {
             node.style = { ...ast.styles[node.id], ...node.style };
         }
     }
-    return ast;
+    return applyPluginAstTransforms(ast, options.plugins);
 }
 
 // ============================================================
@@ -3554,6 +3616,8 @@ function buildSceneGraph(ast) {
         to: e.to,
         connector: e.connector,
         label: e.label,
+        fromAnchor: e.fromAnchor,
+        toAnchor: e.toAnchor,
         dashed: e.dashed ?? false,
         bidirectional: e.bidirectional ?? false,
         style: e.style ?? {},
@@ -4131,28 +4195,13 @@ function connMeta(connector) {
         return { arrowAt: "start", dashed };
     return { arrowAt: "end", dashed };
 }
-// ── Generic rect connection point ────────────────────────────────────────
-function rectConnPoint$1(rx, ry, rw, rh, ox, oy) {
-    const cx = rx + rw / 2, cy = ry + rh / 2;
-    const dx = ox - cx, dy = oy - cy;
-    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)
-        return [cx, cy];
-    const hw = rw / 2 - 2, hh = rh / 2 - 2;
-    const tx = Math.abs(dx) > 0.01 ? hw / Math.abs(dx) : 1e9;
-    const ty = Math.abs(dy) > 0.01 ? hh / Math.abs(dy) : 1e9;
-    const t = Math.min(tx, ty);
-    return [cx + t * dx, cy + t * dy];
-}
 // ── Resolve an endpoint entity by ID across all maps ─────────────────────
 function resolveEndpoint(id, nm, tm, gm, cm) {
     return nm.get(id) ?? tm.get(id) ?? gm.get(id) ?? cm.get(id) ?? null;
 }
 // ── Get connection point for any entity ──────────────────────────────────
-function getConnPoint(src, dstCX, dstCY) {
-    if ("shape" in src && src.shape) {
-        return connPoint(src, { x: dstCX - 1, y: dstCY - 1, w: 2, h: 2});
-    }
-    return rectConnPoint$1(src.x, src.y, src.w, src.h, dstCX, dstCY);
+function getConnPoint(src, dstCX, dstCY, anchor) {
+    return anchoredConnPoint(src, anchor, dstCX, dstCY);
 }
 // ── Group depth (for paint order) ────────────────────────────────────────
 function groupDepth(g, gm) {
@@ -4587,6 +4636,50 @@ function connPoint(n, other) {
     const t = Math.min(tx, ty);
     return [cx + t * dx, cy + t * dy];
 }
+function clampInset(value) {
+    return Math.max(2, value);
+}
+function anchoredConnPoint(entity, anchor, otherCX, otherCY) {
+    if (!anchor) {
+        if (entity.shape && otherCX != null && otherCY != null) {
+            return connPoint(entity, { x: otherCX - 1, y: otherCY - 1, w: 2, h: 2});
+        }
+        if (otherCX != null && otherCY != null) {
+            return rectConnPoint(entity.x, entity.y, entity.w, entity.h, otherCX, otherCY);
+        }
+        return [entity.x + entity.w / 2, entity.y + entity.h / 2];
+    }
+    const insetX = clampInset(Math.min(10, entity.w / 2));
+    const insetY = clampInset(Math.min(10, entity.h / 2));
+    const left = entity.x + insetX;
+    const right = entity.x + entity.w - insetX;
+    const top = entity.y + insetY;
+    const bottom = entity.y + entity.h - insetY;
+    const cx = entity.x + entity.w / 2;
+    const cy = entity.y + entity.h / 2;
+    switch (anchor) {
+        case "top":
+            return [cx, top];
+        case "right":
+            return [right, cy];
+        case "bottom":
+            return [cx, bottom];
+        case "left":
+            return [left, cy];
+        case "center":
+            return [cx, cy];
+        case "top-left":
+            return [left, top];
+        case "top-right":
+            return [right, top];
+        case "bottom-left":
+            return [left, bottom];
+        case "bottom-right":
+            return [right, bottom];
+        default:
+            return [cx, cy];
+    }
+}
 function rectConnPoint(rx, ry, rw, rh, ox, oy) {
     const cx = rx + rw / 2, cy = ry + rh / 2;
     const dx = ox - cx, dy = oy - cy;
@@ -4618,17 +4711,6 @@ function routeEdges(sg) {
             return c;
         return null;
     }
-    function connPt(src, dstCX, dstCY) {
-        // SceneNode has a .shape field; use the existing connPoint for it
-        if ("shape" in src && src.shape) {
-            return connPoint(src, {
-                x: dstCX - 1,
-                y: dstCY - 1,
-                w: 2,
-                h: 2});
-        }
-        return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
-    }
     for (const e of sg.edges) {
         const src = resolve(e.from);
         const dst = resolve(e.to);
@@ -4638,7 +4720,10 @@ function routeEdges(sg) {
         }
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
         const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-        e.points = [connPt(src, dstCX, dstCY), connPt(dst, srcCX, srcCY)];
+        e.points = [
+            anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY),
+            anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY),
+        ];
     }
 }
 function computeBounds(sg, margin) {
@@ -7779,8 +7864,8 @@ function renderToSVG(sg, container, options = {}) {
             continue;
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
         const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-        const [x1, y1] = getConnPoint(src, dstCX, dstCY);
-        const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+        const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
+        const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
         const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
         if (e.style?.opacity != null)
             eg.setAttribute("opacity", String(e.style.opacity));
@@ -7857,6 +7942,8 @@ function renderToSVG(sg, container, options = {}) {
         ng.dataset.h = String(n.h);
         if (n.pathData)
             ng.dataset.pathData = n.pathData;
+        if (n.meta?.animationParent)
+            ng.dataset.animationParent = n.meta.animationParent;
         if (n.style?.opacity != null)
             ng.setAttribute("opacity", String(n.style.opacity));
         // ── Static transform (deg, dx, dy, factor) ──────────
@@ -8510,8 +8597,8 @@ function renderToCanvas(sg, canvas, options = {}) {
             continue;
         const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
         const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-        const [x1, y1] = getConnPoint(src, dstCX, dstCY);
-        const [x2, y2] = getConnPoint(dst, srcCX, srcCY);
+        const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
+        const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
         if (e.style?.opacity != null)
             ctx.globalAlpha = Number(e.style.opacity);
         const ecol = String(e.style?.stroke ?? palette.edgeStroke);
@@ -9368,6 +9455,13 @@ class AnimationController {
                 this.drawTargetNodes.delete(`node-${s.target}`);
             }
         }
+        this._relatedElementIdsByPrimaryId = this._buildRelatedElementIndex();
+        for (const nodeId of Array.from(this.drawTargetNodes)) {
+            const relatedIds = this._relatedElementIdsByPrimaryId.get(nodeId);
+            if (!relatedIds)
+                continue;
+            relatedIds.forEach((id) => this.drawTargetNodes.add(id));
+        }
         this._drawStepIndexByElementId = this._buildDrawStepIndex();
         const { parentGroupByElementId, groupDescendantIds } = this._buildGroupVisibilityIndex();
         this._parentGroupByElementId = parentGroupByElementId;
@@ -9398,9 +9492,29 @@ class AnimationController {
             const el = resolveNonEdgeDrawEl(this.svg, step.target);
             if (el && !drawStepIndexByElementId.has(el.id)) {
                 drawStepIndexByElementId.set(el.id, stepIndex);
+                this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((relatedId) => {
+                    if (!drawStepIndexByElementId.has(relatedId)) {
+                        drawStepIndexByElementId.set(relatedId, stepIndex);
+                    }
+                });
             }
         });
         return drawStepIndexByElementId;
+    }
+    _buildRelatedElementIndex() {
+        const relatedElementIdsByPrimaryId = new Map();
+        this.svg.querySelectorAll(POSITIONABLE_SELECTOR).forEach((el) => {
+            const animationParent = el.dataset.animationParent;
+            if (!animationParent)
+                return;
+            const primaryEl = resolveNonEdgeDrawEl(this.svg, animationParent);
+            if (!primaryEl || primaryEl.id === el.id)
+                return;
+            const related = relatedElementIdsByPrimaryId.get(primaryEl.id) ?? new Set();
+            related.add(el.id);
+            relatedElementIdsByPrimaryId.set(primaryEl.id, related);
+        });
+        return relatedElementIdsByPrimaryId;
     }
     _buildGroupVisibilityIndex() {
         const parentGroupByElementId = new Map();
@@ -9480,10 +9594,18 @@ class AnimationController {
         const el = resolveEl(this.svg, target);
         if (!el)
             return [];
-        if (!el.id.startsWith("group-"))
-            return [el];
+        if (!el.id.startsWith("group-")) {
+            const ids = new Set([el.id]);
+            this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((id) => ids.add(id));
+            return Array.from(ids)
+                .map((id) => getEl(this.svg, id))
+                .filter((candidate) => candidate != null);
+        }
         const ids = new Set([el.id]);
         this._groupDescendantIds.get(el.id)?.forEach((id) => ids.add(id));
+        Array.from(ids).forEach((id) => {
+            this._relatedElementIdsByPrimaryId.get(id)?.forEach((relatedId) => ids.add(relatedId));
+        });
         return Array.from(ids)
             .map((id) => getEl(this.svg, id))
             .filter((candidate) => candidate != null);
@@ -9892,9 +10014,11 @@ class AnimationController {
     // ── highlight ────────────────────────────────────────────
     _doHighlight(target) {
         this.svg
-            .querySelectorAll(".ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl")
+            .querySelectorAll(".ng.hl, .gg.hl, .tg.hl, .ntg.hl, .cg.hl, .mdg.hl, .eg.hl")
             .forEach((e) => e.classList.remove("hl"));
-        resolveEl(this.svg, target)?.classList.add("hl");
+        for (const el of this._resolveCascadeTargets(target)) {
+            el.classList.add("hl");
+        }
     }
     // ── fade / unfade ─────────────────────────────────────────
     _doFade(target, doFade) {
@@ -9930,8 +10054,8 @@ class AnimationController {
     }
     // ── move ──────────────────────────────────────────────────
     _doMove(target, step, silent) {
-        const el = resolveEl(this.svg, target);
-        if (!el)
+        const targets = this._resolveCascadeTargets(target);
+        if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
             tx: 0,
@@ -9944,12 +10068,14 @@ class AnimationController {
             tx: cur.tx + (step.dx ?? 0),
             ty: cur.ty + (step.dy ?? 0),
         });
-        this._writeTransform(el, target, silent, step.duration ?? 420);
+        for (const el of targets) {
+            this._writeTransform(el, target, silent, step.duration ?? 420);
+        }
     }
     // ── scale ─────────────────────────────────────────────────
     _doScale(target, step, silent) {
-        const el = resolveEl(this.svg, target);
-        if (!el)
+        const targets = this._resolveCascadeTargets(target);
+        if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
             tx: 0,
@@ -9958,12 +10084,14 @@ class AnimationController {
             rotate: 0,
         };
         this._transforms.set(target, { ...cur, scale: step.factor ?? 1 });
-        this._writeTransform(el, target, silent, step.duration ?? 350);
+        for (const el of targets) {
+            this._writeTransform(el, target, silent, step.duration ?? 350);
+        }
     }
     // ── rotate ────────────────────────────────────────────────
     _doRotate(target, step, silent) {
-        const el = resolveEl(this.svg, target);
-        if (!el)
+        const targets = this._resolveCascadeTargets(target);
+        if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
             tx: 0,
@@ -9975,7 +10103,9 @@ class AnimationController {
             ...cur,
             rotate: cur.rotate + (step.deg ?? 0),
         });
-        this._writeTransform(el, target, silent, step.duration ?? 400);
+        for (const el of targets) {
+            this._writeTransform(el, target, silent, step.duration ?? 400);
+        }
     }
     _doDraw(step, silent) {
         const { target } = step;
@@ -10119,18 +10249,20 @@ class AnimationController {
             return;
         }
         // ── Node draw ──────────────────────────────────────
-        const nodeEl = getNodeEl(this.svg, target);
-        if (!nodeEl)
+        const nodeEls = this._resolveCascadeTargets(target).filter((el) => el.classList.contains("ng"));
+        if (!nodeEls.length)
             return;
-        showDrawEl(nodeEl);
-        if (silent) {
-            revealNodeInstant(nodeEl);
-        }
-        else {
-            if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
-                prepareNodeForDraw(nodeEl);
+        for (const nodeEl of nodeEls) {
+            showDrawEl(nodeEl);
+            if (silent) {
+                revealNodeInstant(nodeEl);
             }
-            animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur, step.duration ?? ANIMATION.textRevealMs);
+            else {
+                if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
+                    prepareNodeForDraw(nodeEl);
+                }
+                animateNodeDraw(nodeEl, step.duration ?? ANIMATION.nodeStrokeDur, step.duration ?? ANIMATION.textRevealMs);
+            }
         }
     }
     // ── erase ─────────────────────────────────────────────────
@@ -10151,45 +10283,44 @@ class AnimationController {
     }
     // ── pulse ─────────────────────────────────────────────────
     _doPulse(target, duration = 500) {
-        resolveEl(this.svg, target)?.animate([
-            { filter: "brightness(1)" },
-            { filter: "brightness(1.6)" },
-            { filter: "brightness(1)" },
-        ], { duration, iterations: 3 });
+        for (const el of this._resolveCascadeTargets(target)) {
+            el.animate([
+                { filter: "brightness(1)" },
+                { filter: "brightness(1.6)" },
+                { filter: "brightness(1)" },
+            ], { duration, iterations: 3 });
+        }
     }
     // ── color ─────────────────────────────────────────────────
     _doColor(target, color) {
         if (!color)
             return;
-        const el = resolveEl(this.svg, target);
-        if (!el)
-            return;
-        // edge — color stroke
-        if (parseEdgeTarget(target)) {
-            el.querySelectorAll("path, line, polyline").forEach((p) => {
-                p.style.stroke = color;
+        for (const el of this._resolveCascadeTargets(target)) {
+            if (parseEdgeTarget(target)) {
+                el.querySelectorAll("path, line, polyline").forEach((p) => {
+                    p.style.stroke = color;
+                });
+                el.querySelectorAll("polygon").forEach((p) => {
+                    p.style.fill = color;
+                    p.style.stroke = color;
+                });
+                continue;
+            }
+            let hit = false;
+            el.querySelectorAll("path, rect, ellipse, polygon").forEach((c) => {
+                const attrFill = c.getAttribute("fill");
+                if (attrFill === "none")
+                    return;
+                if (attrFill === null && c.tagName === "path")
+                    return;
+                c.style.fill = color;
+                hit = true;
             });
-            el.querySelectorAll("polygon").forEach((p) => {
-                p.style.fill = color;
-                p.style.stroke = color;
-            });
-            return;
-        }
-        // everything else — color fill
-        let hit = false;
-        el.querySelectorAll("path, rect, ellipse, polygon").forEach((c) => {
-            const attrFill = c.getAttribute("fill");
-            if (attrFill === "none")
-                return;
-            if (attrFill === null && c.tagName === "path")
-                return;
-            c.style.fill = color;
-            hit = true;
-        });
-        if (!hit) {
-            el.querySelectorAll("text").forEach((t) => {
-                t.style.fill = color;
-            });
+            if (!hit) {
+                el.querySelectorAll("text").forEach((t) => {
+                    t.style.fill = color;
+                });
+            }
         }
     }
     // ── narration ───────────────────────────────────────────
@@ -10783,7 +10914,7 @@ class EventEmitter {
 }
 
 function render(options) {
-    const { container: rawContainer, dsl, renderer = "svg", injectCSS = true, tts, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
+    const { container: rawContainer, dsl, plugins, renderer = "svg", injectCSS = true, tts, svgOptions = {}, canvasOptions = {}, onNodeClick, onReady, } = options;
     if (injectCSS && !document.getElementById("ai-diagram-css")) {
         const style = document.createElement("style");
         style.id = "ai-diagram-css";
@@ -10799,7 +10930,7 @@ function render(options) {
     else {
         el = rawContainer;
     }
-    const ast = parse(dsl);
+    const ast = parse(dsl, { plugins });
     const scene = buildSceneGraph(ast);
     layout(scene);
     let svg;
@@ -11143,6 +11274,7 @@ class SketchmarkCanvas {
             const instance = render({
                 container: this.diagramWrap,
                 dsl: this.dsl,
+                plugins: this.options.plugins,
                 renderer: this.renderer,
                 svgOptions: { interactive: true, showTitle: true, theme: this.options.svgOptions?.theme ?? this.theme, ...this.options.svgOptions },
                 canvasOptions: this.options.canvasOptions,
@@ -12220,6 +12352,7 @@ class SketchmarkEmbed {
             const instance = render({
                 container: this.diagramWrap,
                 dsl: this.dsl,
+                plugins: this.options.plugins,
                 renderer: "svg",
                 svgOptions: {
                     showTitle: true,

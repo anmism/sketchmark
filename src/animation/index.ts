@@ -679,6 +679,7 @@ export class AnimationController {
   readonly drawTargetCharts: Set<string>;
   readonly drawTargetMarkdowns: Set<string>;
   private readonly _drawStepIndexByElementId: Map<string, number>;
+  private readonly _relatedElementIdsByPrimaryId: Map<string, Set<string>>;
   private readonly _parentGroupByElementId: Map<string, string>;
   private readonly _groupDescendantIds: Map<string, Set<string>>;
 
@@ -744,6 +745,13 @@ export class AnimationController {
       }
     }
 
+    this._relatedElementIdsByPrimaryId = this._buildRelatedElementIndex();
+    for (const nodeId of Array.from(this.drawTargetNodes)) {
+      const relatedIds = this._relatedElementIdsByPrimaryId.get(nodeId);
+      if (!relatedIds) continue;
+      relatedIds.forEach((id) => this.drawTargetNodes.add(id));
+    }
+
     this._drawStepIndexByElementId = this._buildDrawStepIndex();
     const { parentGroupByElementId, groupDescendantIds } = this._buildGroupVisibilityIndex();
     this._parentGroupByElementId = parentGroupByElementId;
@@ -777,10 +785,33 @@ export class AnimationController {
       const el = resolveNonEdgeDrawEl(this.svg, step.target);
       if (el && !drawStepIndexByElementId.has(el.id)) {
         drawStepIndexByElementId.set(el.id, stepIndex);
+        this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((relatedId) => {
+          if (!drawStepIndexByElementId.has(relatedId)) {
+            drawStepIndexByElementId.set(relatedId, stepIndex);
+          }
+        });
       }
     });
 
     return drawStepIndexByElementId;
+  }
+
+  private _buildRelatedElementIndex(): Map<string, Set<string>> {
+    const relatedElementIdsByPrimaryId = new Map<string, Set<string>>();
+
+    this.svg.querySelectorAll<SVGGElement>(POSITIONABLE_SELECTOR).forEach((el) => {
+      const animationParent = el.dataset.animationParent;
+      if (!animationParent) return;
+
+      const primaryEl = resolveNonEdgeDrawEl(this.svg, animationParent);
+      if (!primaryEl || primaryEl.id === el.id) return;
+
+      const related = relatedElementIdsByPrimaryId.get(primaryEl.id) ?? new Set<string>();
+      related.add(el.id);
+      relatedElementIdsByPrimaryId.set(primaryEl.id, related);
+    });
+
+    return relatedElementIdsByPrimaryId;
   }
 
   private _buildGroupVisibilityIndex(): {
@@ -874,10 +905,19 @@ export class AnimationController {
 
     const el = resolveEl(this.svg, target);
     if (!el) return [];
-    if (!el.id.startsWith("group-")) return [el];
+    if (!el.id.startsWith("group-")) {
+      const ids = new Set<string>([el.id]);
+      this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((id) => ids.add(id));
+      return Array.from(ids)
+        .map((id) => getEl(this.svg, id))
+        .filter((candidate): candidate is SVGGElement => candidate != null);
+    }
 
     const ids = new Set<string>([el.id]);
     this._groupDescendantIds.get(el.id)?.forEach((id) => ids.add(id));
+    Array.from(ids).forEach((id) => {
+      this._relatedElementIdsByPrimaryId.get(id)?.forEach((relatedId) => ids.add(relatedId));
+    });
 
     return Array.from(ids)
       .map((id) => getEl(this.svg, id))
@@ -1303,9 +1343,11 @@ export class AnimationController {
   // ── highlight ────────────────────────────────────────────
   private _doHighlight(target: string): void {
     this.svg
-      .querySelectorAll(".ng.hl, .tg.hl, .ntg.hl, .cg.hl, .eg.hl")
+      .querySelectorAll(".ng.hl, .gg.hl, .tg.hl, .ntg.hl, .cg.hl, .mdg.hl, .eg.hl")
       .forEach((e) => e.classList.remove("hl"));
-    resolveEl(this.svg, target)?.classList.add("hl");
+    for (const el of this._resolveCascadeTargets(target)) {
+      el.classList.add("hl");
+    }
   }
 
   // ── fade / unfade ─────────────────────────────────────────
@@ -1351,8 +1393,8 @@ export class AnimationController {
 
   // ── move ──────────────────────────────────────────────────
   private _doMove(target: string, step: ASTStep, silent: boolean): void {
-    const el = resolveEl(this.svg, target);
-    if (!el) return;
+    const targets = this._resolveCascadeTargets(target);
+    if (!targets.length) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
       ty: 0,
@@ -1364,13 +1406,15 @@ export class AnimationController {
       tx: cur.tx + (step.dx ?? 0),
       ty: cur.ty + (step.dy ?? 0),
     });
-    this._writeTransform(el, target, silent, step.duration ?? 420);
+    for (const el of targets) {
+      this._writeTransform(el, target, silent, step.duration ?? 420);
+    }
   }
 
   // ── scale ─────────────────────────────────────────────────
   private _doScale(target: string, step: ASTStep, silent: boolean): void {
-    const el = resolveEl(this.svg, target);
-    if (!el) return;
+    const targets = this._resolveCascadeTargets(target);
+    if (!targets.length) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
       ty: 0,
@@ -1378,13 +1422,15 @@ export class AnimationController {
       rotate: 0,
     };
     this._transforms.set(target, { ...cur, scale: step.factor ?? 1 });
-    this._writeTransform(el, target, silent, step.duration ?? 350);
+    for (const el of targets) {
+      this._writeTransform(el, target, silent, step.duration ?? 350);
+    }
   }
 
   // ── rotate ────────────────────────────────────────────────
   private _doRotate(target: string, step: ASTStep, silent: boolean): void {
-    const el = resolveEl(this.svg, target);
-    if (!el) return;
+    const targets = this._resolveCascadeTargets(target);
+    if (!targets.length) return;
     const cur = this._transforms.get(target) ?? {
       tx: 0,
       ty: 0,
@@ -1395,7 +1441,9 @@ export class AnimationController {
       ...cur,
       rotate: cur.rotate + (step.deg ?? 0),
     });
-    this._writeTransform(el, target, silent, step.duration ?? 400);
+    for (const el of targets) {
+      this._writeTransform(el, target, silent, step.duration ?? 400);
+    }
   }
   private _doDraw(step: ASTStep, silent: boolean): void {
     const { target } = step;
@@ -1555,20 +1603,22 @@ export class AnimationController {
     }
 
     // ── Node draw ──────────────────────────────────────
-    const nodeEl = getNodeEl(this.svg, target);
-    if (!nodeEl) return;
-    showDrawEl(nodeEl);
-    if (silent) {
-      revealNodeInstant(nodeEl);
-    } else {
-      if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
-        prepareNodeForDraw(nodeEl);
+    const nodeEls = this._resolveCascadeTargets(target).filter((el) => el.classList.contains("ng"));
+    if (!nodeEls.length) return;
+    for (const nodeEl of nodeEls) {
+      showDrawEl(nodeEl);
+      if (silent) {
+        revealNodeInstant(nodeEl);
+      } else {
+        if (!nodeGuidePathEl(nodeEl) && !nodeEl.querySelector("path")?.style.strokeDasharray) {
+          prepareNodeForDraw(nodeEl);
+        }
+        animateNodeDraw(
+          nodeEl,
+          step.duration ?? ANIMATION.nodeStrokeDur,
+          step.duration ?? ANIMATION.textRevealMs,
+        );
       }
-      animateNodeDraw(
-        nodeEl,
-        step.duration ?? ANIMATION.nodeStrokeDur,
-        step.duration ?? ANIMATION.textRevealMs,
-      );
     }
   }
 
@@ -1591,49 +1641,48 @@ export class AnimationController {
 
   // ── pulse ─────────────────────────────────────────────────
   private _doPulse(target: string, duration: number = 500): void {
-    resolveEl(this.svg, target)?.animate(
-      [
-        { filter: "brightness(1)" },
-        { filter: "brightness(1.6)" },
-        { filter: "brightness(1)" },
-      ],
-      { duration, iterations: 3 },
-    );
+    for (const el of this._resolveCascadeTargets(target)) {
+      el.animate(
+        [
+          { filter: "brightness(1)" },
+          { filter: "brightness(1.6)" },
+          { filter: "brightness(1)" },
+        ],
+        { duration, iterations: 3 },
+      );
+    }
   }
 
   // ── color ─────────────────────────────────────────────────
   private _doColor(target: string, color: string | undefined): void {
     if (!color) return;
-    const el = resolveEl(this.svg, target);
-    if (!el) return;
+    for (const el of this._resolveCascadeTargets(target)) {
+      if (parseEdgeTarget(target)) {
+        el.querySelectorAll<SVGElement>("path, line, polyline").forEach((p) => {
+          p.style.stroke = color;
+        });
+        el.querySelectorAll<SVGElement>("polygon").forEach((p) => {
+          p.style.fill = color;
+          p.style.stroke = color;
+        });
+        continue;
+      }
 
-    // edge — color stroke
-    if (parseEdgeTarget(target)) {
-      el.querySelectorAll<SVGElement>("path, line, polyline").forEach((p) => {
-        p.style.stroke = color;
-      });
-      el.querySelectorAll<SVGElement>("polygon").forEach((p) => {
-        p.style.fill = color;
-        p.style.stroke = color;
-      });
-      return;
-    }
-
-    // everything else — color fill
-    let hit = false;
-    el.querySelectorAll<SVGElement>("path, rect, ellipse, polygon").forEach(
-      (c) => {
-        const attrFill = c.getAttribute("fill");
-        if (attrFill === "none") return;
-        if (attrFill === null && c.tagName === "path") return;
-        c.style.fill = color;
-        hit = true;
-      },
-    );
-    if (!hit) {
-      el.querySelectorAll<SVGTextElement>("text").forEach((t) => {
-        t.style.fill = color;
-      });
+      let hit = false;
+      el.querySelectorAll<SVGElement>("path, rect, ellipse, polygon").forEach(
+        (c) => {
+          const attrFill = c.getAttribute("fill");
+          if (attrFill === "none") return;
+          if (attrFill === null && c.tagName === "path") return;
+          c.style.fill = color;
+          hit = true;
+        },
+      );
+      if (!hit) {
+        el.querySelectorAll<SVGTextElement>("text").forEach((t) => {
+          t.style.fill = color;
+        });
+      }
     }
   }
 

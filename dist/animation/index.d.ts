@@ -31,6 +31,7 @@ export declare class AnimationController {
     readonly drawTargetCharts: Set<string>;
     readonly drawTargetMarkdowns: Set<string>;
     private readonly _drawStepIndexByElementId;
+    private readonly _relatedElementIdsByPrimaryId;
     private readonly _parentGroupByElementId;
     private readonly _groupDescendantIds;
     private _captionEl;
@@ -45,6 +46,7 @@ export declare class AnimationController {
     get drawTargets(): Set<string>;
     constructor(svg: SVGSVGElement, steps: ASTStepItem[], _container?: HTMLElement | undefined, _rc?: any | undefined, _config?: Record<string, string | number | boolean> | undefined);
     private _buildDrawStepIndex;
+    private _buildRelatedElementIndex;
     private _buildGroupVisibilityIndex;
     private _hideGroupDescendants;
     private _isDeferredForGroupReveal;

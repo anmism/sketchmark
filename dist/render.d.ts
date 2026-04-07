@@ -2,9 +2,11 @@ import { AnimationController } from "./animation";
 import { buildSceneGraph } from "./scene";
 import type { SVGRendererOptions } from "./renderer/svg";
 import type { CanvasRendererOptions } from "./renderer/canvas";
+import type { SketchmarkPlugin } from "./plugins";
 export interface RenderOptions {
     container: string | HTMLElement | SVGSVGElement;
     dsl: string;
+    plugins?: readonly SketchmarkPlugin[];
     renderer?: "svg" | "canvas";
     injectCSS?: boolean;
     tts?: boolean;

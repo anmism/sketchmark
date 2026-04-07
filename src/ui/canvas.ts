@@ -12,6 +12,7 @@ import type { ASTStepItem } from "../ast/types";
 import type { SVGRendererOptions } from "../renderer/svg";
 import type { CanvasRendererOptions } from "../renderer/canvas";
 import type { SketchmarkEditor } from "./editor";
+import type { SketchmarkPlugin } from "../plugins";
 
 const CANVAS_STYLE_ID = "sketchmark-canvas-ui";
 const CANVAS_CSS = `
@@ -45,6 +46,7 @@ type CanvasTheme = "light" | "dark";
 export interface SketchmarkCanvasOptions {
   container: ContainerTarget;
   dsl?: string;
+  plugins?: readonly SketchmarkPlugin[];
   renderer?: "svg" | "canvas";
   theme?: CanvasTheme;
   autoFit?: boolean;
@@ -351,6 +353,7 @@ export class SketchmarkCanvas {
       const instance = render({
         container: this.diagramWrap,
         dsl: this.dsl,
+        plugins: this.options.plugins,
         renderer: this.renderer,
         svgOptions: { interactive: true, showTitle: true, theme: this.options.svgOptions?.theme ?? this.theme, ...this.options.svgOptions },
         canvasOptions: this.options.canvasOptions,

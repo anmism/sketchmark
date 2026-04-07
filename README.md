@@ -68,6 +68,41 @@ const instance = render({
 });
 ```
 
+### Plugins
+
+Sketchmark supports lightweight parse plugins. A plugin can preprocess the DSL source before parsing, transform the parsed AST after parsing, or do both. This keeps domain features like official packages such as `@sketchmark/plugin-notation` outside the core bundle.
+
+```typescript
+import { render } from 'sketchmark';
+import { notation } from '@sketchmark/plugin-notation';
+
+render({
+  container: document.getElementById('diagram'),
+  dsl: `
+diagram
+box eq label="$x^2 + y^2 = z^2$"
+step narrate "$\\theta = 45^\\circ$"
+end
+`.trim(),
+  plugins: [notation()],
+});
+```
+
+The first `@sketchmark/plugin-notation` release focuses on lightweight TeX-style math to Unicode conversion for labels and `step narrate`, which keeps the core renderer small while still making math-heavy diagrams nicer to author.
+
+Another official package, `@sketchmark/plugin-geometry`, follows the same model by compiling `geo.*` commands into ordinary `circle`, `path`, and `text` nodes for textbook-style diagrams without adding geometry-specific renderer logic to the core bundle.
+
+`@sketchmark/plugin-anchors` keeps edge syntax readable by rewriting endpoint refs like `a@right --> b@left` into ordinary edges with anchor metadata, which lets named attachment points stay outside the core parser surface.
+
+`@sketchmark/plugin-annotations` builds on that idea for geometry-style marks such as angle arcs, right-angle squares, equal ticks, midpoint marks, and dimension lines, again by compiling into ordinary Sketchmark nodes.
+
+`@sketchmark/plugin-wireframe` applies the same pattern to primitive UI mockups, compiling `wf.screen`, `wf.panel`, `wf.text`, `wf.media`, `wf.control`, and `wf.divider` into regular Sketchmark groups and nodes so wireframe support stays outside the core bundle too.
+
+`@sketchmark/plugin-circuit` does the same for draw-focused circuit notation, compiling `ckt.comp`, `ckt.port`, `ckt.junction`, and `ckt.wire` into regular groups plus `path`, `circle`, and `text` nodes.
+
+`@sketchmark/plugin-chem-molecule` extends the same pattern to lightweight molecule diagrams, compiling `chem.atom`, `chem.bond`, `chem.ring`, and `chem.label` into ordinary groups plus `path` and `text` nodes.
+
+
 ### Reusable UI Widgets
 
 ```javascript
@@ -1258,6 +1293,7 @@ render(options: RenderOptions): DiagramInstance
 interface RenderOptions {
   container:      string | HTMLElement | SVGSVGElement; // CSS selector or element
   dsl:            string;                               // DSL source text
+  plugins?:       SketchmarkPlugin[];                   // optional source/AST plugins
   renderer?:      'svg' | 'canvas';                    // default: 'svg'
   injectCSS?:     boolean;                              // inject animation CSS (default: true)
   tts?:           boolean;                              // override diagram TTS config
@@ -1285,6 +1321,12 @@ interface DiagramInstance {
   update:    (dsl: string) => DiagramInstance;  // re-render with new DSL
   exportSVG: (filename?: string) => void;
   exportPNG: (filename?: string) => Promise<void>;
+}
+
+interface SketchmarkPlugin {
+  name: string;
+  preprocess?: (source: string) => string;
+  transformAst?: (ast: DiagramAST) => DiagramAST;
 }
 ```
 

@@ -19,6 +19,9 @@
       <div id="sidebar">
         <div class="sidebar-inner">
           <div id="example-tabs">
+            <button class="ex-tab" data-example="anchors">anchors</button>
+            <button class="ex-tab" data-example="circuit">circuit</button>
+            <button class="ex-tab" data-example="chem">chem</button>
             <button class="ex-tab active" data-example="shapes">⬡ shapes</button>
             <button class="ex-tab" data-example="image">🖼 image</button>
             <button class="ex-tab" data-example="icon">🔣 icon</button>
@@ -26,6 +29,10 @@
             <button class="ex-tab" data-example="groups">🧩 groups</button>
             <button class="ex-tab" data-example="animation">🎬 animation</button>
             <button class="ex-tab" data-example="narration">🗣 narration</button>
+            <button class="ex-tab" data-example="notation">∑ notation</button>
+            <button class="ex-tab" data-example="geometry">📐 geometry</button>
+            <button class="ex-tab" data-example="annotations">✍ annotations</button>
+            <button class="ex-tab" data-example="wireframe">🧱 wireframe</button>
             <button class="ex-tab" data-example="edges">↔ edges</button>
             <button class="ex-tab" data-example="markdown">📄 markdown</button>
             <button class="ex-tab" data-example="table">📋 table</button>
@@ -68,6 +75,14 @@
         SketchmarkEditor,
         exportHTML,
       } from "../dist/index.js";
+      import { anchors } from "../packages/plugin-anchors/browser.js";
+      import { annotations } from "../packages/plugin-annotations/browser.js";
+      import { chemMolecule } from "../packages/plugin-chem-molecule/browser.js";
+      import { circuit } from "../packages/plugin-circuit/browser.js";
+      import { geometry } from "../packages/plugin-geometry/browser.js";
+      import { notation } from "../packages/plugin-notation/browser.js";
+      import { wireframe } from "../packages/plugin-wireframe/browser.js";
+
 
       const EXAMPLES = {
         shapes: `diagram
@@ -176,6 +191,128 @@ step draw answer
 step draw think-->answer
 end`,
 
+        notation: `diagram
+title label="Notation Plugin"
+layout column
+config gap=24
+
+box theorem label="$a^2 + b^2 = c^2$"
+note angle label="$\\theta = 45^\\circ$"
+
+table trig label="Special Values"
+{
+  header Expr Value
+  row "$\\sin(\\theta)$" "$\\frac{\\sqrt{2}}{2}$"
+  row "$\\cos(\\theta)$" "$\\frac{\\sqrt{2}}{2}$"
+}
+
+step narrate "With $\\theta = 45^\\circ$, both legs contribute equally."
+end`,
+
+        geometry: `diagram
+title label="Geometry Plugin"
+
+geo.point A x=80 y=230
+geo.point B x=280 y=230
+geo.point C x=180 y=90
+geo.point O x=180 y=165 label="O"
+
+geo.triangle tri points=[A,B,C]
+geo.segment AO from=A to=O label="AO"
+geo.segment BO from=B to=O label="BO"
+geo.ray bisector from=C to=O extend=60 label="bisector"
+geo.circle guide center=O r=42 label="r"
+
+step draw tri
+step draw A
+step draw B
+step draw C
+step draw O
+step draw guide
+step draw bisector
+end`,
+
+        anchors: `diagram
+title label="Anchors Plugin"
+layout row
+config gap=60
+
+box app label="App" width=120 height=56
+box api label="API" width=120 height=56
+box db label="DB" width=120 height=56
+
+app@right --> api@left label="request"
+api@bottom --> db@top label="query"
+app@bottom-right --> db@top-left label="sync"
+end`,
+
+        circuit: `diagram
+title label="Circuit Plugin"
+
+ckt.port vin x=80 y=140 label="Vin"
+ckt.comp r1 kind=resistor x=220 y=140 label="R1" value="10k"
+ckt.comp c1 kind=capacitor x=380 y=140 orient=v label="C1" value="100n"
+ckt.comp gnd kind=ground x=380 y=260
+ckt.port vout x=520 y=140 label="Vout"
+
+ckt.wire w1 from=vin to=r1.left
+ckt.wire w2 from=r1.right to=vout label="out"
+ckt.wire w3 from=r1.right to=c1.top mode=hv
+ckt.wire w4 from=c1.bottom to=gnd.top
+end`,
+
+        chem: `diagram
+title label="Chem Molecule Plugin"
+
+chem.atom O x=120 y=150 element=O
+chem.atom H1 x=70 y=220 element=H
+chem.atom H2 x=170 y=220 element=H
+chem.bond b1 from=O to=H1
+chem.bond b2 from=O to=H2
+chem.label water target=O side=top text="Water"
+
+chem.ring ring1 x=420 y=170 kind=benzene aromatic=true
+chem.label ringName target=ring1.center side=bottom text="Benzene"
+end`,
+
+        annotations: `diagram
+title label="Annotations Plugin"
+
+geo.point A x=90 y=230
+geo.point B x=290 y=230
+geo.point C x=190 y=90
+
+geo.triangle tri points=[A,B,C]
+annot.dimension base from=A to=B label="6 cm"
+annot.equal eqLeft from=A to=C count=1
+annot.equal eqRight from=B to=C count=1
+annot.angle interior a=A b=C c=B mode=interior label="theta"
+annot.angle reflex a=A b=C c=B mode=reflex label="reflex" radius=64
+annot.midpoint mid from=A to=B label="M"
+
+end`,
+
+        wireframe: `diagram
+title label="Wireframe Plugin"
+layout row
+config gap=28
+
+wf.screen mobile frame=phone width=390 height=640 items=[hero,form]
+wf.panel hero label="Hero" items=[cover,title,body,cta] width=300 height=300
+wf.media cover kind=image width=240 height=120
+wf.text title kind=heading lines=2 width=220
+wf.text body kind=body lines=3 width=240
+wf.control cta kind=button label="Continue" width=140
+
+wf.panel form label="Sign In" items=[email,password,remember,submit] width=300 height=240
+wf.control email kind=input placeholder="Email"
+wf.control password kind=input placeholder="Password"
+wf.control remember kind=checkbox label="Remember me"
+wf.divider sep width=220
+wf.control submit kind=button label="Sign In"
+
+end`,
+
         edges: `diagram
 title label="Edges"
 layout row
@@ -274,6 +411,7 @@ end`,
 
       const canvas = new SketchmarkCanvas({
         container: document.getElementById("canvas-host"),
+        plugins: [circuit(), chemMolecule(), wireframe(), anchors(), annotations(), geometry(), notation()],
         theme: canvasTheme,
         preserveViewOnRender: true,
         showCaption: false,
@@ -403,3 +541,4 @@ end`,
     </script>
   </body>
 </html>
+

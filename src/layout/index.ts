@@ -20,7 +20,7 @@ import type {
   SceneTable,
   SceneChart,
 } from "../scene";
-import type { GroupChildRef } from "../ast/types";
+import type { EdgeAnchor, GroupChildRef } from "../ast/types";
 import { nodeMap, groupMap, tableMap, chartMap } from "../scene";
 
 import { markdownMap } from "../scene";
@@ -335,6 +335,62 @@ export function connPoint(n: SceneNode, other: SceneNode): [number, number] {
   return [cx + t * dx, cy + t * dy];
 }
 
+function clampInset(value: number): number {
+  return Math.max(2, value);
+}
+
+export function anchoredConnPoint(
+  entity: { x: number; y: number; w: number; h: number; shape?: string },
+  anchor?: EdgeAnchor | string,
+  otherCX?: number,
+  otherCY?: number,
+): [number, number] {
+  if (!anchor) {
+    if (entity.shape && otherCX != null && otherCY != null) {
+      return connPoint(
+        entity as SceneNode,
+        { x: otherCX - 1, y: otherCY - 1, w: 2, h: 2, shape: "box" } as SceneNode,
+      );
+    }
+    if (otherCX != null && otherCY != null) {
+      return rectConnPoint(entity.x, entity.y, entity.w, entity.h, otherCX, otherCY);
+    }
+    return [entity.x + entity.w / 2, entity.y + entity.h / 2];
+  }
+
+  const insetX = clampInset(Math.min(10, entity.w / 2));
+  const insetY = clampInset(Math.min(10, entity.h / 2));
+  const left = entity.x + insetX;
+  const right = entity.x + entity.w - insetX;
+  const top = entity.y + insetY;
+  const bottom = entity.y + entity.h - insetY;
+  const cx = entity.x + entity.w / 2;
+  const cy = entity.y + entity.h / 2;
+
+  switch (anchor) {
+    case "top":
+      return [cx, top];
+    case "right":
+      return [right, cy];
+    case "bottom":
+      return [cx, bottom];
+    case "left":
+      return [left, cy];
+    case "center":
+      return [cx, cy];
+    case "top-left":
+      return [left, top];
+    case "top-right":
+      return [right, top];
+    case "bottom-left":
+      return [left, bottom];
+    case "bottom-right":
+      return [right, bottom];
+    default:
+      return [cx, cy];
+  }
+}
+
 // Tables act as rectangular nodes for edge routing
 function tableConnPoint(
   t: SceneTable,
@@ -395,27 +451,6 @@ function routeEdges(sg: SceneGraph): void {
     return null;
   }
 
-  function connPt(
-    src: Resolved,
-    dstCX: number,
-    dstCY: number,
-  ): [number, number] {
-    // SceneNode has a .shape field; use the existing connPoint for it
-    if ("shape" in src && (src as any).shape) {
-      return connPoint(
-        src as any,
-        {
-          x: dstCX - 1,
-          y: dstCY - 1,
-          w: 2,
-          h: 2,
-          shape: "box",
-        } as any,
-      );
-    }
-    return rectConnPoint(src.x, src.y, src.w, src.h, dstCX, dstCY);
-  }
-
   for (const e of sg.edges) {
     const src = resolve(e.from);
     const dst = resolve(e.to);
@@ -429,7 +464,10 @@ function routeEdges(sg: SceneGraph): void {
     const srcCX = src.x + src.w / 2,
       srcCY = src.y + src.h / 2;
 
-    e.points = [connPt(src, dstCX, dstCY), connPt(dst, srcCX, srcCY)];
+    e.points = [
+      anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY),
+      anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY),
+    ];
   }
 }
 

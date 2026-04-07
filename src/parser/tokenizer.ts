@@ -186,8 +186,11 @@ export function tokenize(src: string): Token[] {
           const esc = src[i] ?? "";
           if (esc === "n") val += "\n";
           else if (esc === "t") val += "\t";
+          else if (esc === "r") val += "\r";
           else if (esc === "\\") val += "\\";
-          else val += esc;
+          else if (esc === q) val += q;
+          else if (esc) val += `\\${esc}`;
+          else val += "\\";
         } else val += src[i];
         i++;
       }
