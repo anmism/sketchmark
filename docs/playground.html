@@ -31,6 +31,7 @@
             <button class="ex-tab" data-example="narration">🗣 narration</button>
             <button class="ex-tab" data-example="notation">∑ notation</button>
             <button class="ex-tab" data-example="geometry">📐 geometry</button>
+            <button class="ex-tab" data-example="graph">?? graph</button>  
             <button class="ex-tab" data-example="annotations">✍ annotations</button>
             <button class="ex-tab" data-example="wireframe">🧱 wireframe</button>
             <button class="ex-tab" data-example="edges">↔ edges</button>
@@ -80,6 +81,7 @@
       import { chemMolecule } from "../packages/plugin-chem-molecule/browser.js";
       import { circuit } from "../packages/plugin-circuit/browser.js";
       import { geometry } from "../packages/plugin-geometry/browser.js";
+      import { graph } from "../packages/plugin-graph/browser.js";
       import { notation } from "../packages/plugin-notation/browser.js";
       import { wireframe } from "../packages/plugin-wireframe/browser.js";
 
@@ -230,6 +232,22 @@ step draw C
 step draw O
 step draw guide
 step draw bisector
+end`,
+
+        graph: `diagram
+title label="Graph Plugin"
+
+graph.axes plane x=70 y=60 width=520 height=280 xmin=-6.28 xmax=6.28 ymin=-1.5 ymax=1.5 grid=true xlabel="x" ylabel="y"
+graph.plot sine axes=plane expr="sin(x)" label="sin(x)" stroke="#c85428"
+graph.plot cosine axes=plane expr="cos(x)" label="cos(x)" stroke="#2563eb" label-dx=-38 label-dy=16
+graph.point O axes=plane at=[0,0] label="O"
+graph.point P axes=plane at=[1.57,1] label="P"
+graph.arrow vec axes=plane from=[3,0] to=[4.1,0.8] label="v"
+graph.region band axes=plane points=[[-1,0],[-1,1],[1,1],[1,0]] label="region"
+graph.area area1 axes=plane plot=sine from=0 to=3.14 label="area"
+graph.tangent tan1 axes=plane plot=sine at=1.57 label="tangent" stroke="#7c2d12" dash="6,4"
+
+annot.dimension rise from=O to=P label="rise"
 end`,
 
         anchors: `diagram
@@ -411,7 +429,7 @@ end`,
 
       const canvas = new SketchmarkCanvas({
         container: document.getElementById("canvas-host"),
-        plugins: [circuit(), chemMolecule(), wireframe(), anchors(), annotations(), geometry(), notation()],
+        plugins: [circuit(), chemMolecule(), wireframe(), anchors(), annotations(), geometry(), graph(), notation()],
         theme: canvasTheme,
         preserveViewOnRender: true,
         showCaption: false,
@@ -541,4 +559,5 @@ end`,
     </script>
   </body>
 </html>
+
 

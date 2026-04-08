@@ -42,6 +42,8 @@ end
 - `geo.ray <id> from=<pointId> to=<pointId> [extend=<n>] [label="..."]`
 - `geo.line <id> from=<pointId> to=<pointId> [extend=<n>] [label="..."]`
 - `geo.circle <id> center=<pointId> r=<n> [label="..."]`
+- `geo.arc <id> center=<pointId> r=<n> start=<deg> end=<deg> [close=none|chord|center] [label="..."]`
+- `geo.ellipse <id> center=<pointId> rx=<n> ry=<n> [label="..."]`
 - `geo.polygon <id> points=[A,B,C,...] [label="..."]`
 - `geo.triangle <id> points=[A,B,C] [label="..."]`
 
@@ -50,6 +52,9 @@ end
 - Geometry commands are root-level in `v1`.
 - The plugin auto-inserts `layout absolute` if the diagram does not declare a layout yet.
 - If a diagram already declares a layout, it must be `layout absolute`.
+- `geo.ray` renders with a single arrow tip at the extending end.
+- `geo.arc` uses degree-based angles with `0` pointing right and `90` pointing up.
+- `geo.arc close=none` draws an open arc, `close=chord` closes it with a straight chord, and `close=center` draws a sector.
 - Labels are emitted as helper `text` nodes positioned near the geometry primitive.
 
 ## Options

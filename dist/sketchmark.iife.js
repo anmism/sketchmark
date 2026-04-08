@@ -10027,20 +10027,58 @@ var AIDiagram = (function (exports) {
                 el.classList.toggle("faded", doFade);
             }
         }
+        _resolveTransformTargets(target) {
+            return this._resolveCascadeTargets(target);
+        }
+        _inferTransformPrimaryId(el, target) {
+            if (el.dataset.animationParent)
+                return el.dataset.animationParent;
+            if (el.id.startsWith("node-"))
+                return el.id.slice(5);
+            if (el.id.startsWith("group-"))
+                return el.id.slice(6);
+            if (el.id.startsWith("table-"))
+                return el.id.slice(6);
+            if (el.id.startsWith("note-"))
+                return el.id.slice(5);
+            if (el.id.startsWith("chart-"))
+                return el.id.slice(6);
+            if (el.id.startsWith("markdown-"))
+                return el.id.slice(9);
+            return parseEdgeTarget(target) ? target : null;
+        }
+        _transformTargetChainForElement(el, target) {
+            const chain = [];
+            let parentGroupId = el.dataset.parentGroup;
+            while (parentGroupId) {
+                chain.unshift(parentGroupId);
+                parentGroupId = getGroupEl(this.svg, parentGroupId)?.dataset.parentGroup;
+            }
+            const primaryId = this._inferTransformPrimaryId(el, target);
+            if (primaryId && !chain.includes(primaryId)) {
+                chain.push(primaryId);
+            }
+            if (!primaryId && target && !chain.includes(target)) {
+                chain.push(target);
+            }
+            return chain;
+        }
         _writeTransform(el, target, silent, duration = 420) {
-            const t = this._transforms.get(target) ?? {
-                tx: 0,
-                ty: 0,
-                scale: 1,
-                rotate: 0,
-            };
             const parts = [];
-            if (t.tx !== 0 || t.ty !== 0)
-                parts.push(`translate(${t.tx}px,${t.ty}px)`);
-            if (t.rotate !== 0)
-                parts.push(`rotate(${t.rotate}deg)`);
-            if (t.scale !== 1)
-                parts.push(`scale(${t.scale})`);
+            for (const id of this._transformTargetChainForElement(el, target)) {
+                const t = this._transforms.get(id) ?? {
+                    tx: 0,
+                    ty: 0,
+                    scale: 1,
+                    rotate: 0,
+                };
+                if (t.tx !== 0 || t.ty !== 0)
+                    parts.push(`translate(${t.tx}px,${t.ty}px)`);
+                if (t.rotate !== 0)
+                    parts.push(`rotate(${t.rotate}deg)`);
+                if (t.scale !== 1)
+                    parts.push(`scale(${t.scale})`);
+            }
             el.style.transition = silent
                 ? "none"
                 : `transform ${duration}ms cubic-bezier(.4,0,.2,1)`;
@@ -10055,7 +10093,7 @@ var AIDiagram = (function (exports) {
         }
         // ── move ──────────────────────────────────────────────────
         _doMove(target, step, silent) {
-            const targets = this._resolveCascadeTargets(target);
+            const targets = this._resolveTransformTargets(target);
             if (!targets.length)
                 return;
             const cur = this._transforms.get(target) ?? {
@@ -10075,7 +10113,7 @@ var AIDiagram = (function (exports) {
         }
         // ── scale ─────────────────────────────────────────────────
         _doScale(target, step, silent) {
-            const targets = this._resolveCascadeTargets(target);
+            const targets = this._resolveTransformTargets(target);
             if (!targets.length)
                 return;
             const cur = this._transforms.get(target) ?? {
@@ -10091,7 +10129,7 @@ var AIDiagram = (function (exports) {
         }
         // ── rotate ────────────────────────────────────────────────
         _doRotate(target, step, silent) {
-            const targets = this._resolveCascadeTargets(target);
+            const targets = this._resolveTransformTargets(target);
             if (!targets.length)
                 return;
             const cur = this._transforms.get(target) ?? {

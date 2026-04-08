@@ -4,6 +4,8 @@ const SUPPORTED_COMMANDS = new Set([
     "ray",
     "line",
     "circle",
+    "arc",
+    "ellipse",
     "polygon",
     "triangle",
 ]);
@@ -189,6 +191,10 @@ function emitCommand(command, pointMap, settings) {
             return emitLinear(command, pointMap, "line", settings.lineExtend);
         case "circle":
             return emitCircle(command, pointMap);
+        case "arc":
+            return emitArc(command, pointMap);
+        case "ellipse":
+            return emitEllipse(command, pointMap);
         case "polygon":
             return emitPolygon(command, pointMap, false);
         case "triangle":
@@ -238,6 +244,9 @@ function emitLinear(command, pointMap, mode, defaultExtend) {
         ? { x: to.x, y: to.y }
         : { x: to.x + unit.x * extend, y: to.y + unit.y * extend };
     const lines = [serializePathNode(command.id, [start, end], false, command.props)];
+    if (mode === "ray") {
+        lines.push(serializeArrowHeadNode(arrowNodeId(command.id), end, unit, command.props, command.id));
+    }
     if (command.props.label) {
         const labelDx = readNumber(command.props["label-dx"]) ?? 0;
         const labelDy = readNumber(command.props["label-dy"]) ?? 0;
@@ -252,6 +261,31 @@ function emitLinear(command, pointMap, mode, defaultExtend) {
         }));
     }
     return lines;
+}
+function serializeArrowHeadNode(id, tip, direction, props, animationParent) {
+    const strokeWidth = readNumber(props["stroke-width"]) ?? 1.5;
+    const arrowLength = readNumber(props["tip-size"]) ?? Math.max(10, strokeWidth * 6.5);
+    const arrowWidth = arrowLength * 0.65;
+    const base = {
+        x: tip.x - direction.x * arrowLength,
+        y: tip.y - direction.y * arrowLength,
+    };
+    const normal = { x: -direction.y, y: direction.x };
+    const left = {
+        x: base.x + normal.x * (arrowWidth / 2),
+        y: base.y + normal.y * (arrowWidth / 2),
+    };
+    const right = {
+        x: base.x - normal.x * (arrowWidth / 2),
+        y: base.y - normal.y * (arrowWidth / 2),
+    };
+    return serializePathNode(id, [left, tip, right], true, {
+        ...pickKeys(props, ["theme", "opacity"]),
+        fill: props.stroke ?? "#1a1208",
+        stroke: props.stroke ?? "#1a1208",
+        "stroke-width": String(Math.max(1, strokeWidth * 0.75)),
+        "animation-parent": animationParent,
+    });
 }
 function emitCircle(command, pointMap) {
     const center = requirePoint(pointMap, command.props.center, "center", command.lineNumber);
@@ -272,6 +306,61 @@ function emitCircle(command, pointMap) {
     if (command.props.label) {
         const labelDx = readNumber(command.props["label-dx"]) ?? radius + 10;
         const labelDy = readNumber(command.props["label-dy"]) ?? -radius - 10;
+        lines.push(serializeNode("text", labelNodeId(command.id), command.props.label, {
+            x: center.x + labelDx,
+            y: center.y + labelDy,
+            "animation-parent": command.id,
+            color: command.props.color ?? command.props.stroke ?? "#1a1208",
+            ...pickKeys(command.props, TEXT_KEYS),
+        }));
+    }
+    return lines;
+}
+function emitArc(command, pointMap) {
+    const center = requirePoint(pointMap, command.props.center, "center", command.lineNumber);
+    const radius = requireNumber(command.props, "r", command.lineNumber, "radius");
+    const startDeg = requireNumber(command.props, "start", command.lineNumber);
+    const endDeg = requireNumber(command.props, "end", command.lineNumber);
+    const closeMode = normalizeArcClose(command.props.close, command.lineNumber);
+    const arcPoints = sampleArcPoints(center, radius, startDeg, endDeg);
+    const pathPoints = closeMode === "center" ? [center, ...arcPoints] : arcPoints;
+    const lines = [
+        serializePathNode(command.id, pathPoints, closeMode !== "none", {
+            ...command.props,
+            fill: closeMode === "none" ? "none" : (command.props.fill ?? "none"),
+        }),
+    ];
+    if (command.props.label) {
+        const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(command.props["label-dy"]) ?? 0;
+        const labelOffset = readNumber(command.props["label-offset"])
+            ?? (closeMode === "center" ? 0 : 12);
+        const labelAngle = startDeg + (endDeg - startDeg) / 2;
+        const anchor = polarPoint(center, radius + labelOffset, labelAngle);
+        lines.push(serializeNode("text", labelNodeId(command.id), command.props.label, {
+            x: anchor.x + labelDx,
+            y: anchor.y + labelDy,
+            "animation-parent": command.id,
+            color: command.props.color ?? command.props.stroke ?? "#1a1208",
+            ...pickKeys(command.props, TEXT_KEYS),
+        }));
+    }
+    return lines;
+}
+function emitEllipse(command, pointMap) {
+    const center = requirePoint(pointMap, command.props.center, "center", command.lineNumber);
+    const rx = requireNumber(command.props, "rx", command.lineNumber, "radius");
+    const ry = requireNumber(command.props, "ry", command.lineNumber, "radius");
+    const points = sampleEllipsePoints(center, rx, ry);
+    const lines = [
+        serializePathNode(command.id, points, true, {
+            ...command.props,
+            fill: command.props.fill ?? "none",
+        }),
+    ];
+    if (command.props.label) {
+        const labelDx = readNumber(command.props["label-dx"]) ?? rx + 10;
+        const labelDy = readNumber(command.props["label-dy"]) ?? -ry - 10;
         lines.push(serializeNode("text", labelNodeId(command.id), command.props.label, {
             x: center.x + labelDx,
             y: center.y + labelDy,
@@ -327,7 +416,7 @@ function serializePathNode(id, points, closePath, props) {
         fill: props.fill ?? "none",
         stroke: props.stroke ?? "#1a1208",
         "stroke-width": readNumber(props["stroke-width"]) ?? 1.5,
-        ...pickKeys(props, ["theme", "opacity", "dash", "stroke-dash"]),
+        ...pickKeys(props, ["theme", "opacity", "dash", "stroke-dash", "animation-parent"]),
     });
 }
 function requirePoint(pointMap, id, propName, lineNumber) {
@@ -377,6 +466,9 @@ function formatNumber(value) {
 function labelNodeId(id) {
     return `__geo_${sanitizeId(id)}_label`;
 }
+function arrowNodeId(id) {
+    return `__geo_${sanitizeId(id)}_tip`;
+}
 function sanitizeId(value) {
     return value.replace(/[^A-Za-z0-9_-]/g, "_");
 }
@@ -403,6 +495,36 @@ function readNumber(value) {
 }
 function distance(from, to) {
     return Math.hypot(to.x - from.x, to.y - from.y);
+}
+function polarPoint(center, radius, deg) {
+    const radians = (deg * Math.PI) / 180;
+    return {
+        x: center.x + Math.cos(radians) * radius,
+        y: center.y - Math.sin(radians) * radius,
+    };
+}
+function sampleArcPoints(center, radius, startDeg, endDeg) {
+    const delta = endDeg - startDeg;
+    const segments = Math.max(8, Math.ceil(Math.abs(delta) / 12));
+    return Array.from({ length: segments + 1 }, (_, index) => polarPoint(center, radius, startDeg + (delta * index) / segments));
+}
+function sampleEllipsePoints(center, rx, ry) {
+    const segments = 36;
+    return Array.from({ length: segments }, (_, index) => {
+        const deg = (index / segments) * 360;
+        const radians = (deg * Math.PI) / 180;
+        return {
+            x: center.x + Math.cos(radians) * rx,
+            y: center.y - Math.sin(radians) * ry,
+        };
+    });
+}
+function normalizeArcClose(value, lineNumber) {
+    if (!value || value === "none")
+        return "none";
+    if (value === "chord" || value === "center")
+        return value;
+    throw new Error(`Invalid geo.arc close "${value}" on line ${lineNumber}; expected none, chord, or center`);
 }
 function lineLabelAnchor(start, end, offset) {
     const mid = {

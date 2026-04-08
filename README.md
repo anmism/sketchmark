@@ -102,6 +102,9 @@ Another official package, `@sketchmark/plugin-geometry`, follows the same model 
 
 `@sketchmark/plugin-chem-molecule` extends the same pattern to lightweight molecule diagrams, compiling `chem.atom`, `chem.bond`, `chem.ring`, and `chem.label` into ordinary groups plus `path` and `text` nodes.
 
+`@sketchmark/plugin-graph` applies the same approach to coordinate-plane graphing, compiling `graph.axes`, `graph.plot`, `graph.point`, `graph.line`, `graph.arrow`, `graph.region`, `graph.tangent`, and `graph.area` into ordinary nodes so sampled math graphs stay outside the core bundle too.
+
+
 
 ### Reusable UI Widgets
 

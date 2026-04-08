@@ -45,13 +45,22 @@ describe("@sketchmark/plugin-geometry", () => {
     const compiled = compileGeometry(`diagram
 geo.point A x=60 y=140
 geo.point B x=220 y=140
+geo.point O x=140 y=140
 geo.segment AB from=A to=B label="6 cm"
+geo.ray r1 from=A to=B
+geo.arc top center=O r=40 start=180 end=0 label="top arc"
+geo.ellipse oval center=O rx=60 ry=30 label="oval"
 end`);
 
     expect(compiled).toContain("layout absolute");
     expect(compiled).toContain('circle A label=""');
     expect(compiled).toContain('path AB label=""');
+    expect(compiled).toContain('path __geo_r1_tip label=""');
+    expect(compiled).toContain('path top label=""');
+    expect(compiled).toContain('path oval label=""');
     expect(compiled).toContain("__geo_AB_label");
+    expect(compiled).toContain("__geo_top_label");
+    expect(compiled).toContain("__geo_oval_label");
   });
 
   it("supports forward point references and polygon commands through parse()", () => {
@@ -83,6 +92,8 @@ geo.point B x=250 y=170
 geo.point O x=160 y=90 label="O"
 geo.segment AB from=A to=B label="AB"
 geo.circle c center=O r=36 label="r"
+geo.arc semi center=O r=56 start=180 end=0 label="semi"
+geo.ellipse e center=O rx=70 ry=30 label="ellipse"
 end`,
       plugins: [geometry()],
     });
@@ -90,6 +101,8 @@ end`,
     expect(instance.svg?.querySelector("#node-A")).toBeTruthy();
     expect(instance.svg?.querySelector("#node-AB")).toBeTruthy();
     expect(instance.svg?.querySelector("#node-c")).toBeTruthy();
+    expect(instance.svg?.querySelector("#node-semi")).toBeTruthy();
+    expect(instance.svg?.querySelector("#node-e")).toBeTruthy();
     expect(instance.svg?.textContent).toContain("AB");
     expect(instance.svg?.textContent).toContain("O");
   });
