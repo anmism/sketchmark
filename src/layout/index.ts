@@ -487,8 +487,10 @@ function computeBounds(sg: SceneGraph, margin: number): void {
     ...sg.charts.map((c) => c.y + c.h),
     ...sg.markdowns.map((m) => m.y + m.h),
   ];
-  sg.width = (allX.length ? Math.max(...allX) : 400) + margin;
-  sg.height = (allY.length ? Math.max(...allY) : 300) + margin;
+  const autoWidth = (allX.length ? Math.max(...allX) : 400) + margin;
+  const autoHeight = (allY.length ? Math.max(...allY) : 300) + margin;
+  sg.width = sg.fixedWidth ?? autoWidth;
+  sg.height = sg.fixedHeight ?? autoHeight;
 }
 
 // ── Public entry point ────────────────────────────────────

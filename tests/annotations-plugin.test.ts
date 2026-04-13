@@ -217,14 +217,13 @@ end`, {
 
   it("throws when used outside absolute layout", () => {
     expect(() =>
-      parse(`diagram
-layout row
+      parse(`diagram layout=row
 circle A label="" x=80 y=100 width=8 height=8
 circle B label="" x=220 y=100 width=8 height=8
 annot.dimension base from=A to=B label="bad"
 end`, {
         plugins: [annotations()],
       }),
-    ).toThrow("layout absolute");
+    ).toThrow("diagram layout=absolute");
   });
 });

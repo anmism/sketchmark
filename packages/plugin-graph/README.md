@@ -50,8 +50,8 @@ end
 ## Notes
 
 - Graph commands are root-level in `v1`.
-- The plugin auto-inserts `layout absolute` if the diagram does not declare a layout yet.
-- If a diagram already declares a layout, it must be `layout absolute`.
+- The plugin auto-inserts `layout=absolute` on the `diagram` line if the root diagram does not declare a layout yet.
+- If a diagram already declares a layout, it must be `layout=absolute`.
 - `graph.point` compiles to a real authored node, so existing `annot.*` commands can target graph points directly.
 - `graph.plot`, `graph.tangent`, and `graph.area` support lightweight expression strings like `sin(x)`, `cos(x)`, `x^2`, `sqrt(x)`, and `exp(x)`.
 - This is draw-first graphing, not a full symbolic math system.

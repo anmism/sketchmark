@@ -46,7 +46,7 @@ describe("@sketchmark/plugin-character", () => {
 char.actor hero x=180 y=80 pose=wave label="Hero"
 end`);
 
-    expect(compiled).toContain("layout absolute");
+    expect(compiled).toContain("diagram layout=absolute");
     expect(compiled).toContain("bare hero ");
     expect(compiled).toContain("circle hero_head");
     expect(compiled).toContain("path hero_body");
@@ -89,8 +89,7 @@ end`, {
 
   it("throws if character commands are used with a non-absolute root layout", () => {
     expect(() =>
-      parse(`diagram
-layout row
+      parse(`diagram layout=row
 char.actor hero x=180 y=80
 end`, {
         plugins: [character()],

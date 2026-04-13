@@ -19,7 +19,7 @@ import { geometry } from "@sketchmark/plugin-geometry";
 render({
   container: document.getElementById("diagram")!,
   dsl: `
-diagram
+diagram layout=absolute
 title label="Triangle"
 geo.point A x=90 y=220
 geo.point B x=290 y=220
@@ -50,8 +50,8 @@ end
 ## Notes
 
 - Geometry commands are root-level in `v1`.
-- The plugin auto-inserts `layout absolute` if the diagram does not declare a layout yet.
-- If a diagram already declares a layout, it must be `layout absolute`.
+- The plugin auto-inserts `layout=absolute` on the `diagram` line if the root diagram does not declare a layout yet.
+- If a diagram already declares a layout, it must be `layout=absolute`.
 - `geo.ray` renders with a single arrow tip at the extending end.
 - `geo.arc` uses degree-based angles with `0` pointing right and `90` pointing up.
 - `geo.arc close=none` draws an open arc, `close=chord` closes it with a straight chord, and `close=center` draws a sector.

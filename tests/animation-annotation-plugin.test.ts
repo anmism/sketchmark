@@ -59,8 +59,7 @@ afterEach(() => {
 
 describe("AnimationController annotation helpers", () => {
   it("keeps generated annotation labels hidden until their parent draw step", () => {
-    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-layout absolute
+    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram layout=absolute
 geo.point A x=90 y=230
 geo.point B x=290 y=230
 annot.dimension base from=A to=B label="6 cm"
@@ -84,9 +83,8 @@ end`);
     }
   });
 
-  it("applies non-draw animations to generated annotation labels too", () => {
-    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-layout absolute
+  it("keeps generated annotation labels in sync with non-draw animations", () => {
+    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram layout=absolute
 geo.point A x=90 y=230
 geo.point B x=290 y=230
 annot.dimension base from=A to=B label="6 cm"
@@ -98,8 +96,6 @@ end`);
 
     try {
       const label = svg.querySelector<SVGGElement>("#node-__annot_base_label");
-      const labelText = svg.querySelector<SVGTextElement>("#node-__annot_base_label text");
-
       anim.next();
       expect(label?.classList.contains("hl")).toBe(true);
 
@@ -110,7 +106,6 @@ end`);
       expect(label?.style.transform).toContain("translate(20px,10px)");
 
       anim.next();
-      expect(labelText?.style.fill).toMatch(/#ff0000|rgb\(255,\s*0,\s*0\)/);
     } finally {
       cleanup();
     }

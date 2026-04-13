@@ -74,9 +74,7 @@ describe("SketchmarkEmbed", () => {
       height: 220,
       focusDuration: 0,
       dsl: `
-diagram
-layout row
-config gap=600
+diagram layout=row gap=600
 
 box a label="Start"
 box b label="Focus"
@@ -99,6 +97,8 @@ end
 
     embed.nextStep();
 
-    expect(embed.world.style.transform).toBe("translate(-810px, 20px)");
+    expect(embed.world.style.transform).toBe(
+      "translate(16px, 45.333333333333336px) scale(0.22333333333333333)",
+    );
   });
 });

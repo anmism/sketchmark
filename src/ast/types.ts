@@ -159,6 +159,9 @@ export interface ASTMarkdown {
 export interface DiagramAST {
   kind: 'diagram'; title?: string; description?: string;
   layout: LayoutType;
+  width?: number;
+  height?: number;
+  style?: StyleProps;
   nodes:  ASTNode[];
   edges:  ASTEdge[];
   groups: ASTGroup[];

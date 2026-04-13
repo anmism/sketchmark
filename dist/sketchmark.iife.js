@@ -380,6 +380,7 @@ var AIDiagram = (function (exports) {
         const ast = {
             kind: "diagram",
             layout: "column",
+            style: {},
             nodes: [],
             edges: [],
             groups: [],
@@ -435,6 +436,54 @@ var AIDiagram = (function (exports) {
                 }
             }
             return props;
+        }
+        function parseConfigValue(value) {
+            if (value === "true" || value === "on")
+                return true;
+            if (value === "false" || value === "off")
+                return false;
+            const numeric = Number(value);
+            return Number.isNaN(numeric) ? value : numeric;
+        }
+        function applyRootProps(props) {
+            const styleProps = propsToStyle(props);
+            const styleKeys = new Set([
+                "fill",
+                "stroke",
+                "stroke-width",
+                "color",
+                "opacity",
+                "font-size",
+                "font-weight",
+                "font",
+                "dash",
+                "stroke-dash",
+                "padding",
+                "text-align",
+                "vertical-align",
+                "line-height",
+                "letter-spacing",
+            ]);
+            ast.style = { ...(ast.style ?? {}), ...styleProps };
+            if (props.layout) {
+                ast.layout = props.layout;
+            }
+            if (props.width !== undefined) {
+                ast.width = parseFloat(props.width);
+            }
+            if (props.height !== undefined) {
+                ast.height = parseFloat(props.height);
+            }
+            if (props.font !== undefined) {
+                ast.config.font = parseConfigValue(props.font);
+            }
+            for (const [key, value] of Object.entries(props)) {
+                if (key === "layout" || key === "width" || key === "height")
+                    continue;
+                if (styleKeys.has(key))
+                    continue;
+                ast.config[key] = parseConfigValue(value);
+            }
         }
         function parseGroupProps(toks, startIndex) {
             const props = {};
@@ -917,8 +966,12 @@ var AIDiagram = (function (exports) {
             };
         }
         skipNL();
-        if (cur().value === "diagram")
+        if (cur().value === "diagram") {
             skip();
+            const toks = lineTokens();
+            const props = parseSimpleProps(toks, 0);
+            applyRootProps(props);
+        }
         skipNL();
         while (cur().type !== "EOF" && cur().value !== "end") {
             skipNL();
@@ -929,7 +982,7 @@ var AIDiagram = (function (exports) {
                 continue;
             }
             if (v === "diagram") {
-                skip();
+                lineTokens();
                 continue;
             }
             if (v === "end")
@@ -939,10 +992,7 @@ var AIDiagram = (function (exports) {
                 continue;
             }
             if (v === "layout") {
-                skip();
-                ast.layout = cur().value ?? "column";
-                skip();
-                continue;
+                throw new ParseError(`Root layout must be declared on the diagram line, e.g. diagram layout=absolute`, t.line, t.col);
             }
             if (v === "title") {
                 skip();
@@ -966,15 +1016,7 @@ var AIDiagram = (function (exports) {
                 continue;
             }
             if (v === "config") {
-                skip();
-                const key = cur().value;
-                skip();
-                if (cur().type === "EQUALS")
-                    skip();
-                const value = cur().value;
-                skip();
-                ast.config[key] = value;
-                continue;
+                throw new ParseError(`Root config must be declared on the diagram line, e.g. diagram gap=40 margin=0 tts=true`, t.line, t.col);
             }
             if (v === "style") {
                 skip();
@@ -3627,6 +3669,7 @@ var AIDiagram = (function (exports) {
             title: ast.title,
             description: ast.description,
             layout: ast.layout,
+            style: ast.style ?? {},
             nodes,
             edges,
             groups,
@@ -3639,6 +3682,8 @@ var AIDiagram = (function (exports) {
             rootOrder: ast.rootOrder ?? [],
             width: 0,
             height: 0,
+            fixedWidth: ast.width,
+            fixedHeight: ast.height,
         };
     }
     // ── Helpers ───────────────────────────────────────────────
@@ -5215,8 +5260,10 @@ var AIDiagram = (function (exports) {
             ...sg.charts.map((c) => c.y + c.h),
             ...sg.markdowns.map((m) => m.y + m.h),
         ];
-        sg.width = (allX.length ? Math.max(...allX) : 400) + margin;
-        sg.height = (allY.length ? Math.max(...allY) : 300) + margin;
+        const autoWidth = (allX.length ? Math.max(...allX) : 400) + margin;
+        const autoHeight = (allY.length ? Math.max(...allY) : 300) + margin;
+        sg.width = sg.fixedWidth ?? autoWidth;
+        sg.height = sg.fixedHeight ?? autoHeight;
     }
     // ── Public entry point ────────────────────────────────────
     function layout(sg) {
@@ -8252,7 +8299,7 @@ var AIDiagram = (function (exports) {
         const palette = resolvePalette(themeName);
         // ── Diagram-level font ──────────────────────────────────
         const diagramFont = (() => {
-            const raw = String(sg.config["font"] ?? "");
+            const raw = String(sg.style?.font ?? sg.config["font"] ?? "");
             if (raw) {
                 loadFont(raw);
                 return resolveFont(raw);
@@ -8282,8 +8329,22 @@ var AIDiagram = (function (exports) {
             bgRect.setAttribute("y", "0");
             bgRect.setAttribute("width", String(sg.width));
             bgRect.setAttribute("height", String(sg.height));
-            bgRect.setAttribute("fill", palette.background);
+            bgRect.setAttribute("fill", String(sg.style?.fill ?? palette.background));
             svg.appendChild(bgRect);
+            const rootStroke = sg.style?.stroke;
+            const rootStrokeWidth = Number(sg.style?.strokeWidth ?? 0);
+            if (rootStroke && rootStroke !== "none" && rootStrokeWidth > 0) {
+                const frame = se("rect");
+                const inset = rootStrokeWidth / 2;
+                frame.setAttribute("x", String(inset));
+                frame.setAttribute("y", String(inset));
+                frame.setAttribute("width", String(Math.max(0, sg.width - rootStrokeWidth)));
+                frame.setAttribute("height", String(Math.max(0, sg.height - rootStrokeWidth)));
+                frame.setAttribute("fill", "none");
+                frame.setAttribute("stroke", String(rootStroke));
+                frame.setAttribute("stroke-width", String(rootStrokeWidth));
+                svg.appendChild(frame);
+            }
         }
         const rc = rough.svg(svg);
         // ── Title ────────────────────────────────────────────────
@@ -9011,7 +9072,7 @@ var AIDiagram = (function (exports) {
         const palette = resolvePalette(themeName);
         // ── Diagram-level font ───────────────────────────────────
         const diagramFont = (() => {
-            const raw = String(sg.config['font'] ?? '');
+            const raw = String(sg.style?.font ?? sg.config['font'] ?? '');
             if (raw) {
                 loadFont(raw);
                 return resolveFont(raw);
@@ -9020,8 +9081,18 @@ var AIDiagram = (function (exports) {
         })();
         // ── Background ───────────────────────────────────────────
         if (!options.transparent) {
-            ctx.fillStyle = options.background ?? palette.background;
+            ctx.fillStyle = options.background ?? String(sg.style?.fill ?? palette.background);
             ctx.fillRect(0, 0, sg.width, sg.height);
+            const rootStroke = sg.style?.stroke;
+            const rootStrokeWidth = Number(sg.style?.strokeWidth ?? 0);
+            if (rootStroke && rootStroke !== 'none' && rootStrokeWidth > 0) {
+                const inset = rootStrokeWidth / 2;
+                ctx.save();
+                ctx.strokeStyle = String(rootStroke);
+                ctx.lineWidth = rootStrokeWidth;
+                ctx.strokeRect(inset, inset, Math.max(0, sg.width - rootStrokeWidth), Math.max(0, sg.height - rootStrokeWidth));
+                ctx.restore();
+            }
         }
         else {
             ctx.clearRect(0, 0, sg.width, sg.height);
@@ -10071,6 +10142,10 @@ var AIDiagram = (function (exports) {
             if (!el.id.startsWith("group-")) {
                 const ids = new Set([el.id]);
                 this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((id) => ids.add(id));
+                this.svg.querySelectorAll(POSITIONABLE_SELECTOR).forEach((candidate) => {
+                    if (candidate.dataset.animationParent === target)
+                        ids.add(candidate.id);
+                });
                 return Array.from(ids)
                     .map((id) => getEl(this.svg, id))
                     .filter((candidate) => candidate != null);
@@ -10271,6 +10346,7 @@ var AIDiagram = (function (exports) {
                 el.classList.remove("hl", "faded", "hidden");
                 el.style.opacity = el.style.filter = "";
                 if (this.drawTargetNodes.has(el.id)) {
+                    hideDrawEl(el);
                     prepareNodeForDraw(el);
                 }
                 else {
@@ -10769,6 +10845,15 @@ var AIDiagram = (function (exports) {
         _doColor(target, color) {
             if (!color)
                 return;
+            const applyTextColor = (root) => {
+                root.querySelectorAll("text").forEach((t) => {
+                    t.style.fill = color;
+                    const existingStyle = t.getAttribute("style") ?? "";
+                    const nextStyle = `${existingStyle.replace(/(?:^|;)\s*fill\s*:[^;]*/g, "").trim().replace(/;?$/, ";")}fill:${color};`;
+                    t.setAttribute("style", nextStyle);
+                    t.setAttribute("fill", color);
+                });
+            };
             for (const el of this._resolveCascadeTargets(target)) {
                 if (parseEdgeTarget(target)) {
                     el.querySelectorAll("path, line, polyline").forEach((p) => {
@@ -10791,11 +10876,14 @@ var AIDiagram = (function (exports) {
                     hit = true;
                 });
                 if (!hit) {
-                    el.querySelectorAll("text").forEach((t) => {
-                        t.style.fill = color;
-                    });
+                    applyTextColor(el);
                 }
             }
+            this.svg.querySelectorAll(`${POSITIONABLE_SELECTOR}[data-animation-parent]`).forEach((el) => {
+                if (el.dataset.animationParent === target) {
+                    applyTextColor(el);
+                }
+            });
         }
         // ── narration ───────────────────────────────────────────
         _initCaption() {

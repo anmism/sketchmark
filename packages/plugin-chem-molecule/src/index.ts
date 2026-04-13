@@ -170,9 +170,6 @@ export function compileChemMolecule(
 
   for (let index = 0; index < lines.length; index += 1) {
     output.push(lines[index] ?? "");
-    if (layoutDecision.insertAfterDiagramIndex === index) {
-      output.push("layout absolute");
-    }
 
     const command = commandByLine.get(index);
     if (!command) continue;
@@ -256,29 +253,27 @@ function stripWrapping(value: string): string {
 function resolveLayout(
   lines: string[],
   autoAbsoluteLayout: boolean,
-): { insertAfterDiagramIndex?: number } {
-  const diagramIndex = lines.findIndex((line) => line.trim() === "diagram");
+): { diagramIndex: number } {
+  const diagramIndex = lines.findIndex((line) => line.trim().startsWith("diagram"));
   if (diagramIndex < 0) {
     throw new Error('Chemistry plugin requires a root "diagram" block');
   }
 
-  const layoutIndex = lines.findIndex((line, index) => {
-    if (index <= diagramIndex) return false;
-    return line.trim().startsWith("layout ");
-  });
-
-  if (layoutIndex < 0) {
+  const diagramLine = lines[diagramIndex]?.trim() ?? "";
+  const layoutMatch = diagramLine.match(/\blayout=([A-Za-z-]+)/);
+  if (!layoutMatch) {
     if (!autoAbsoluteLayout) {
-      throw new Error('Chemistry plugin requires "layout absolute"');
+      throw new Error('Chemistry plugin requires "diagram layout=absolute"');
     }
-    return { insertAfterDiagramIndex: diagramIndex };
+    lines[diagramIndex] = `${lines[diagramIndex] ?? "diagram"} layout=absolute`;
+    return { diagramIndex };
   }
 
-  if (lines[layoutIndex]?.trim() !== "layout absolute") {
-    throw new Error('Chemistry commands require the root diagram to use "layout absolute"');
+  if (layoutMatch[1] !== "absolute") {
+    throw new Error('Chemistry commands require the root diagram to use "diagram layout=absolute"');
   }
 
-  return {};
+  return { diagramIndex };
 }
 
 function buildAtomEntity(command: ChemCommand): AtomEntity {

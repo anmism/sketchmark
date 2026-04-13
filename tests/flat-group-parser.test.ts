@@ -137,10 +137,7 @@ end`),
   it("filters grouped declarations out of root layout order", () => {
     ensureCanvasMeasureStub();
 
-    const ast = parse(`diagram
-layout row
-config gap=10
-config margin=0
+    const ast = parse(`diagram layout=row gap=10 margin=0
 box a width=10 height=10
 box b width=10 height=10
 group pair layout=row padding=0 gap=0 items=[a,b]

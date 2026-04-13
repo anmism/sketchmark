@@ -53,7 +53,7 @@ graph.area fill axes=plane expr="sin(x)" from=0 to=3.14
 graph.tangent tan axes=plane expr="sin(x)" at=1.57 label="tan"
 end`);
 
-    expect(compiled).toContain("layout absolute");
+    expect(compiled).toContain("diagram layout=absolute");
     expect(compiled).toContain('path plane label=""');
     expect(compiled).toContain('path sine label=""');
     expect(compiled).toContain('circle O label=""');
@@ -103,12 +103,11 @@ end`, {
 
   it("throws if graph commands are used with a non-absolute root layout", () => {
     expect(() =>
-      parse(`diagram
-layout row
+      parse(`diagram layout=row
 graph.axes plane x=0 y=0 width=100 height=100 xmin=0 xmax=1 ymin=0 ymax=1
 end`, {
         plugins: [graph()],
       }),
-    ).toThrow("layout absolute");
+    ).toThrow("diagram layout=absolute");
   });
 });

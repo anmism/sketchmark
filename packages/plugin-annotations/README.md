@@ -48,7 +48,7 @@ end
 ## Notes
 
 - `v1` is intended for absolute-positioned, geometry-style diagrams.
-- Commands resolve point positions from already-authored nodes, so `layout absolute` is required.
+- Commands resolve point positions from already-authored nodes, so `diagram layout=absolute` is required.
 - Annotation labels are emitted as helper `text` nodes.
 - `annot.angle` defaults to `mode=interior`.
 - `mode=reflex` draws the major arc between the two rays.

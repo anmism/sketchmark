@@ -53,7 +53,7 @@ chem.bond b1 from=O to=H1
 chem.label water target=O side=top text="Water"
 end`);
 
-    expect(compiled).toContain("layout absolute");
+    expect(compiled).toContain("diagram layout=absolute");
     expect(compiled).toContain("__chem_O_body");
     expect(compiled).toContain("__chem_b1_seg_1");
     expect(compiled).toContain("bare water");

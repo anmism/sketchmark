@@ -138,6 +138,7 @@ export interface SceneGraph {
   title?: string;
   description?: string;
   layout: string;
+  style: StyleProps;
   nodes: SceneNode[];
   edges: SceneEdge[];
   tables: SceneTable[];
@@ -150,6 +151,8 @@ export interface SceneGraph {
   rootOrder: RootItemRef[]; // declaration order of top-level items
   width: number;
   height: number;
+  fixedWidth?: number;
+  fixedHeight?: number;
 }
 
 // ── Build scene graph from AST ────────────────────────────
@@ -288,6 +291,7 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     title: ast.title,
     description: ast.description,
     layout: ast.layout,
+    style: ast.style ?? {},
     nodes,
     edges,
     groups,
@@ -300,6 +304,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     rootOrder: ast.rootOrder ?? [],
     width: 0,
     height: 0,
+    fixedWidth: ast.width,
+    fixedHeight: ast.height,
   };
 }
 

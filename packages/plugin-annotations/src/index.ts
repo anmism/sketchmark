@@ -96,7 +96,7 @@ export function annotations(options: AnnotationPluginOptions = {}): SketchmarkPl
     transformAst(ast) {
       if (!pendingCommands.length) return ast;
       if (ast.layout !== "absolute") {
-        throw new Error('Annotation commands require the root diagram to use "layout absolute"');
+        throw new Error('Annotation commands require the root diagram to use "diagram layout=absolute"');
       }
 
       const nodeById = new Map(ast.nodes.map((node) => [node.id, node]));

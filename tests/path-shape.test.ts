@@ -41,9 +41,7 @@ describe("path shape sizing", () => {
   it("stores the rendered path data for SVG animations", () => {
     ensureCanvasMeasureStub();
 
-    const ast = parse(`diagram
-layout absolute
-config margin=0
+    const ast = parse(`diagram layout=absolute margin=0
 path lake x=10 y=20 width=50 height=30 value="M 100 200 L 300 200 L 300 260 L 100 260 Z"
 end`);
 

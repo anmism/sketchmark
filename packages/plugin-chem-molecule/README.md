@@ -43,6 +43,6 @@ end
 
 - `chem.atom` uses `x` / `y` as the atom center and renders text labels by default.
 - `chem.bond` supports atom refs directly and ring refs like `ring1.center` or `ring1.v1`.
-- The plugin auto-inserts `layout absolute` if the diagram does not declare a layout yet.
-- If a diagram already declares a layout, it must be `layout absolute`.
+- The plugin auto-inserts `layout=absolute` on the `diagram` line if the root diagram does not declare a layout yet.
+- If a diagram already declares a layout, it must be `layout=absolute`.
 - This version does not do valence validation, automatic molecule layout, or reaction solving.

@@ -48,7 +48,7 @@ ckt.comp r1 kind=resistor x=220 y=140 label="R1" label-dx=14 label-dy=-6
 ckt.wire w1 from=vin to=r1.left label="in" label-dx=8 label-dy=10
 end`);
 
-    expect(compiled).toContain("layout absolute");
+    expect(compiled).toContain("diagram layout=absolute");
     expect(compiled).toContain("__ckt_vin_body");
     expect(compiled).toContain("__ckt_r1_body");
     expect(compiled).toContain("bare w1");

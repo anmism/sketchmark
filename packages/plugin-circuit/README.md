@@ -46,7 +46,7 @@ end
 ## Notes
 
 - `ckt.comp`, `ckt.port`, and `ckt.junction` use `x` / `y` as their center point in circuit space.
-- The plugin auto-inserts `layout absolute` if the diagram does not declare a layout yet.
-- If a diagram already declares a layout, it must be `layout absolute`.
+- The plugin auto-inserts `layout=absolute` on the `diagram` line if the root diagram does not declare a layout yet.
+- If a diagram already declares a layout, it must be `layout=absolute`.
 - Wire refs can target ports and junctions directly, or component pins like `r1.left`, `r1.right`, `c1.top`, `c1.bottom`, or `d1.anode`.
 - This version does not do validation, simulation, or automatic circuit solving.

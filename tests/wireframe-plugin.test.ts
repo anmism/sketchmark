@@ -59,8 +59,7 @@ end`);
   });
 
   it("supports placeholder text and choice controls through parse()", () => {
-    const ast = parse(`diagram
-layout column
+    const ast = parse(`diagram layout=column
 wf.text body kind=body lines=3 width=220
 wf.control agree kind=checkbox label="Email me updates"
 end`, {
@@ -107,9 +106,7 @@ end`);
 
     const instance = render({
       container: host,
-      dsl: `diagram
-layout row
-config gap=28
+      dsl: `diagram layout=row gap=28
 wf.screen mobile frame=phone width=390 height=640 items=[hero,form]
 wf.panel hero label="Hero" items=[cover,title,cta] width=300 height=280
 wf.media cover kind=image width=240 height=120

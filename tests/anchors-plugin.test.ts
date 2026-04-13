@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildSceneGraph, layout, parse } from "../src/index";
 import { anchors, compileAnchors } from "../packages/plugin-anchors/src/index";
 
+function ensureCanvasMeasureStub(): void {
+  const canvasProto = Object.getPrototypeOf(document.createElement("canvas")) as {
+    getContext?: (contextId: string) => unknown;
+  };
+  if (typeof canvasProto.getContext !== "function") {
+    canvasProto.getContext = () => ({
+      font: "",
+      measureText: (text: string) => ({ width: text.length * 8 }),
+    });
+  }
+}
+
 describe("@sketchmark/plugin-anchors", () => {
   it("rewrites anchored edge refs into ordinary edge props", () => {
     const compiled = compileAnchors(`diagram
@@ -31,9 +43,9 @@ end`, {
   });
 
   it("routes anchored edges to the requested sides after layout", () => {
-    const ast = parse(`diagram
-layout row
-config gap=80
+    ensureCanvasMeasureStub();
+
+    const ast = parse(`diagram layout=row gap=80
 box a label="Source"
 box b label="Target"
 a@right --> b@left
@@ -53,8 +65,9 @@ end`, {
   });
 
   it("routes corner anchors to the requested corner in absolute layouts", () => {
-    const ast = parse(`diagram
-layout absolute
+    ensureCanvasMeasureStub();
+
+    const ast = parse(`diagram layout=absolute
 box a x=60 y=160 width=120 height=56 label="A"
 box c x=320 y=250 width=120 height=56 label="C"
 a@bottom-right -> c@bottom-left

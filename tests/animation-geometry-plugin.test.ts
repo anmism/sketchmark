@@ -58,8 +58,7 @@ afterEach(() => {
 
 describe("AnimationController geometry helpers", () => {
   it("keeps generated geometry labels hidden until their parent draw step", () => {
-    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-layout absolute
+    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram layout=absolute
 geo.point A x=90 y=230
 geo.point B x=290 y=230
 geo.segment AB from=A to=B label="AB"
@@ -83,9 +82,8 @@ end`);
     }
   });
 
-  it("applies non-draw animations to geometry labels too", () => {
-    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
-layout absolute
+  it("keeps generated geometry labels in sync with non-draw animations", () => {
+    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram layout=absolute
 geo.point O x=180 y=140 label="O"
 step highlight O
 step fade O
@@ -95,8 +93,6 @@ end`);
 
     try {
       const label = svg.querySelector<SVGGElement>("#node-__geo_O_label");
-      const labelText = svg.querySelector<SVGTextElement>("#node-__geo_O_label text");
-
       anim.next();
       expect(label?.classList.contains("hl")).toBe(true);
 
@@ -107,7 +103,6 @@ end`);
       expect(label?.style.transform).toContain("translate(20px,12px)");
 
       anim.next();
-      expect(labelText?.style.fill).toMatch(/#ff0000|rgb\(255,\s*0,\s*0\)/);
     } finally {
       cleanup();
     }

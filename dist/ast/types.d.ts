@@ -175,6 +175,9 @@ export interface DiagramAST {
     title?: string;
     description?: string;
     layout: LayoutType;
+    width?: number;
+    height?: number;
+    style?: StyleProps;
     nodes: ASTNode[];
     edges: ASTEdge[];
     groups: ASTGroup[];

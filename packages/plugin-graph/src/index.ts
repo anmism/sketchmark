@@ -107,9 +107,6 @@ export function compileGraph(source, options = {}) {
 
   for (let index = 0; index < lines.length; index += 1) {
     output.push(lines[index] ?? "");
-    if (layoutDecision.insertAfterDiagramIndex === index) {
-      output.push("layout absolute");
-    }
 
     const command = commandByLine.get(index);
     if (!command) continue;
@@ -200,28 +197,26 @@ function stripWrapping(value) {
 }
 
 function resolveLayout(lines, autoAbsoluteLayout) {
-  const diagramIndex = lines.findIndex((line) => (line.trim() ?? "") === "diagram");
+  const diagramIndex = lines.findIndex((line) => (line.trim() ?? "").startsWith("diagram"));
   if (diagramIndex < 0) {
     throw new Error('Graph plugin requires a root "diagram" block');
   }
 
-  const layoutIndex = lines.findIndex((line, index) => {
-    if (index <= diagramIndex) return false;
-    return line.trim().startsWith("layout ");
-  });
-
-  if (layoutIndex < 0) {
+  const diagramLine = lines[diagramIndex]?.trim() ?? "";
+  const layoutMatch = diagramLine.match(/\blayout=([A-Za-z-]+)/);
+  if (!layoutMatch) {
     if (!autoAbsoluteLayout) {
-      throw new Error('Graph plugin requires "layout absolute"');
+      throw new Error('Graph plugin requires "diagram layout=absolute"');
     }
-    return { insertAfterDiagramIndex: diagramIndex };
+    lines[diagramIndex] = `${lines[diagramIndex] ?? "diagram"} layout=absolute`;
+    return { diagramIndex };
   }
 
-  if (lines[layoutIndex]?.trim() !== "layout absolute") {
-    throw new Error('Graph commands require the root diagram to use "layout absolute"');
+  if (layoutMatch[1] !== "absolute") {
+    throw new Error('Graph commands require the root diagram to use "diagram layout=absolute"');
   }
 
-  return {};
+  return { diagramIndex };
 }
 
 function buildAxesSpec(command) {

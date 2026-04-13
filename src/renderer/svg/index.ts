@@ -296,7 +296,7 @@ export function renderToSVG(
 
   // ── Diagram-level font ──────────────────────────────────
   const diagramFont = (() => {
-    const raw = String(sg.config["font"] ?? "");
+    const raw = String(sg.style?.font ?? sg.config["font"] ?? "");
     if (raw) {
       loadFont(raw);
       return resolveFont(raw);
@@ -328,8 +328,23 @@ export function renderToSVG(
     bgRect.setAttribute("y", "0");
     bgRect.setAttribute("width", String(sg.width));
     bgRect.setAttribute("height", String(sg.height));
-    bgRect.setAttribute("fill", palette.background);
+    bgRect.setAttribute("fill", String(sg.style?.fill ?? palette.background));
     svg.appendChild(bgRect);
+
+    const rootStroke = sg.style?.stroke;
+    const rootStrokeWidth = Number(sg.style?.strokeWidth ?? 0);
+    if (rootStroke && rootStroke !== "none" && rootStrokeWidth > 0) {
+      const frame = se("rect") as SVGRectElement;
+      const inset = rootStrokeWidth / 2;
+      frame.setAttribute("x", String(inset));
+      frame.setAttribute("y", String(inset));
+      frame.setAttribute("width", String(Math.max(0, sg.width - rootStrokeWidth)));
+      frame.setAttribute("height", String(Math.max(0, sg.height - rootStrokeWidth)));
+      frame.setAttribute("fill", "none");
+      frame.setAttribute("stroke", String(rootStroke));
+      frame.setAttribute("stroke-width", String(rootStrokeWidth));
+      svg.appendChild(frame);
+    }
   }
 
   const rc = rough.svg(svg);

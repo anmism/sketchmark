@@ -19,9 +19,7 @@ import { wireframe } from "@sketchmark/plugin-wireframe";
 render({
   container: document.getElementById("diagram")!,
   dsl: `
-diagram
-layout row
-config gap=28
+diagram layout=row gap=28
 
 wf.screen mobile frame=phone width=390 height=640 items=[hero,form]
 wf.panel hero label="Hero" items=[cover,title,body,cta] width=300 height=300

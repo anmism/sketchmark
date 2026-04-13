@@ -96,11 +96,8 @@
       import { wireframe } from "../packages/plugin-wireframe/dist/index.js";
 
       const EXAMPLES = {
-        shapes: `diagram
+        shapes: `diagram layout=grid columns=2 gap=24
 title label="Shapes"
-layout grid
-config columns=2
-config gap=24
 
 box s_box label="box"
 circle s_circle label="circle" width=90 height=90
@@ -112,39 +109,31 @@ parallelogram s_para label="parallelogram" width=170 height=54
 text s_text label="text node"
 end`,
 
-        image: `diagram
+        image: `diagram layout=column gap=24
 title label="Image"
-layout column
-config gap=24
 
 image poster label="Inline SVG" url="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='140' viewBox='0 0 240 140'%3E%3Crect width='240' height='140' rx='18' fill='%23e8f4ff'/%3E%3Ccircle cx='70' cy='70' r='28' fill='%230044cc'/%3E%3Crect x='116' y='44' width='72' height='14' rx='7' fill='%230044cc' opacity='0.82'/%3E%3Crect x='116' y='70' width='48' height='14' rx='7' fill='%230044cc' opacity='0.52'/%3E%3C/svg%3E" width=240 height=140
 text caption label="image via data URL"
 end`,
 
-        icon: `diagram
+        icon: `diagram layout=row gap=36
 title label="Icons"
-layout row
-config gap=36
 
 icon lock label="Security" name="mdi:lock-outline"
 icon server label="Server" name="mdi:server"
 icon mail label="Email" name="mdi:email-outline"
 end`,
 
-        paths: `diagram
+        paths: `diagram layout=row gap=40
 title label="Paths"
-layout row
-config gap=40
 
 path wave value="M 0 35 C 20 5, 50 5, 70 35 S 120 65, 140 35" width=140 height=70
 path tri value="M 10 60 L 70 10 L 130 60 Z" width=140 height=70
 text label_node label="custom SVG path"
 end`,
 
-        groups: `diagram
+        groups: `diagram layout=row gap=40
 title label="Groups"
-layout row
-config gap=40
 
 box auth label="Auth"
 box billing label="Billing"
@@ -157,10 +146,8 @@ auth --> db
 billing --> db
 end`,
 
-        animation: `diagram
+        animation: `diagram layout=row gap=40
 title label="Animation"
-layout row
-config gap=40
 
 box client label="Client"
 box api label="API"
@@ -180,10 +167,8 @@ step hide backend duration=0
 step show backend duration=0
 end`,
 
-        narration: `diagram
+        narration: `diagram layout=row gap=40
 title label="Narration"
-layout row
-config gap=40
 
 box ask label="Question"
 box think label="Reason"
@@ -202,10 +187,8 @@ step draw answer
 step draw think-->answer
 end`,
 
-        notation: `diagram
+        notation: `diagram layout=column gap=24
 title label="Notation Plugin"
-layout column
-config gap=24
 
 box theorem label="$a^2 + b^2 = c^2$"
 note angle label="$\\theta = 45^\\circ$"
@@ -220,7 +203,7 @@ table trig label="Special Values"
 step narrate "With $\\theta = 45^\\circ$, both legs contribute equally."
 end`,
 
-        geometry: `diagram
+        geometry: `diagram layout=absolute
 title label="Geometry Plugin"
 
 geo.point A x=80 y=230
@@ -259,10 +242,8 @@ graph.tangent tan1 axes=plane plot=sine at=1.57 label="tangent" stroke="#7c2d12"
 annot.dimension rise from=O to=P label="rise"
 end`,
 
-        anchors: `diagram
+        anchors: `diagram layout=row gap=60
 title label="Anchors Plugin"
-layout row
-config gap=60
 
 box app label="App" width=120 height=56
 box api label="API" width=120 height=56
@@ -273,7 +254,7 @@ api@bottom --> db@top label="query"
 app@bottom-right --> db@top-left label="sync"
 end`,
 
-        circuit: `diagram
+        circuit: `diagram layout=absolute
 title label="Circuit Plugin"
 
 ckt.port vin x=80 y=140 label="Vin"
@@ -288,7 +269,7 @@ ckt.wire w3 from=r1.right to=c1.top mode=hv
 ckt.wire w4 from=c1.bottom to=gnd.top
 end`,
 
-        chem: `diagram
+        chem: `diagram layout=absolute
 title label="Chem Molecule Plugin"
 
 chem.atom O x=120 y=150 element=O
@@ -302,7 +283,7 @@ chem.ring ring1 x=420 y=170 kind=benzene aromatic=true
 chem.label ringName target=ring1.center side=bottom text="Benzene"
 end`,
 
-        annotations: `diagram
+        annotations: `diagram layout=absolute
 title label="Annotations Plugin"
 
 geo.point A x=90 y=230
@@ -319,10 +300,8 @@ annot.midpoint mid from=A to=B label="M"
 
 end`,
 
-        wireframe: `diagram
+        wireframe: `diagram layout=row gap=28
 title label="Wireframe Plugin"
-layout row
-config gap=28
 
 wf.screen mobile frame=phone width=390 height=640 items=[hero,form]
 wf.panel hero label="Hero" items=[cover,title,body,cta] width=300 height=300
@@ -340,10 +319,8 @@ wf.control submit kind=button label="Sign In"
 
 end`,
 
-        edges: `diagram
+        edges: `diagram layout=row gap=40
 title label="Edges"
-layout row
-config gap=40
 
 box a label="Source"
 box b label="Target"
@@ -355,10 +332,8 @@ b <-> c label="two-way"
 a --- c label="plain"
 end`,
 
-        markdown: `diagram
+        markdown: `diagram layout=row gap=40
 title label="Markdown"
-layout row
-config gap=40
 
 markdown intro width=320
 """
@@ -375,10 +350,8 @@ box render label="Renderer"
 parser --> render label="AST"
 end`,
 
-        table: `diagram
+        table: `diagram layout=column gap=24
 title label="Table"
-layout column
-config gap=24
 
 table plans label="Plans"
 {
@@ -389,10 +362,8 @@ table plans label="Plans"
 }
 end`,
 
-        charts: `diagram
+        charts: `diagram layout=row gap=28
 title label="Charts"
-layout row
-config gap=28
 
 bar-chart sales label="Sales" width=260 height=220
 data

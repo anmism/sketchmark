@@ -118,6 +118,7 @@ export interface SceneGraph {
     title?: string;
     description?: string;
     layout: string;
+    style: StyleProps;
     nodes: SceneNode[];
     edges: SceneEdge[];
     tables: SceneTable[];
@@ -130,6 +131,8 @@ export interface SceneGraph {
     rootOrder: RootItemRef[];
     width: number;
     height: number;
+    fixedWidth?: number;
+    fixedHeight?: number;
 }
 export declare function buildSceneGraph(ast: DiagramAST): SceneGraph;
 export declare function nodeMap(sg: SceneGraph): Map<string, SceneNode>;

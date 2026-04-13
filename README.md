@@ -201,10 +201,8 @@ import { render } from 'sketchmark';
 
 
 const dsl = `
-diagram
+diagram layout=row gap=60
 title label="My Architecture"
-layout row
-config gap=60
 
 box client  label="Client App"   width=140 height=55
 box server  label="API Server"   width=140 height=55
@@ -300,10 +298,8 @@ const dsl = `
 Every diagram follows this structure:
 
 ```
-diagram
+diagram [layout=row|column|grid|absolute] [width=N] [height=N] [margin=N] [gap=N] [theme=name] [font=name] [pointer=type] [tts=true|false] [fill="..."] [stroke="..."] [stroke-width=N]
 [title label="My Title"]
-[layout row|column|grid|absolute]
-[config key=value ...]
 [theme name fill="..." stroke="..." color="..."]
 
 [nodes, edges, groups, tables, charts, markdown blocks]
@@ -315,8 +311,7 @@ end
 When `layout=absolute`, authored elements use `x`/`y` coordinates instead of flow layout:
 
 ```
-diagram
-layout absolute
+diagram layout=absolute
 box start  x=40  y=60  label="Start"
 box finish x=240 y=140 label="Finish"
 start --> finish
@@ -611,7 +606,7 @@ Another paragraph here.
 
 ### Global Palette Themes
 
-Activate via `config theme=<name>` in the DSL.
+Activate via `diagram theme=<name>` in the DSL.
 
 | Theme Name | Description |
 |------------|-------------|
@@ -627,7 +622,7 @@ Activate via `config theme=<name>` in the DSL.
 
 ```
 # Activate in DSL
-config theme=ocean
+diagram theme=ocean
 
 # Or pass as render option
 render({ ..., svgOptions: { theme: 'dark' } });
@@ -655,7 +650,7 @@ group services label="Services" theme=muted items=[client,server,db]
 
 ## Fonts
 
-Set globally with `config font=<name>` or per-element with `font=<name>`.
+Set globally with `diagram font=<name>` or per-element with `font=<name>`.
 
 | Font Name | Family | Type |
 |-----------|--------|------|
@@ -673,7 +668,7 @@ Set globally with `config font=<name>` or per-element with `font=<name>`.
 
 ```
 # Global font
-config font=caveat
+diagram font=caveat
 
 # Per-element font
 box a label="Handwritten" font=caveat
@@ -735,7 +730,7 @@ step narrate "This is the most important step" pace=slow
 
 ### Annotations
 
-Hand-drawn annotation marks powered by rough.js. A clean guide path draws in first, then the rough sketch fades in. If `config pointer=chalk|dot|hand` is set, a pointer follows the annotation stroke.
+Hand-drawn annotation marks powered by rough.js. A clean guide path draws in first, then the rough sketch fades in. If `diagram pointer=chalk|dot|hand` is set, a pointer follows the annotation stroke.
 
 ```
 step circle leaf           # circle around "leaf" node
@@ -892,7 +887,7 @@ Enable browser-native speech synthesis for narrate steps. You can drive it from 
 
 ```
 # In DSL
-config tts=on
+diagram tts=true
 ```
 
 ```javascript
@@ -924,9 +919,9 @@ Speech cancels automatically on `reset()`, `prev()`, `destroy()`, or when a new 
 Show a pointer that follows annotation strokes (circle, underline, crossout, bracket):
 
 ```
-config pointer=chalk    # white dot with outline
-config pointer=dot      # colored dot
-config pointer=hand     # hand cursor
+diagram pointer=chalk   # white dot with outline
+diagram pointer=dot     # colored dot
+diagram pointer=hand    # hand cursor
 ```
 
 The pointer only appears during annotation steps — it follows the guide path as the annotation draws in, then fades out.
@@ -953,7 +948,7 @@ For group targets, these actions also apply recursively to the same subtree:
 
 ## Config Options
 
-Set in DSL with `config key=value`:
+Set on the opening `diagram` line with `key=value`:
 
 | Key | Description | Default |
 |-----|-------------|---------|
@@ -969,17 +964,8 @@ Set in DSL with `config key=value`:
 | `tts` | Enable browser text-to-speech | `off` |
 
 ```
-diagram
+diagram layout=row gap=60 margin=40 theme=ocean font=caveat pointer=chalk tts=on title-size=24 title-color="#001f5b"
 title label="My System"
-layout row
-config gap=60
-config margin=40
-config theme=ocean
-config font=caveat
-config pointer=chalk
-config tts=on
-config title-size=24
-config title-color="#001f5b"
 ```
 
 ---
@@ -1167,8 +1153,6 @@ Groups support `layout=absolute` in addition to flow layouts. In absolute groups
 | `end` | Structure | `end` |
 | `title` | Meta | `title label="My Diagram"` |
 | `description` | Meta | `description "Some text"` |
-| `layout` | Meta | `layout row` / `layout column` / `layout grid` / `layout absolute` |
-| `config` | Meta | `config gap=60` |
 | `theme` | Styling | `theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"` |
 | `style` | Styling | `style nodeId fill="#ff0" stroke="#000"` |
 | `box` | Node | `box myId label="Label" width=120 height=50` |
@@ -1229,12 +1213,8 @@ Groups support `layout=absolute` in addition to flow layouts. In absolute groups
 This example demonstrates most features including narration, annotations, beats, pacing, and pointer:
 
 ```
-diagram
+diagram layout=row gap=50 pointer=chalk tts=on
 title label="How the Internet Delivers a Webpage"
-layout row
-config gap=50
-config pointer=chalk
-config tts=on
 
 # Define named themes
 theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"

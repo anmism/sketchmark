@@ -141,6 +141,7 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
   const ast: DiagramAST = {
     kind: "diagram",
     layout: "column",
+    style: {},
     nodes: [],
     edges: [],
     groups: [],
@@ -204,6 +205,55 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
     }
 
     return props;
+  }
+
+  function parseConfigValue(value: string): string | number | boolean {
+    if (value === "true" || value === "on") return true;
+    if (value === "false" || value === "off") return false;
+    const numeric = Number(value);
+    return Number.isNaN(numeric) ? value : numeric;
+  }
+
+  function applyRootProps(props: Record<string, string>): void {
+    const styleProps = propsToStyle(props);
+    const styleKeys = new Set([
+      "fill",
+      "stroke",
+      "stroke-width",
+      "color",
+      "opacity",
+      "font-size",
+      "font-weight",
+      "font",
+      "dash",
+      "stroke-dash",
+      "padding",
+      "text-align",
+      "vertical-align",
+      "line-height",
+      "letter-spacing",
+    ]);
+    ast.style = { ...(ast.style ?? {}), ...styleProps };
+
+    if (props.layout) {
+      ast.layout = props.layout as LayoutType;
+    }
+    if (props.width !== undefined) {
+      ast.width = parseFloat(props.width);
+    }
+    if (props.height !== undefined) {
+      ast.height = parseFloat(props.height);
+    }
+
+    if (props.font !== undefined) {
+      ast.config.font = parseConfigValue(props.font);
+    }
+
+    for (const [key, value] of Object.entries(props)) {
+      if (key === "layout" || key === "width" || key === "height") continue;
+      if (styleKeys.has(key)) continue;
+      ast.config[key] = parseConfigValue(value);
+    }
   }
 
   function parseGroupProps(
@@ -782,7 +832,12 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
   }
 
   skipNL();
-  if (cur().value === "diagram") skip();
+  if (cur().value === "diagram") {
+    skip();
+    const toks = lineTokens();
+    const props = parseSimpleProps(toks, 0);
+    applyRootProps(props);
+  }
   skipNL();
 
   while (cur().type !== "EOF" && cur().value !== "end") {
@@ -795,7 +850,7 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
       continue;
     }
     if (v === "diagram") {
-      skip();
+      lineTokens();
       continue;
     }
     if (v === "end") break;
@@ -806,9 +861,11 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
     }
 
     if (v === "layout") {
-      skip();
-      ast.layout = (cur().value as LayoutType) ?? "column";
-      skip();
+      throw new ParseError(
+        `Root layout must be declared on the diagram line, e.g. diagram layout=absolute`,
+        t.line,
+        t.col,
+      );
       continue;
     }
 
@@ -837,13 +894,11 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
     }
 
     if (v === "config") {
-      skip();
-      const key = cur().value;
-      skip();
-      if (cur().type === "EQUALS") skip();
-      const value = cur().value;
-      skip();
-      ast.config[key] = value;
+      throw new ParseError(
+        `Root config must be declared on the diagram line, e.g. diagram gap=40 margin=0 tts=true`,
+        t.line,
+        t.col,
+      );
       continue;
     }
 

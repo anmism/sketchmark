@@ -52,7 +52,7 @@ geo.arc top center=O r=40 start=180 end=0 label="top arc"
 geo.ellipse oval center=O rx=60 ry=30 label="oval"
 end`);
 
-    expect(compiled).toContain("layout absolute");
+    expect(compiled).toContain("diagram layout=absolute");
     expect(compiled).toContain('circle A label=""');
     expect(compiled).toContain('path AB label=""');
     expect(compiled).toContain('path __geo_r1_tip label=""');
@@ -109,12 +109,11 @@ end`,
 
   it("throws if geometry commands are used with a non-absolute root layout", () => {
     expect(() =>
-      parse(`diagram
-layout row
+      parse(`diagram layout=row
 geo.point A x=20 y=30
 end`, {
         plugins: [geometry()],
       }),
-    ).toThrow("layout absolute");
+    ).toThrow("diagram layout=absolute");
   });
 });

@@ -19,9 +19,7 @@ import { anchors } from "@sketchmark/plugin-anchors";
 render({
   container: document.getElementById("diagram")!,
   dsl: `
-diagram
-layout row
-config gap=48
+diagram layout=row gap=48
 
 box app label="App"
 box api label="API"

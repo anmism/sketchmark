@@ -173,15 +173,26 @@ export function renderToCanvas(
 
   // ── Diagram-level font ───────────────────────────────────
   const diagramFont = (() => {
-    const raw = String(sg.config['font'] ?? '');
+    const raw = String(sg.style?.font ?? sg.config['font'] ?? '');
     if (raw) { loadFont(raw); return resolveFont(raw); }
     return DEFAULT_FONT;
   })();
 
   // ── Background ───────────────────────────────────────────
   if (!options.transparent) {
-    ctx.fillStyle = options.background ?? palette.background;
+    ctx.fillStyle = options.background ?? String(sg.style?.fill ?? palette.background);
     ctx.fillRect(0, 0, sg.width, sg.height);
+
+    const rootStroke = sg.style?.stroke;
+    const rootStrokeWidth = Number(sg.style?.strokeWidth ?? 0);
+    if (rootStroke && rootStroke !== 'none' && rootStrokeWidth > 0) {
+      const inset = rootStrokeWidth / 2;
+      ctx.save();
+      ctx.strokeStyle = String(rootStroke);
+      ctx.lineWidth = rootStrokeWidth;
+      ctx.strokeRect(inset, inset, Math.max(0, sg.width - rootStrokeWidth), Math.max(0, sg.height - rootStrokeWidth));
+      ctx.restore();
+    }
   } else {
     ctx.clearRect(0, 0, sg.width, sg.height);
   }

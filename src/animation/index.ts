@@ -908,6 +908,9 @@ export class AnimationController {
     if (!el.id.startsWith("group-")) {
       const ids = new Set<string>([el.id]);
       this._relatedElementIdsByPrimaryId.get(el.id)?.forEach((id) => ids.add(id));
+      this.svg.querySelectorAll<SVGGElement>(POSITIONABLE_SELECTOR).forEach((candidate) => {
+        if (candidate.dataset.animationParent === target) ids.add(candidate.id);
+      });
       return Array.from(ids)
         .map((id) => getEl(this.svg, id))
         .filter((candidate): candidate is SVGGElement => candidate != null);
@@ -1124,6 +1127,7 @@ export class AnimationController {
       el.classList.remove("hl", "faded", "hidden");
       el.style.opacity = el.style.filter = "";
       if (this.drawTargetNodes.has(el.id)) {
+        hideDrawEl(el);
         prepareNodeForDraw(el);
       } else {
         clearNodeDrawStyles(el);
@@ -1656,6 +1660,16 @@ export class AnimationController {
   // ── color ─────────────────────────────────────────────────
   private _doColor(target: string, color: string | undefined): void {
     if (!color) return;
+    const applyTextColor = (root: ParentNode): void => {
+      root.querySelectorAll<SVGTextElement>("text").forEach((t) => {
+        t.style.fill = color;
+        const existingStyle = t.getAttribute("style") ?? "";
+        const nextStyle = `${existingStyle.replace(/(?:^|;)\s*fill\s*:[^;]*/g, "").trim().replace(/;?$/, ";")}fill:${color};`;
+        t.setAttribute("style", nextStyle);
+        t.setAttribute("fill", color);
+      });
+    };
+
     for (const el of this._resolveCascadeTargets(target)) {
       if (parseEdgeTarget(target)) {
         el.querySelectorAll<SVGElement>("path, line, polyline").forEach((p) => {
@@ -1679,11 +1693,15 @@ export class AnimationController {
         },
       );
       if (!hit) {
-        el.querySelectorAll<SVGTextElement>("text").forEach((t) => {
-          t.style.fill = color;
-        });
+        applyTextColor(el);
       }
     }
+
+    this.svg.querySelectorAll<SVGGElement>(`${POSITIONABLE_SELECTOR}[data-animation-parent]`).forEach((el) => {
+      if (el.dataset.animationParent === target) {
+        applyTextColor(el);
+      }
+    });
   }
 
   // ── narration ───────────────────────────────────────────

@@ -17,8 +17,7 @@ function ensureCanvasMeasureStub(): void {
 
 describe("absolute layout", () => {
   it("parses authored absolute coordinates for positioned entities", () => {
-    const ast = parse(`diagram
-layout absolute
+    const ast = parse(`diagram layout=absolute
 box a x=10 y=20 label="A"
 group lane layout=absolute x=80 y=40 items=[a]
 end`);
@@ -36,9 +35,7 @@ end`);
   it("uses authored x/y for root absolute placement and edge routing", () => {
     ensureCanvasMeasureStub();
 
-    const ast = parse(`diagram
-layout absolute
-config margin=0
+    const ast = parse(`diagram layout=absolute margin=0
 box a width=40 height=20 x=10 y=20
 box b width=40 height=20 x=110 y=50
 a -> b
@@ -64,8 +61,7 @@ end`);
   it("positions children relative to an absolute group and auto-sizes the group", () => {
     ensureCanvasMeasureStub();
 
-    const ast = parse(`diagram
-config margin=0
+    const ast = parse(`diagram margin=0
 group cluster layout=absolute padding=10 items=[a,b]
 box a width=40 height=20 x=0 y=0
 box b width=50 height=30 x=100 y=40
