@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-wireframe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Wireframe primitives for Sketchmark. Compiles lightweight wf.* commands into standard Sketchmark nodes and groups.",
   "keywords": [
     "sketchmark",

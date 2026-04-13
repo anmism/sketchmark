@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-circuit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Primitive circuit diagrams for Sketchmark. Compiles lightweight ckt.* commands into standard Sketchmark groups and nodes.",
   "keywords": [
     "sketchmark",

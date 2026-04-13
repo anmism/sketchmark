@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-geometry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Geometry plugin for Sketchmark. Compiles lightweight geo.* commands into standard Sketchmark nodes.",
   "keywords": [
     "sketchmark",

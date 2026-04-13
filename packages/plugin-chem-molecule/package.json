@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-chem-molecule",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Primitive molecule diagrams for Sketchmark. Compiles lightweight chem.* commands into standard Sketchmark groups and nodes.",
   "keywords": [
     "sketchmark",

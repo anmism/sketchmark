@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-anchors",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Named edge anchors for Sketchmark. Rewrites a@right --> b@left into ordinary edges with anchor metadata.",
   "keywords": [
     "sketchmark",

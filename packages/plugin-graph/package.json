@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-graph",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Graph plotting plugin for Sketchmark. Compiles graph.* commands into standard Sketchmark nodes.",
   "keywords": [
     "sketchmark",

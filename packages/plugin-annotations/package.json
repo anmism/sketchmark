@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-annotations",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Annotation plugin for Sketchmark. Adds lightweight geometry-style marks like angle arcs, right angles, equal ticks, midpoint marks, and dimension lines.",
   "keywords": [
     "sketchmark",
