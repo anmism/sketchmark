@@ -106,6 +106,7 @@ Another official package, `@sketchmark/plugin-geometry`, follows the same model 
 
 
 
+
 ### Reusable UI Widgets
 
 ```javascript
@@ -350,7 +351,7 @@ Every node has the form:
 | Image | `image` | URL-loaded image | label width |
 | Icon | `icon` | Iconify icon | 48×48 + label |
 | Line | `line` | Horizontal rule | label width |
-| Path | `path` | Custom SVG path data | user-specified |
+| Path | `path` | Custom SVG path data scaled into `width`/`height` | user-specified |
 | Note | `note` | Sticky-note shape | line count × line height |
 
 ```
@@ -369,6 +370,8 @@ line    myLine label="Section"      width=200
 path    myPath value="M 0 0 L 50 50 L 100 0 Z" width=100 height=60
 note    myNote label="Remember this!"
 ```
+
+For `path`, write `value` in local coordinates near `0,0`. The renderer normalizes the path bounds into the node's `width` and `height`, and then uses `x`/`y` only for placement.
 
 ---
 
@@ -1050,7 +1053,7 @@ Nodes can also opt into authored absolute `x`/`y` positioning when their parent 
 | image (URL) | ✅ | Cross-origin images |
 | icon (Iconify) | ✅ | Uses Iconify API |
 | line | ✅ | Horizontal rule with label |
-| path (SVG path data) | ✅ | Raw SVG `d` attribute |
+| path (SVG path data) | ✅ | Local SVG `d` attribute scaled into `width`/`height` |
 | note | ✅ | Sticky-note shape |
 | Multiline label (`\n`) | ✅ | Use `\n` in label strings |
 | Per-node font override | ✅ | |

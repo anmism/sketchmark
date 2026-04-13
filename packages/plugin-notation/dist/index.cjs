@@ -38,6 +38,7 @@ const SIMPLE_COMMANDS = {
     geq: "≥",
     approx: "≈",
     sim: "∼",
+    circ: "°",
     to: "→",
     rightarrow: "→",
     leftarrow: "←",
@@ -255,7 +256,7 @@ function isEscaped(value, index) {
     return slashCount % 2 === 1;
 }
 function renderMathFragment(value) {
-    let nextValue = value;
+    let nextValue = reviveMathCommands(value);
     let previousValue = "";
     let iterations = 0;
     while (nextValue !== previousValue && iterations < 8) {
@@ -274,10 +275,17 @@ function renderMathFragment(value) {
         .replace(/\\;/g, " ")
         .replace(/\\:/g, " ");
     nextValue = replaceSimpleCommands(nextValue);
+    nextValue = nextValue.replace(/\^\s*°/g, "°");
     nextValue = replaceScripts(nextValue);
     nextValue = nextValue.replace(/[{}]/g, "");
     nextValue = nextValue.replace(/\s+/g, " ").trim();
     return nextValue;
+}
+function reviveMathCommands(value) {
+    return value
+        .replace(/\t(?=[A-Za-z])/g, "\\t")
+        .replace(/\n(?=[A-Za-z])/g, "\\n")
+        .replace(/\r(?=[A-Za-z])/g, "\\r");
 }
 function replaceCommandWithGroups(value, command, arity, render) {
     let result = "";

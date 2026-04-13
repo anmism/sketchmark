@@ -23,6 +23,7 @@ import {
   connMeta, resolveEndpoint, getConnPoint, groupDepth,
 } from '../shared';
 import { getShape } from '../shapes';
+import { getRenderableNodePathData } from '../shapes/path-geometry';
 import { resolveTypography, computeTextX, computeTextCY } from '../typography';
 
 // declare const rough: { svg(el: SVGSVGElement): RoughSVG };
@@ -530,7 +531,7 @@ export function renderToSVG(
     ng.dataset.y = String(n.y);
     ng.dataset.w = String(n.w);
     ng.dataset.h = String(n.h);
-    if (n.pathData) ng.dataset.pathData = n.pathData;
+    if (n.pathData) ng.dataset.pathData = getRenderableNodePathData(n) ?? n.pathData;
     if (n.meta?.animationParent) ng.dataset.animationParent = n.meta.animationParent;
     if (n.style?.opacity != null) ng.setAttribute("opacity", String(n.style.opacity));
 

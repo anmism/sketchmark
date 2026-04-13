@@ -84,9 +84,6 @@ export declare class AnimationController {
     private _runStep;
     private _doHighlight;
     private _doFade;
-    private _resolveTransformTargets;
-    private _inferTransformPrimaryId;
-    private _transformTargetChainForElement;
     private _writeTransform;
     private _doMove;
     private _doScale;

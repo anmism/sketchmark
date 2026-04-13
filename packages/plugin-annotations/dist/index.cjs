@@ -171,7 +171,9 @@ function emitAngle(command, nodeById, usedIds, settings) {
         if (command.props.label) {
             const defaultLabelDistance = Math.max(radius + settings.labelOffset * 1.4, radius * 1.2);
             const labelDistance = readNumber(command.props["label-distance"]) ?? defaultLabelDistance;
-            nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(b, scale(geometry.labelDirection, labelDistance)), command.props, settings, { animationParent: command.id }));
+            const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+            const labelDy = readNumber(command.props["label-dy"]) ?? 0;
+            nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(add(b, scale(geometry.labelDirection, labelDistance)), { x: labelDx, y: labelDy }), command.props, settings, { animationParent: command.id }));
         }
         return { nodes };
     }
@@ -187,7 +189,9 @@ function emitAngle(command, nodeById, usedIds, settings) {
         const invertedLabelDistance = Math.max(controlDistance + settings.labelOffset * 0.35, radius * 0.45);
         const labelDistance = readNumber(command.props["label-distance"])
             ?? (invert ? invertedLabelDistance : defaultLabelDistance);
-        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(b, scale(bisector, labelDistance)), command.props, settings, { animationParent: command.id }));
+        const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(command.props["label-dy"]) ?? 0;
+        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(add(b, scale(bisector, labelDistance)), { x: labelDx, y: labelDy }), command.props, settings, { animationParent: command.id }));
     }
     return { nodes };
 }
@@ -212,7 +216,9 @@ function emitRightAngle(command, nodeById, usedIds, settings) {
         const invertedLabelDistance = Math.max(size - settings.labelOffset, size * 0.55);
         const labelDistance = readNumber(command.props["label-distance"])
             ?? (invert ? invertedLabelDistance : defaultLabelDistance);
-        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(b, scale(bisector, labelDistance)), command.props, settings, { animationParent: command.id }));
+        const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(command.props["label-dy"]) ?? 0;
+        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(add(b, scale(bisector, labelDistance)), { x: labelDx, y: labelDy }), command.props, settings, { animationParent: command.id }));
     }
     return { nodes };
 }
@@ -236,7 +242,9 @@ function emitEqual(command, nodeById, usedIds, settings) {
     const main = createSegmentPathNode(command.id, segments, command.props, settings);
     const nodes = [main];
     if (command.props.label) {
-        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(midpoint, scale(normal, size / 2 + settings.labelOffset)), command.props, settings, { animationParent: command.id }));
+        const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(command.props["label-dy"]) ?? 0;
+        nodes.push(createTextNode(helperLabelId(command.id, usedIds, command.lineNumber), command.props.label, add(add(midpoint, scale(normal, size / 2 + settings.labelOffset)), { x: labelDx, y: labelDy }), command.props, settings, { animationParent: command.id }));
     }
     return { nodes };
 }

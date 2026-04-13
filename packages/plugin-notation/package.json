@@ -1,6 +1,6 @@
 {
   "name": "@sketchmark/plugin-notation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Notation plugin for Sketchmark. Converts lightweight TeX-style math into Unicode text labels and narration.",
   "keywords": [
     "sketchmark",

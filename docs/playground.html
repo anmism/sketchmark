@@ -19,25 +19,35 @@
       <div id="sidebar">
         <div class="sidebar-inner">
           <div id="example-tabs">
-            <button class="ex-tab" data-example="anchors">anchors</button>
-            <button class="ex-tab" data-example="circuit">circuit</button>
-            <button class="ex-tab" data-example="chem">chem</button>
-            <button class="ex-tab active" data-example="shapes">⬡ shapes</button>
+            <button class="ex-tab active" data-example="shapes">
+              ⬡ shapes
+            </button>
             <button class="ex-tab" data-example="image">🖼 image</button>
             <button class="ex-tab" data-example="icon">🔣 icon</button>
             <button class="ex-tab" data-example="paths">✒ paths</button>
             <button class="ex-tab" data-example="groups">🧩 groups</button>
-            <button class="ex-tab" data-example="animation">🎬 animation</button>
-            <button class="ex-tab" data-example="narration">🗣 narration</button>
-            <button class="ex-tab" data-example="notation">∑ notation</button>
-            <button class="ex-tab" data-example="geometry">📐 geometry</button>
-            <button class="ex-tab" data-example="graph">?? graph</button>  
-            <button class="ex-tab" data-example="annotations">✍ annotations</button>
-            <button class="ex-tab" data-example="wireframe">🧱 wireframe</button>
+            <button class="ex-tab" data-example="animation">
+              🎬 animation
+            </button>
+            <button class="ex-tab" data-example="graph">?? graph</button>
             <button class="ex-tab" data-example="edges">↔ edges</button>
             <button class="ex-tab" data-example="markdown">📄 markdown</button>
             <button class="ex-tab" data-example="table">📋 table</button>
             <button class="ex-tab" data-example="charts">📊 charts</button>
+            <button class="ex-tab" data-example="narration">
+              🗣 narration
+            </button>
+            <button class="ex-tab" data-example="notation">∑ notation</button>
+            <button class="ex-tab" data-example="geometry">📐 geometry</button>
+            <button class="ex-tab" data-example="anchors">anchors</button>
+            <button class="ex-tab" data-example="circuit">circuit</button>
+            <button class="ex-tab" data-example="chem">chem</button>
+            <button class="ex-tab" data-example="annotations">
+              ✍ annotations
+            </button>
+            <button class="ex-tab" data-example="wireframe">
+              🧱 wireframe
+            </button>
           </div>
 
           <div id="toolbar">
@@ -76,15 +86,14 @@
         SketchmarkEditor,
         exportHTML,
       } from "../dist/index.js";
-      import { anchors } from "../packages/plugin-anchors/browser.js";
-      import { annotations } from "../packages/plugin-annotations/browser.js";
-      import { chemMolecule } from "../packages/plugin-chem-molecule/browser.js";
-      import { circuit } from "../packages/plugin-circuit/browser.js";
-      import { geometry } from "../packages/plugin-geometry/browser.js";
-      import { graph } from "../packages/plugin-graph/browser.js";
-      import { notation } from "../packages/plugin-notation/browser.js";
-      import { wireframe } from "../packages/plugin-wireframe/browser.js";
-
+      import { anchors } from "../packages/plugin-anchors/dist/index.js";
+      import { annotations } from "../packages/plugin-annotations/dist/index.js";
+      import { chemMolecule } from "../packages/plugin-chem-molecule/dist/index.js";
+      import { circuit } from "../packages/plugin-circuit/dist/index.js";
+      import { geometry } from "../packages/plugin-geometry/dist/index.js";
+      import { graph } from "../packages/plugin-graph/dist/index.js";
+      import { notation } from "../packages/plugin-notation/dist/index.js";
+      import { wireframe } from "../packages/plugin-wireframe/dist/index.js";
 
       const EXAMPLES = {
         shapes: `diagram
@@ -429,7 +438,16 @@ end`,
 
       const canvas = new SketchmarkCanvas({
         container: document.getElementById("canvas-host"),
-        plugins: [circuit(), chemMolecule(), wireframe(), anchors(), annotations(), geometry(), graph(), notation()],
+        plugins: [
+          circuit(),
+          chemMolecule(),
+          wireframe(),
+          anchors(),
+          annotations(),
+          geometry(),
+          graph(),
+          notation(),
+        ],
         theme: canvasTheme,
         preserveViewOnRender: true,
         showCaption: false,
@@ -559,5 +577,3 @@ end`,
     </script>
   </body>
 </html>
-
-

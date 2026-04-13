@@ -4299,37 +4299,510 @@ const lineShape = {
     },
 };
 
-const pathShape = {
-    size(n, labelW) {
-        // User should provide width/height; defaults to 100x100
-        const w = n.width ?? Math.max(100, Math.min(300, labelW + 20));
-        n.w = w;
-        if (!n.h) {
-            if (!n.width && labelW + 20 > w) {
-                const fontSize = Number(n.style?.fontSize ?? 14);
-                const lines = Math.ceil(labelW / (w - 20));
-                n.h = Math.max(100, lines * fontSize * 1.5 + 20);
+const COMMAND_RE = /^[AaCcHhLlMmQqSsTtVvZz]$/;
+const TOKEN_RE = /[AaCcHhLlMmQqSsTtVvZz]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+const EPSILON = 1e-6;
+const PARAM_COUNTS = {
+    A: 7,
+    C: 6,
+    H: 1,
+    L: 2,
+    M: 2,
+    Q: 4,
+    S: 4,
+    T: 2,
+    V: 1,
+    Z: 0,
+};
+function isCommandToken(token) {
+    return COMMAND_RE.test(token);
+}
+function formatNumber(value) {
+    const rounded = Math.abs(value) < EPSILON ? 0 : Number(value.toFixed(3));
+    return Object.is(rounded, -0) ? "0" : String(rounded);
+}
+function parseRawSegments(pathData) {
+    const tokens = pathData.match(TOKEN_RE) ?? [];
+    if (!tokens.length)
+        return [];
+    const segments = [];
+    let index = 0;
+    let currentCommand = null;
+    while (index < tokens.length) {
+        const token = tokens[index];
+        if (isCommandToken(token)) {
+            currentCommand = token;
+            index += 1;
+            if (token === "Z" || token === "z") {
+                segments.push({ command: "Z", values: [] });
+            }
+            continue;
+        }
+        if (!currentCommand)
+            break;
+        const upper = currentCommand.toUpperCase();
+        const paramCount = PARAM_COUNTS[upper];
+        if (!paramCount) {
+            index += 1;
+            continue;
+        }
+        let isFirstMove = upper === "M";
+        while (index < tokens.length && !isCommandToken(tokens[index])) {
+            if (index + paramCount > tokens.length)
+                return segments;
+            const values = tokens
+                .slice(index, index + paramCount)
+                .map((value) => Number(value));
+            if (values.some((value) => Number.isNaN(value))) {
+                return segments;
+            }
+            if (upper === "M") {
+                const moveCommand = isFirstMove
+                    ? currentCommand
+                    : currentCommand === "m"
+                        ? "l"
+                        : "L";
+                segments.push({ command: moveCommand, values });
+                isFirstMove = false;
             }
             else {
-                n.h = n.height ?? 100;
+                segments.push({ command: currentCommand, values });
+            }
+            index += paramCount;
+        }
+    }
+    return segments;
+}
+function reflect(control, around) {
+    return {
+        x: around.x * 2 - control.x,
+        y: around.y * 2 - control.y,
+    };
+}
+function toAbsoluteSegments(rawSegments) {
+    const segments = [];
+    let current = { x: 0, y: 0 };
+    let subpathStart = { x: 0, y: 0 };
+    let previousCubicControl = null;
+    let previousQuadraticControl = null;
+    for (const segment of rawSegments) {
+        const isRelative = segment.command === segment.command.toLowerCase();
+        const command = segment.command.toUpperCase();
+        const values = segment.values;
+        switch (command) {
+            case "M": {
+                const x = isRelative ? current.x + values[0] : values[0];
+                const y = isRelative ? current.y + values[1] : values[1];
+                current = { x, y };
+                subpathStart = { x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({ command: "M", values: [x, y] });
+                break;
+            }
+            case "L": {
+                const x = isRelative ? current.x + values[0] : values[0];
+                const y = isRelative ? current.y + values[1] : values[1];
+                current = { x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({ command: "L", values: [x, y] });
+                break;
+            }
+            case "H": {
+                const x = isRelative ? current.x + values[0] : values[0];
+                current = { x, y: current.y };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({ command: "L", values: [x, current.y] });
+                break;
+            }
+            case "V": {
+                const y = isRelative ? current.y + values[0] : values[0];
+                current = { x: current.x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({ command: "L", values: [current.x, y] });
+                break;
+            }
+            case "C": {
+                const x1 = isRelative ? current.x + values[0] : values[0];
+                const y1 = isRelative ? current.y + values[1] : values[1];
+                const x2 = isRelative ? current.x + values[2] : values[2];
+                const y2 = isRelative ? current.y + values[3] : values[3];
+                const x = isRelative ? current.x + values[4] : values[4];
+                const y = isRelative ? current.y + values[5] : values[5];
+                current = { x, y };
+                previousCubicControl = { x: x2, y: y2 };
+                previousQuadraticControl = null;
+                segments.push({ command: "C", values: [x1, y1, x2, y2, x, y] });
+                break;
+            }
+            case "S": {
+                const control1 = previousCubicControl
+                    ? reflect(previousCubicControl, current)
+                    : { ...current };
+                const x2 = isRelative ? current.x + values[0] : values[0];
+                const y2 = isRelative ? current.y + values[1] : values[1];
+                const x = isRelative ? current.x + values[2] : values[2];
+                const y = isRelative ? current.y + values[3] : values[3];
+                current = { x, y };
+                previousCubicControl = { x: x2, y: y2 };
+                previousQuadraticControl = null;
+                segments.push({
+                    command: "C",
+                    values: [control1.x, control1.y, x2, y2, x, y],
+                });
+                break;
+            }
+            case "Q": {
+                const x1 = isRelative ? current.x + values[0] : values[0];
+                const y1 = isRelative ? current.y + values[1] : values[1];
+                const x = isRelative ? current.x + values[2] : values[2];
+                const y = isRelative ? current.y + values[3] : values[3];
+                current = { x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = { x: x1, y: y1 };
+                segments.push({ command: "Q", values: [x1, y1, x, y] });
+                break;
+            }
+            case "T": {
+                const control = previousQuadraticControl
+                    ? reflect(previousQuadraticControl, current)
+                    : { ...current };
+                const x = isRelative ? current.x + values[0] : values[0];
+                const y = isRelative ? current.y + values[1] : values[1];
+                current = { x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = control;
+                segments.push({ command: "Q", values: [control.x, control.y, x, y] });
+                break;
+            }
+            case "A": {
+                const rx = Math.abs(values[0]);
+                const ry = Math.abs(values[1]);
+                const rotation = values[2];
+                const largeArc = values[3];
+                const sweep = values[4];
+                const x = isRelative ? current.x + values[5] : values[5];
+                const y = isRelative ? current.y + values[6] : values[6];
+                current = { x, y };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({
+                    command: "A",
+                    values: [rx, ry, rotation, largeArc, sweep, x, y],
+                });
+                break;
+            }
+            case "Z": {
+                current = { ...subpathStart };
+                previousCubicControl = null;
+                previousQuadraticControl = null;
+                segments.push({ command: "Z", values: [] });
+                break;
+            }
+        }
+    }
+    return segments;
+}
+function cubicAt(p0, p1, p2, p3, t) {
+    const mt = 1 - t;
+    return (mt * mt * mt * p0 +
+        3 * mt * mt * t * p1 +
+        3 * mt * t * t * p2 +
+        t * t * t * p3);
+}
+function quadraticAt(p0, p1, p2, t) {
+    const mt = 1 - t;
+    return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
+}
+function cubicExtrema(p0, p1, p2, p3) {
+    const a = -p0 + 3 * p1 - 3 * p2 + p3;
+    const b = 3 * p0 - 6 * p1 + 3 * p2;
+    const c = -3 * p0 + 3 * p1;
+    if (Math.abs(a) < EPSILON) {
+        if (Math.abs(b) < EPSILON)
+            return [];
+        return [-c / (2 * b)].filter((t) => t > 0 && t < 1);
+    }
+    const discriminant = 4 * b * b - 12 * a * c;
+    if (discriminant < 0)
+        return [];
+    const sqrtDiscriminant = Math.sqrt(discriminant);
+    return [
+        (-2 * b + sqrtDiscriminant) / (6 * a),
+        (-2 * b - sqrtDiscriminant) / (6 * a),
+    ].filter((t) => t > 0 && t < 1);
+}
+function quadraticExtrema(p0, p1, p2) {
+    const denominator = p0 - 2 * p1 + p2;
+    if (Math.abs(denominator) < EPSILON)
+        return [];
+    const t = (p0 - p1) / denominator;
+    return t > 0 && t < 1 ? [t] : [];
+}
+function angleBetween(u, v) {
+    const magnitude = Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y);
+    if (magnitude < EPSILON)
+        return 0;
+    const sign = u.x * v.y - u.y * v.x < 0 ? -1 : 1;
+    const cosine = Math.min(1, Math.max(-1, (u.x * v.x + u.y * v.y) / magnitude));
+    return sign * Math.acos(cosine);
+}
+function sampleArc(start, values) {
+    let [rx, ry, rotation, largeArcFlag, sweepFlag, endX, endY] = values;
+    if ((Math.abs(start.x - endX) < EPSILON && Math.abs(start.y - endY) < EPSILON) || rx < EPSILON || ry < EPSILON) {
+        return [start, { x: endX, y: endY }];
+    }
+    rx = Math.abs(rx);
+    ry = Math.abs(ry);
+    const phi = (rotation * Math.PI) / 180;
+    const cosPhi = Math.cos(phi);
+    const sinPhi = Math.sin(phi);
+    const dx2 = (start.x - endX) / 2;
+    const dy2 = (start.y - endY) / 2;
+    const x1p = cosPhi * dx2 + sinPhi * dy2;
+    const y1p = -sinPhi * dx2 + cosPhi * dy2;
+    const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+    if (lambda > 1) {
+        const scale = Math.sqrt(lambda);
+        rx *= scale;
+        ry *= scale;
+    }
+    const rx2 = rx * rx;
+    const ry2 = ry * ry;
+    const x1p2 = x1p * x1p;
+    const y1p2 = y1p * y1p;
+    const numerator = rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2;
+    const denominator = rx2 * y1p2 + ry2 * x1p2;
+    const factor = denominator < EPSILON ? 0 : Math.sqrt(Math.max(0, numerator / denominator));
+    const sign = largeArcFlag === sweepFlag ? -1 : 1;
+    const cxp = sign * factor * ((rx * y1p) / ry);
+    const cyp = sign * factor * (-(ry * x1p) / rx);
+    const cx = cosPhi * cxp - sinPhi * cyp + (start.x + endX) / 2;
+    const cy = sinPhi * cxp + cosPhi * cyp + (start.y + endY) / 2;
+    const startVector = {
+        x: (x1p - cxp) / rx,
+        y: (y1p - cyp) / ry,
+    };
+    const endVector = {
+        x: (-x1p - cxp) / rx,
+        y: (-y1p - cyp) / ry,
+    };
+    let deltaTheta = angleBetween(startVector, endVector);
+    if (!sweepFlag && deltaTheta > 0)
+        deltaTheta -= Math.PI * 2;
+    if (sweepFlag && deltaTheta < 0)
+        deltaTheta += Math.PI * 2;
+    const theta1 = angleBetween({ x: 1, y: 0 }, startVector);
+    const steps = Math.max(12, Math.ceil(Math.abs(deltaTheta) / (Math.PI / 8)));
+    const points = [];
+    for (let index = 0; index <= steps; index += 1) {
+        const theta = theta1 + (deltaTheta * index) / steps;
+        const cosTheta = Math.cos(theta);
+        const sinTheta = Math.sin(theta);
+        points.push({
+            x: cx + rx * cosPhi * cosTheta - ry * sinPhi * sinTheta,
+            y: cy + rx * sinPhi * cosTheta + ry * cosPhi * sinTheta,
+        });
+    }
+    return points;
+}
+function boundsFromAbsoluteSegments(segments) {
+    if (!segments.length)
+        return null;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const include = (point) => {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+    };
+    let current = { x: 0, y: 0 };
+    let subpathStart = { x: 0, y: 0 };
+    for (const segment of segments) {
+        switch (segment.command) {
+            case "M": {
+                current = { x: segment.values[0], y: segment.values[1] };
+                subpathStart = { ...current };
+                include(current);
+                break;
+            }
+            case "L": {
+                include(current);
+                current = { x: segment.values[0], y: segment.values[1] };
+                include(current);
+                break;
+            }
+            case "C": {
+                const [x1, y1, x2, y2, x, y] = segment.values;
+                const ts = new Set([0, 1]);
+                cubicExtrema(current.x, x1, x2, x).forEach((value) => ts.add(value));
+                cubicExtrema(current.y, y1, y2, y).forEach((value) => ts.add(value));
+                for (const t of ts) {
+                    include({
+                        x: cubicAt(current.x, x1, x2, x, t),
+                        y: cubicAt(current.y, y1, y2, y, t),
+                    });
+                }
+                current = { x, y };
+                break;
+            }
+            case "Q": {
+                const [x1, y1, x, y] = segment.values;
+                const ts = new Set([0, 1]);
+                quadraticExtrema(current.x, x1, x).forEach((value) => ts.add(value));
+                quadraticExtrema(current.y, y1, y).forEach((value) => ts.add(value));
+                for (const t of ts) {
+                    include({
+                        x: quadraticAt(current.x, x1, x, t),
+                        y: quadraticAt(current.y, y1, y, t),
+                    });
+                }
+                current = { x, y };
+                break;
+            }
+            case "A": {
+                for (const point of sampleArc(current, segment.values)) {
+                    include(point);
+                }
+                current = { x: segment.values[5], y: segment.values[6] };
+                break;
+            }
+            case "Z": {
+                include(current);
+                include(subpathStart);
+                current = { ...subpathStart };
+                break;
+            }
+        }
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+        return null;
+    }
+    return { minX, minY, maxX, maxY };
+}
+function transformX(x, bounds, scaleX) {
+    return (x - bounds.minX) * scaleX;
+}
+function transformY(y, bounds, scaleY) {
+    return (y - bounds.minY) * scaleY;
+}
+function buildScaledPathData(segments, bounds, width, height) {
+    const sourceWidth = Math.max(bounds.maxX - bounds.minX, EPSILON);
+    const sourceHeight = Math.max(bounds.maxY - bounds.minY, EPSILON);
+    const scaleX = width / sourceWidth;
+    const scaleY = height / sourceHeight;
+    return segments
+        .map((segment) => {
+        switch (segment.command) {
+            case "M":
+            case "L":
+                return [
+                    segment.command,
+                    formatNumber(transformX(segment.values[0], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[1], bounds, scaleY)),
+                ].join(" ");
+            case "C":
+                return [
+                    "C",
+                    formatNumber(transformX(segment.values[0], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[1], bounds, scaleY)),
+                    formatNumber(transformX(segment.values[2], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[3], bounds, scaleY)),
+                    formatNumber(transformX(segment.values[4], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[5], bounds, scaleY)),
+                ].join(" ");
+            case "Q":
+                return [
+                    "Q",
+                    formatNumber(transformX(segment.values[0], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[1], bounds, scaleY)),
+                    formatNumber(transformX(segment.values[2], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[3], bounds, scaleY)),
+                ].join(" ");
+            case "A":
+                return [
+                    "A",
+                    formatNumber(segment.values[0] * scaleX),
+                    formatNumber(segment.values[1] * scaleY),
+                    formatNumber(segment.values[2]),
+                    formatNumber(segment.values[3]),
+                    formatNumber(segment.values[4]),
+                    formatNumber(transformX(segment.values[5], bounds, scaleX)),
+                    formatNumber(transformY(segment.values[6], bounds, scaleY)),
+                ].join(" ");
+            case "Z":
+                return "Z";
+        }
+    })
+        .join(" ");
+}
+function intrinsicSizeFromBounds(bounds) {
+    if (!bounds)
+        return { width: 100, height: 100 };
+    return {
+        width: Math.max(1, Math.ceil(bounds.maxX - bounds.minX)),
+        height: Math.max(1, Math.ceil(bounds.maxY - bounds.minY)),
+    };
+}
+function parsePathGeometry(pathData) {
+    const segments = toAbsoluteSegments(parseRawSegments(pathData));
+    return {
+        segments,
+        bounds: boundsFromAbsoluteSegments(segments),
+    };
+}
+function getPathIntrinsicSize(pathData) {
+    if (!pathData)
+        return { width: 100, height: 100 };
+    return intrinsicSizeFromBounds(parsePathGeometry(pathData).bounds);
+}
+function getRenderablePathData(pathData, width, height) {
+    if (!pathData)
+        return null;
+    const { segments, bounds } = parsePathGeometry(pathData);
+    if (!segments.length || !bounds)
+        return pathData;
+    return buildScaledPathData(segments, bounds, Math.max(1, width), Math.max(1, height));
+}
+function getRenderableNodePathData(node) {
+    return getRenderablePathData(node.pathData, node.w, node.h);
+}
+
+const pathShape = {
+    size(n, labelW) {
+        const intrinsic = getPathIntrinsicSize(n.pathData);
+        const w = n.width ?? Math.max(intrinsic.width, Math.min(300, labelW + 20));
+        n.w = w;
+        if (!n.h) {
+            if (!n.width && !n.height && labelW + 20 > w) {
+                const fontSize = Number(n.style?.fontSize ?? 14);
+                const lines = Math.ceil(labelW / (w - 20));
+                n.h = Math.max(intrinsic.height, lines * fontSize * 1.5 + 20);
+            }
+            else {
+                n.h = n.height ?? intrinsic.height;
             }
         }
     },
     renderSVG(rc, n, _palette, opts) {
-        const d = n.pathData;
+        const d = getRenderableNodePathData(n);
         if (!d) {
-            // No path data — render placeholder box
             return [rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts)];
         }
         const el = rc.path(d, opts);
-        // Wrap in a group to translate the user's path to the node position
         const g = document.createElementNS(SVG_NS, "g");
         g.setAttribute("transform", `translate(${n.x},${n.y})`);
         g.appendChild(el);
         return [g];
     },
     renderCanvas(rc, ctx, n, _palette, opts) {
-        const d = n.pathData;
+        const d = getRenderableNodePathData(n);
         if (!d) {
             rc.rectangle(n.x + 1, n.y + 1, n.w - 2, n.h - 2, opts);
             return;
@@ -7941,7 +8414,7 @@ function renderToSVG(sg, container, options = {}) {
         ng.dataset.w = String(n.w);
         ng.dataset.h = String(n.h);
         if (n.pathData)
-            ng.dataset.pathData = n.pathData;
+            ng.dataset.pathData = getRenderableNodePathData(n) ?? n.pathData;
         if (n.meta?.animationParent)
             ng.dataset.animationParent = n.meta.animationParent;
         if (n.style?.opacity != null)
@@ -10026,58 +10499,20 @@ class AnimationController {
             el.classList.toggle("faded", doFade);
         }
     }
-    _resolveTransformTargets(target) {
-        return this._resolveCascadeTargets(target);
-    }
-    _inferTransformPrimaryId(el, target) {
-        if (el.dataset.animationParent)
-            return el.dataset.animationParent;
-        if (el.id.startsWith("node-"))
-            return el.id.slice(5);
-        if (el.id.startsWith("group-"))
-            return el.id.slice(6);
-        if (el.id.startsWith("table-"))
-            return el.id.slice(6);
-        if (el.id.startsWith("note-"))
-            return el.id.slice(5);
-        if (el.id.startsWith("chart-"))
-            return el.id.slice(6);
-        if (el.id.startsWith("markdown-"))
-            return el.id.slice(9);
-        return parseEdgeTarget(target) ? target : null;
-    }
-    _transformTargetChainForElement(el, target) {
-        const chain = [];
-        let parentGroupId = el.dataset.parentGroup;
-        while (parentGroupId) {
-            chain.unshift(parentGroupId);
-            parentGroupId = getGroupEl(this.svg, parentGroupId)?.dataset.parentGroup;
-        }
-        const primaryId = this._inferTransformPrimaryId(el, target);
-        if (primaryId && !chain.includes(primaryId)) {
-            chain.push(primaryId);
-        }
-        if (!primaryId && target && !chain.includes(target)) {
-            chain.push(target);
-        }
-        return chain;
-    }
     _writeTransform(el, target, silent, duration = 420) {
+        const t = this._transforms.get(target) ?? {
+            tx: 0,
+            ty: 0,
+            scale: 1,
+            rotate: 0,
+        };
         const parts = [];
-        for (const id of this._transformTargetChainForElement(el, target)) {
-            const t = this._transforms.get(id) ?? {
-                tx: 0,
-                ty: 0,
-                scale: 1,
-                rotate: 0,
-            };
-            if (t.tx !== 0 || t.ty !== 0)
-                parts.push(`translate(${t.tx}px,${t.ty}px)`);
-            if (t.rotate !== 0)
-                parts.push(`rotate(${t.rotate}deg)`);
-            if (t.scale !== 1)
-                parts.push(`scale(${t.scale})`);
-        }
+        if (t.tx !== 0 || t.ty !== 0)
+            parts.push(`translate(${t.tx}px,${t.ty}px)`);
+        if (t.rotate !== 0)
+            parts.push(`rotate(${t.rotate}deg)`);
+        if (t.scale !== 1)
+            parts.push(`scale(${t.scale})`);
         el.style.transition = silent
             ? "none"
             : `transform ${duration}ms cubic-bezier(.4,0,.2,1)`;
@@ -10092,7 +10527,7 @@ class AnimationController {
     }
     // ── move ──────────────────────────────────────────────────
     _doMove(target, step, silent) {
-        const targets = this._resolveTransformTargets(target);
+        const targets = this._resolveCascadeTargets(target);
         if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
@@ -10112,7 +10547,7 @@ class AnimationController {
     }
     // ── scale ─────────────────────────────────────────────────
     _doScale(target, step, silent) {
-        const targets = this._resolveTransformTargets(target);
+        const targets = this._resolveCascadeTargets(target);
         if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
@@ -10128,7 +10563,7 @@ class AnimationController {
     }
     // ── rotate ────────────────────────────────────────────────
     _doRotate(target, step, silent) {
-        const targets = this._resolveTransformTargets(target);
+        const targets = this._resolveCascadeTargets(target);
         if (!targets.length)
             return;
         const cur = this._transforms.get(target) ?? {
