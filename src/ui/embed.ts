@@ -51,7 +51,6 @@ const EMBED_CSS = `
   top: 0;
   left: 0;
   transform-origin: 0 0;
-  will-change: transform;
 }
 
 .skm-embed__error {
