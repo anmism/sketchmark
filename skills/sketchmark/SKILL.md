@@ -31,6 +31,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 ## Integration Rules
 
 - For animated examples, use the SVG renderer. Canvas does not support animated steps.
+- If the DSL contains `step ...` and the deliverable is a standalone HTML demo, include playback controls. Prefer `SketchmarkEmbed` for built-in controls, or wire buttons to `instance.anim`.
 - For React and Next.js client components, render only on the client into a real DOM node.
 - For Next.js App Router examples, include `'use client'`.
 - If you mention an official plugin, show the corresponding package import.

@@ -64,6 +64,61 @@ end
 - Use `showTitle: true` when the diagram has a title and the example should display it.
 - Use `transparent: true` when embedding into an existing page background.
 - If the example includes `step ...`, mention that playback is available through `instance.anim`.
+- If the output is a standalone page for a diagram with `step ...`, do not stop at `render(...)` alone. Either add explicit playback buttons or use `SketchmarkEmbed`, which includes built-in playback, zoom, caption, and TTS controls.
+
+## Animation Controls
+
+`render(...)` returns a diagram instance with an animation controller, but it does not add visible play buttons by itself.
+
+```ts
+const instance = render({ container, dsl, renderer: 'svg' });
+
+document.getElementById('btn-next')?.addEventListener('click', () => instance.anim.next());
+document.getElementById('btn-play')?.addEventListener('click', () => instance.anim.play(700));
+document.getElementById('btn-reset')?.addEventListener('click', () => instance.anim.reset());
+```
+
+For a quicker user-facing result, prefer `SketchmarkEmbed`:
+
+```ts
+import { SketchmarkEmbed } from 'sketchmark';
+
+new SketchmarkEmbed({
+  container: document.getElementById('diagram'),
+  dsl,
+  width: 960,
+  height: 540,
+  playStepDelay: 700,
+  showCaption: true,
+  tts: true,
+});
+```
+
+### Standalone HTML with manual controls
+
+```html
+<div class="controls">
+  <button id="btn-next">Next</button>
+  <button id="btn-play">Play</button>
+  <button id="btn-reset">Reset</button>
+</div>
+<div id="diagram"></div>
+
+<script type="module">
+  import { render } from 'https://unpkg.com/sketchmark/dist/index.js';
+
+  const instance = render({
+    container: document.getElementById('diagram'),
+    dsl,
+    renderer: 'svg',
+    svgOptions: { showTitle: true, interactive: true, theme: 'light', transparent: true },
+  });
+
+  document.getElementById('btn-next').addEventListener('click', () => instance.anim.next());
+  document.getElementById('btn-play').addEventListener('click', () => instance.anim.play(700));
+  document.getElementById('btn-reset').addEventListener('click', () => instance.anim.reset());
+</script>
+```
 
 ## Framework Notes
 
