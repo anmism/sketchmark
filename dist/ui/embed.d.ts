@@ -73,7 +73,6 @@ export declare class SketchmarkEmbed {
     private offsetX;
     private offsetY;
     private autoFitEnabled;
-    private autoFocusEnabled;
     private motionFrame;
     private resizeObserver;
     private isPanning;
@@ -122,6 +121,8 @@ export declare class SketchmarkEmbed {
     private getZoomMax;
     private zoomAroundViewportCenter;
     private zoomTo;
+    private focusCurrentStep;
+    private focusTarget;
     private applyCaptionVisibility;
     private applyTtsSetting;
     private getTtsEnabled;

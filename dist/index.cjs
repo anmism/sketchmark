@@ -12790,7 +12790,6 @@ class SketchmarkEmbed {
         this.offsetX = 0;
         this.offsetY = 0;
         this.autoFitEnabled = true;
-        this.autoFocusEnabled = true;
         this.motionFrame = null;
         this.resizeObserver = null;
         this.isPanning = false;
@@ -12828,7 +12827,6 @@ class SketchmarkEmbed {
             if (this.panMoved) {
                 this.stopMotion();
                 this.autoFitEnabled = false;
-                this.autoFocusEnabled = false;
                 this.offsetX += dx;
                 this.offsetY += dy;
                 this.applyTransform();
@@ -12996,7 +12994,6 @@ class SketchmarkEmbed {
         this.instance?.anim?.destroy();
         this.instance = null;
         this.autoFitEnabled = true;
-        this.autoFocusEnabled = true;
         this.zoom = 1;
         this.offsetX = 0;
         this.offsetY = 0;
@@ -13023,9 +13020,9 @@ class SketchmarkEmbed {
             this.animUnsub = instance.anim.on((event) => {
                 this.syncControls();
                 if (event.type === "step-change") {
-                    if (this.options.autoFocusOnStep !== false) {
+                    if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
                         requestAnimationFrame(() => {
-                            window.setTimeout(() => this.positionViewport(true), 40);
+                            window.setTimeout(() => this.focusCurrentStep(true), 40);
                         });
                     }
                     this.emitter.emit("stepchange", {
@@ -13069,27 +13066,29 @@ class SketchmarkEmbed {
             return;
         this.instance.anim.next();
         this.syncControls();
-        this.positionViewport(true);
+        if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
+            this.focusCurrentStep(true);
+        }
     }
     prevStep() {
         if (!this.instance)
             return;
         this.instance.anim.prev();
         this.syncControls();
-        this.positionViewport(true);
+        if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
+            this.focusCurrentStep(true);
+        }
     }
     resetAnimation() {
         if (!this.instance)
             return;
         this.instance.anim.reset();
         this.syncControls();
-        this.positionViewport(true);
     }
     fitToViewport(animated = false) {
         if (!this.instance?.svg)
             return;
         this.autoFitEnabled = true;
-        this.autoFocusEnabled = true;
         this.positionViewport(animated);
     }
     resetView(animated = false) {
@@ -13179,10 +13178,13 @@ class SketchmarkEmbed {
         const focusTarget = this.getFocusTarget();
         const sceneIsLarge = scaledWidth > viewWidth || scaledHeight > viewHeight;
         const shouldFocus = sceneIsLarge &&
-            this.autoFocusEnabled &&
             this.options.autoFocus !== false &&
             !!focusTarget;
         if (!shouldFocus) {
+            if (!this.autoFitEnabled) {
+                this.applyTransform();
+                return;
+            }
             this.animateTo(scaledWidth <= viewWidth ? (viewWidth - scaledWidth) / 2 : 0, scaledHeight <= viewHeight ? (viewHeight - scaledHeight) / 2 : 0, animated);
             return;
         }
@@ -13289,12 +13291,61 @@ class SketchmarkEmbed {
         }
         this.stopMotion();
         this.autoFitEnabled = false;
-        this.autoFocusEnabled = false;
         this.offsetX = pivotX - (pivotX - this.offsetX) * ratio;
         this.offsetY = pivotY - (pivotY - this.offsetY) * ratio;
         this.zoom = clampedZoom;
         this.applyTransform();
         this.syncViewControls();
+    }
+    focusCurrentStep(animated) {
+        const anim = this.instance?.anim;
+        if (!anim || anim.currentStep < 0 || anim.currentStep >= anim.total)
+            return;
+        const targetId = this.getStepTarget(anim.steps[anim.currentStep]);
+        if (targetId)
+            this.focusTarget(targetId, animated);
+    }
+    focusTarget(targetId, animated) {
+        const size = this.getContentSize();
+        if (!size)
+            return;
+        const viewportRect = this.viewport.getBoundingClientRect();
+        const viewWidth = viewportRect.width || this.viewport.clientWidth;
+        const viewHeight = viewportRect.height || this.viewport.clientHeight;
+        if (!viewWidth || !viewHeight)
+            return;
+        const target = this.findTargetElement(targetId);
+        if (!target)
+            return;
+        const targetBox = this.getTargetBox(target, viewportRect);
+        if (!targetBox)
+            return;
+        const centerX = this.offsetX + targetBox.centerX;
+        const centerY = this.offsetY + targetBox.centerY;
+        const padding = this.options.focusPadding ?? 24;
+        if (centerX >= padding &&
+            centerX <= viewWidth - padding &&
+            centerY >= padding &&
+            centerY <= viewHeight - padding) {
+            return;
+        }
+        const scaledWidth = size.width * this.zoom;
+        const scaledHeight = size.height * this.zoom;
+        let nextX = viewWidth / 2 - targetBox.centerX;
+        let nextY = viewHeight / 2 - targetBox.centerY;
+        if (scaledWidth <= viewWidth) {
+            nextX = (viewWidth - scaledWidth) / 2;
+        }
+        else {
+            nextX = clamp(nextX, viewWidth - scaledWidth - padding, padding);
+        }
+        if (scaledHeight <= viewHeight) {
+            nextY = (viewHeight - scaledHeight) / 2;
+        }
+        else {
+            nextY = clamp(nextY, viewHeight - scaledHeight - padding, padding);
+        }
+        this.animateTo(nextX, nextY, animated);
     }
     applyCaptionVisibility(instance) {
         const caption = instance?.anim.captionElement;

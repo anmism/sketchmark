@@ -231,34 +231,6 @@ Heat moves from **hot** to *cold*.
 
 Markdown blocks support headings, bold, italic, blank lines, and the usual text styling props.
 
-## Themes And Fonts
-
-Built-in palette themes include:
-
-- `light`
-- `dark`
-- `sketch`
-- `ocean`
-- `forest`
-- `sunset`
-- `slate`
-- `rose`
-- `midnight`
-
-Useful font presets include:
-
-- `caveat`
-- `handlee`
-- `indie-flower`
-- `patrick-hand`
-- `dm-mono`
-- `jetbrains`
-- `instrument`
-- `playfair`
-- `system`
-- `mono`
-- `serif`
-
 You can also define named element themes:
 
 ```text
