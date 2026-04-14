@@ -45,6 +45,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 - Read [references/dsl-authoring.md](references/dsl-authoring.md) for compact syntax patterns and validation checks.
 - Read [references/rendering.md](references/rendering.md) when the user needs to run or view the diagram.
 - Read [references/plugins.md](references/plugins.md) when the task may be better expressed with an official plugin.
+- After choosing a plugin, read the matching per-plugin reference such as `references/plugin-circuit.md` or `references/plugin-geometry.md` before claiming the plugin lacks support.
 
 ## Quality Bar
 
