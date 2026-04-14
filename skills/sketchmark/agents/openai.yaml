@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sketchmark"
+  short_description: "Author and revise Sketchmark DSL diagrams and animation steps"
+  default_prompt: "Create or edit valid Sketchmark DSL, keep examples non-indented with .trim() in JS or TS snippets, prefer core primitives unless an official plugin clearly improves the task, and flag syntax or animation gotchas when relevant."
