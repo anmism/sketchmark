@@ -14,9 +14,9 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 3. Start diagrams with `diagram` and end them with `end`.
 4. Keep IDs unique and reuse exact IDs in edges, groups, and animation targets.
 5. Prefer core primitives first. Use an official plugin only when it clearly makes the diagram easier to author or easier to read.
-6. If the task includes animation, prefer `renderer: 'svg'` and remember that any `step draw` target starts hidden until its draw step runs.
+6. If the task includes animation, prefer `SketchmarkEmbed` and remember that any `step draw` target starts hidden until its draw step runs.
 7. If the task includes framework examples, make them minimal and valid for the target framework.
-8. If the user needs to see the result, provide a minimal render path, not just raw DSL.
+8. If the user needs to see the result, provide a minimal `SketchmarkEmbed` path, not just raw DSL.
 
 ## Authoring Rules
 
@@ -30,12 +30,12 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 
 ## Integration Rules
 
-- For animated examples, use the SVG renderer. Canvas does not support animated steps.
-- If the DSL contains `step ...` and the deliverable is a standalone HTML demo, include playback controls. Prefer `SketchmarkEmbed` for built-in controls, or wire buttons to `instance.anim`.
+- If the user needs a viewable result, prefer `SketchmarkEmbed` as the single default rendering path.
+- For animated examples, use `SketchmarkEmbed`. Do not default to manual `instance.anim` wiring unless the user explicitly asks for low-level API control.
 - For React and Next.js client components, render only on the client into a real DOM node.
 - For Next.js App Router examples, include `'use client'`.
 - If you mention an official plugin, show the corresponding package import.
-- If the user is new to Sketchmark, include the smallest viable way to view the diagram: `npm install sketchmark`, a CDN import, or the hosted examples site when appropriate.
+- If the user is new to Sketchmark, show one clear path to view the diagram: `SketchmarkEmbed`.
 
 ## Read On Demand
 

@@ -149,7 +149,7 @@ const embed = new SketchmarkEmbed({
 });
 ```
 
-Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, and expose built-in zoom, playback, caption, and TTS controls.
+Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, support drag-to-pan plus wheel/trackpad zoom, and expose built-in zoom, playback, caption, and TTS controls.
 
 ---
 

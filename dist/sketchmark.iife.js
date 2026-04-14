@@ -12657,6 +12657,12 @@ var AIDiagram = (function (exports) {
   overflow: hidden;
   min-height: 0;
   background: inherit;
+  cursor: grab;
+  touch-action: none;
+}
+
+.skm-embed__viewport.is-panning {
+  cursor: grabbing;
 }
 
 .skm-embed__world {
@@ -12785,8 +12791,87 @@ var AIDiagram = (function (exports) {
             this.offsetX = 0;
             this.offsetY = 0;
             this.autoFitEnabled = true;
+            this.autoFocusEnabled = true;
             this.motionFrame = null;
             this.resizeObserver = null;
+            this.isPanning = false;
+            this.panMoved = false;
+            this.activePointerId = null;
+            this.lastPointerX = 0;
+            this.lastPointerY = 0;
+            this.suppressClickUntil = 0;
+            this.onPointerDown = (event) => {
+                if (event.button !== 0 && event.button !== 1)
+                    return;
+                this.isPanning = true;
+                this.panMoved = false;
+                this.activePointerId = event.pointerId;
+                this.lastPointerX = event.clientX;
+                this.lastPointerY = event.clientY;
+                try {
+                    this.viewport.setPointerCapture(event.pointerId);
+                }
+                catch {
+                    // Ignore pointer capture failures.
+                }
+            };
+            this.onPointerMove = (event) => {
+                if (!this.isPanning)
+                    return;
+                if (this.activePointerId !== null && event.pointerId !== this.activePointerId)
+                    return;
+                const dx = event.clientX - this.lastPointerX;
+                const dy = event.clientY - this.lastPointerY;
+                if (!this.panMoved && Math.abs(dx) + Math.abs(dy) > 4) {
+                    this.panMoved = true;
+                    this.viewport.classList.add("is-panning");
+                }
+                if (this.panMoved) {
+                    this.stopMotion();
+                    this.autoFitEnabled = false;
+                    this.autoFocusEnabled = false;
+                    this.offsetX += dx;
+                    this.offsetY += dy;
+                    this.applyTransform();
+                    this.syncViewControls();
+                }
+                this.lastPointerX = event.clientX;
+                this.lastPointerY = event.clientY;
+            };
+            this.onStopPanning = (event) => {
+                if (this.activePointerId !== null && event?.pointerId != null && event.pointerId !== this.activePointerId)
+                    return;
+                if (this.panMoved)
+                    this.suppressClickUntil = performance.now() + 180;
+                if (this.activePointerId !== null && this.viewport.hasPointerCapture?.(this.activePointerId)) {
+                    try {
+                        this.viewport.releasePointerCapture(this.activePointerId);
+                    }
+                    catch {
+                        // Ignore pointer capture release failures.
+                    }
+                }
+                this.activePointerId = null;
+                this.isPanning = false;
+                this.panMoved = false;
+                this.viewport.classList.remove("is-panning");
+            };
+            this.onViewportClick = (event) => {
+                if (performance.now() <= this.suppressClickUntil) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            };
+            this.onWheel = (event) => {
+                if (!this.instance?.svg)
+                    return;
+                event.preventDefault();
+                const rect = this.viewport.getBoundingClientRect();
+                const pivotX = event.clientX - rect.left;
+                const pivotY = event.clientY - rect.top;
+                const factor = Math.exp(-event.deltaY * 0.0015);
+                this.zoomTo(this.zoom * factor, pivotX, pivotY);
+            };
             this.options = options;
             this.dsl = normalizeNewlines(options.dsl);
             this.theme = options.theme ?? "light";
@@ -12854,6 +12939,13 @@ var AIDiagram = (function (exports) {
             });
             this.btnCaption.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
             this.btnTts.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
+            this.viewport.addEventListener("pointerdown", this.onPointerDown);
+            this.viewport.addEventListener("pointermove", this.onPointerMove);
+            this.viewport.addEventListener("pointerup", this.onStopPanning);
+            this.viewport.addEventListener("pointercancel", this.onStopPanning);
+            this.viewport.addEventListener("lostpointercapture", this.onStopPanning);
+            this.viewport.addEventListener("click", this.onViewportClick);
+            this.viewport.addEventListener("wheel", this.onWheel, { passive: false });
             if (typeof ResizeObserver !== "undefined") {
                 this.resizeObserver = new ResizeObserver(() => {
                     this.positionViewport(false);
@@ -12905,6 +12997,7 @@ var AIDiagram = (function (exports) {
             this.instance?.anim?.destroy();
             this.instance = null;
             this.autoFitEnabled = true;
+            this.autoFocusEnabled = true;
             this.zoom = 1;
             this.offsetX = 0;
             this.offsetY = 0;
@@ -12997,6 +13090,7 @@ var AIDiagram = (function (exports) {
             if (!this.instance?.svg)
                 return;
             this.autoFitEnabled = true;
+            this.autoFocusEnabled = true;
             this.positionViewport(animated);
         }
         resetView(animated = false) {
@@ -13020,6 +13114,13 @@ var AIDiagram = (function (exports) {
             this.instance?.anim?.destroy();
             this.instance = null;
             this.resizeObserver?.disconnect();
+            this.viewport.removeEventListener("pointerdown", this.onPointerDown);
+            this.viewport.removeEventListener("pointermove", this.onPointerMove);
+            this.viewport.removeEventListener("pointerup", this.onStopPanning);
+            this.viewport.removeEventListener("pointercancel", this.onStopPanning);
+            this.viewport.removeEventListener("lostpointercapture", this.onStopPanning);
+            this.viewport.removeEventListener("click", this.onViewportClick);
+            this.viewport.removeEventListener("wheel", this.onWheel);
             this.root.remove();
         }
         applySize(width, height) {
@@ -13079,6 +13180,7 @@ var AIDiagram = (function (exports) {
             const focusTarget = this.getFocusTarget();
             const sceneIsLarge = scaledWidth > viewWidth || scaledHeight > viewHeight;
             const shouldFocus = sceneIsLarge &&
+                this.autoFocusEnabled &&
                 this.options.autoFocus !== false &&
                 !!focusTarget;
             if (!shouldFocus) {
@@ -13188,6 +13290,7 @@ var AIDiagram = (function (exports) {
             }
             this.stopMotion();
             this.autoFitEnabled = false;
+            this.autoFocusEnabled = false;
             this.offsetX = pivotX - (pivotX - this.offsetX) * ratio;
             this.offsetY = pivotY - (pivotY - this.offsetY) * ratio;
             this.zoom = clampedZoom;
