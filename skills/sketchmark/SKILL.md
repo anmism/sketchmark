@@ -17,6 +17,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 6. If the task includes animation, prefer `SketchmarkEmbed` and remember that any `step draw` target starts hidden until its draw step runs.
 7. If the task includes framework examples, make them minimal and valid for the target framework.
 8. If the user needs to see the result, provide a minimal `SketchmarkEmbed` path, not just raw DSL.
+9. Before saying a visual element is unsupported, check the core shapes and rich block types in `references/dsl-authoring.md`, then check `references/plugins.md`.
 
 ## Authoring Rules
 
@@ -26,6 +27,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 - Use `x` and `y` only when the root diagram or parent group uses `layout=absolute`.
 - Treat group `items=[...]` order as visual order.
 - For `step bracket`, provide two targets. For `step narrate`, provide a quoted string.
+- Remember that core Sketchmark supports more than `box`, including `circle`, `diamond`, `hexagon`, `triangle`, `cylinder`, `parallelogram`, `text`, `image`, `icon`, `line`, `path`, `note`, `table`, `markdown`, and charts.
 - Prefer direct, readable examples over exhaustive demos unless the user explicitly wants a full showcase.
 
 ## Integration Rules
