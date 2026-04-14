@@ -32,7 +32,7 @@ Common root properties:
 Example:
 
 ```text
-diagram layout=row gap=60 margin=40 theme=ocean font=caveat pointer=chalk tts=on
+diagram layout=row gap=60 margin=40 theme=ocean pointer=chalk tts=on
 title label="My System"
 ```
 
@@ -231,12 +231,6 @@ Heat moves from **hot** to *cold*.
 
 Markdown blocks support headings, bold, italic, blank lines, and the usual text styling props.
 
-You can also define named element themes:
-
-```text
-theme primary fill="#e8f4ff" stroke="#0044cc" color="#003399"
-box api label="API" theme=primary
-```
 
 ### Animation
 
@@ -250,6 +244,71 @@ step draw server
 step draw client-->server
 step narrate "The client talks to the server"
 end
+```
+
+Supported animation actions:
+
+- `highlight`
+- `draw`
+- `fade`
+- `unfade`
+- `erase`
+- `show`
+- `hide`
+- `pulse`
+- `move`
+- `scale`
+- `rotate`
+- `color`
+- `narrate`
+- `circle`
+- `underline`
+- `crossout`
+- `bracket`
+- `tick`
+- `strikeoff`
+
+Common step forms:
+
+```text
+step draw client
+step draw client-->server
+step highlight api
+step fade backend
+step show backend duration=400
+step move client dx=80 dy=0 duration=500
+step scale client factor=1.4 duration=300
+step rotate client deg=30 duration=300
+step color client fill="#ffcc66"
+step narrate "Heat moves from hot to cold"
+step circle server
+step underline db
+step crossout wrong
+step bracket leftNode rightNode
+step tick answer
+step strikeoff draft
+```
+
+Useful step options:
+
+- `duration=N`
+- `delay=N`
+- `pace=slow|fast|pause`
+- `dx=N`
+- `dy=N`
+- `factor=N`
+- `deg=N`
+- `fill="..."`
+- `color="..."`
+
+Parallel steps are supported with `beat { ... }`:
+
+```text
+beat {
+  step draw sun
+  step draw moon
+  step narrate "Both appear together"
+}
 ```
 
 ## Animation Gotchas

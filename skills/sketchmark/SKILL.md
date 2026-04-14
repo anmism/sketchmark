@@ -28,6 +28,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 - Treat group `items=[...]` order as visual order.
 - For `step bracket`, provide two targets. For `step narrate`, provide a quoted string.
 - Remember that core Sketchmark supports more than `box`, including `circle`, `diamond`, `hexagon`, `triangle`, `cylinder`, `parallelogram`, `text`, `image`, `icon`, `line`, `path`, `note`, `table`, `markdown`, and charts.
+- Remember that the animation system also includes annotation-style actions such as `circle`, `underline`, `crossout`, `bracket`, `tick`, and `strikeoff`, not just `draw` and `highlight`.
 - Prefer direct, readable examples over exhaustive demos unless the user explicitly wants a full showcase.
 
 ## Integration Rules
