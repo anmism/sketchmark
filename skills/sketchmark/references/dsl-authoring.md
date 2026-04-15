@@ -141,6 +141,7 @@ Edge style properties:
 diagram
 box a label="Hello"
 box b label="World"
+box c label="This is \nNew line"
 a --> b label="greets"
 end
 ```
