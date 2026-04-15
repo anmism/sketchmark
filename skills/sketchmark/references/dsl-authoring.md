@@ -318,6 +318,7 @@ beat {
 - `beat { ... }` runs child steps in parallel.
 - `highlight`, `fade`, `show`, `hide`, and `erase` can target groups, but edges still stay explicit.
 - `step draw groupId` reveals the group subtree, except descendants that have their own later draw step.
+-  To help narration use `circle`,`underline`,`crossout`,`bracket`,`tick`,`strikeoff`
 
 ## Framework Notes
 
