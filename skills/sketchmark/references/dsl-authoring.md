@@ -341,3 +341,4 @@ beat {
 - Are table row cells double-quoted?
 - Are `x` and `y` only used inside absolute layout?
 - If animation is present, is the example using SVG?
+- Diagram should only start with `diagram` end with `end`, even if different plugins used.
