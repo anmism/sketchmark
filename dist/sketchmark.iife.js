@@ -601,6 +601,12 @@ var AIDiagram = (function (exports) {
                 id,
                 shape,
                 label: props.label || "",
+                ...(props["label-dx"] !== undefined
+                    ? { labelDx: parseFloat(props["label-dx"]) }
+                    : {}),
+                ...(props["label-dy"] !== undefined
+                    ? { labelDy: parseFloat(props["label-dy"]) }
+                    : {}),
                 ...(props.width ? { width: parseFloat(props.width) } : {}),
                 ...(props.height ? { height: parseFloat(props.height) } : {}),
                 ...(props.x ? { x: parseFloat(props.x) } : {}),
@@ -641,6 +647,12 @@ var AIDiagram = (function (exports) {
                 id,
                 shape: "note",
                 label: (props.label ?? "").replace(/\\n/g, "\n"),
+                ...(props["label-dx"] !== undefined
+                    ? { labelDx: parseFloat(props["label-dx"]) }
+                    : {}),
+                ...(props["label-dy"] !== undefined
+                    ? { labelDy: parseFloat(props["label-dy"]) }
+                    : {}),
                 theme: props.theme,
                 ...(meta ? { meta } : {}),
                 style: propsToStyle(props),
@@ -689,6 +701,8 @@ var AIDiagram = (function (exports) {
                 kind: "group",
                 id,
                 label: props.label ?? "",
+                labelDx: props["label-dx"] !== undefined ? parseFloat(props["label-dx"]) : undefined,
+                labelDy: props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
                 children: [],
                 layout: props.layout,
                 columns: props.columns !== undefined ? parseInt(props.columns, 10) : undefined,
@@ -733,6 +747,8 @@ var AIDiagram = (function (exports) {
                 to: toTok.value,
                 connector: connector,
                 label: props.label,
+                labelDx: props["label-dx"] !== undefined ? parseFloat(props["label-dx"]) : undefined,
+                labelDy: props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
                 fromAnchor: props["anchor-from"],
                 toAnchor: props["anchor-to"],
                 dashed,
@@ -1234,6 +1250,7 @@ var AIDiagram = (function (exports) {
     const NODE = {
         minW: 90, // minimum auto-sized node width (px)
         maxW: 300, // maximum auto-sized node width (px)
+        mediaLabelH: 20, // reserved bottom strip for icon/image/line labels (px)
         basePad: 26, // base padding added to label width (px)
     };
     // ── Shape-specific sizing ──────────────────────────────────
@@ -3557,6 +3574,8 @@ var AIDiagram = (function (exports) {
                 id: n.id,
                 shape: n.shape,
                 label: n.label,
+                labelDx: n.labelDx,
+                labelDy: n.labelDy,
                 style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
                 groupId: nodeParentById.get(n.id),
                 width: n.width,
@@ -3582,6 +3601,8 @@ var AIDiagram = (function (exports) {
             return {
                 id: g.id,
                 label: g.label,
+                labelDx: g.labelDx,
+                labelDy: g.labelDy,
                 parentId: groupParentById.get(g.id),
                 children: g.children,
                 layout: (g.layout ?? "column"),
@@ -3659,6 +3680,8 @@ var AIDiagram = (function (exports) {
             to: e.to,
             connector: e.connector,
             label: e.label,
+            labelDx: e.labelDx,
+            labelDy: e.labelDy,
             fromAnchor: e.fromAnchor,
             toAnchor: e.toAnchor,
             dashed: e.dashed ?? false,
@@ -4000,10 +4023,25 @@ var AIDiagram = (function (exports) {
         },
     };
 
+    const MEDIA_LABEL_SHAPES = new Set(["icon", "image", "line"]);
+    function usesBottomLabelStrip(shape) {
+        return MEDIA_LABEL_SHAPES.has(shape);
+    }
+    function getBottomLabelStripHeight(node) {
+        return usesBottomLabelStrip(node.shape) && node.label ? NODE.mediaLabelH : 0;
+    }
+    function getBottomLabelContentHeight(node) {
+        return node.h - getBottomLabelStripHeight(node);
+    }
+    function getBottomLabelCenterY(node) {
+        const stripH = getBottomLabelStripHeight(node);
+        return stripH > 0 ? node.y + node.h - stripH / 2 : node.y + node.h / 2;
+    }
+
     const iconShape = {
         size(n, labelW) {
             const iconBase = 48;
-            const labelH = n.label ? 20 : 0;
+            const labelH = getBottomLabelStripHeight(n);
             n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
             n.h = n.h || (iconBase + labelH);
         },
@@ -4016,8 +4054,7 @@ var AIDiagram = (function (exports) {
                 const iconColor = s.color
                     ? encodeURIComponent(String(s.color))
                     : encodeURIComponent(String(palette.nodeStroke));
-                const labelSpace = n.label ? 20 : 0;
-                const iconAreaH = n.h - labelSpace;
+                const iconAreaH = getBottomLabelContentHeight(n);
                 const iconSize = Math.min(n.w, iconAreaH) - 4;
                 const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
                 const img = document.createElementNS(SVG_NS, "image");
@@ -4061,8 +4098,7 @@ var AIDiagram = (function (exports) {
                 const iconColor = s.color
                     ? encodeURIComponent(String(s.color))
                     : encodeURIComponent(String(palette.nodeStroke));
-                const iconLabelSpace = n.label ? 20 : 0;
-                const iconAreaH = n.h - iconLabelSpace;
+                const iconAreaH = getBottomLabelContentHeight(n);
                 const iconSize = Math.min(n.w, iconAreaH) - 4;
                 const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
                 const img = new Image();
@@ -4105,21 +4141,21 @@ var AIDiagram = (function (exports) {
             const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
             n.w = w;
             if (!n.h) {
+                const labelH = getBottomLabelStripHeight(n);
                 if (labelW > w) {
                     const fontSize = Number(n.style?.fontSize ?? 14);
                     const lines = Math.ceil(labelW / (w - 16));
-                    n.h = Math.max(52, lines * fontSize * 1.5 + 20);
+                    n.h = Math.max(52, lines * fontSize * 1.5 + labelH);
                 }
                 else {
-                    n.h = 52;
+                    n.h = 52 + labelH;
                 }
             }
         },
         renderSVG(rc, n, _palette, opts) {
             const s = n.style ?? {};
             if (n.imageUrl) {
-                const imgLabelSpace = n.label ? 20 : 0;
-                const imgAreaH = n.h - imgLabelSpace;
+                const imgAreaH = getBottomLabelContentHeight(n);
                 const img = document.createElementNS(SVG_NS, "image");
                 img.setAttribute("href", n.imageUrl);
                 img.setAttribute("x", String(n.x + 1));
@@ -4151,8 +4187,7 @@ var AIDiagram = (function (exports) {
         renderCanvas(rc, ctx, n, _palette, opts) {
             const s = n.style ?? {};
             if (n.imageUrl) {
-                const imgLblSpace = n.label ? 20 : 0;
-                const imgAreaH = n.h - imgLblSpace;
+                const imgAreaH = getBottomLabelContentHeight(n);
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.onload = () => {
@@ -4329,17 +4364,17 @@ var AIDiagram = (function (exports) {
 
     const lineShape = {
         size(n, labelW) {
-            const labelH = n.label ? 20 : 0;
+            const labelH = getBottomLabelStripHeight(n);
             n.w = n.width ?? Math.max(MIN_W, labelW + 20);
             n.h = n.height ?? (6 + labelH);
         },
         renderSVG(rc, n, _palette, opts) {
-            const labelH = n.label ? 20 : 0;
+            const labelH = getBottomLabelStripHeight(n);
             const lineY = n.y + (n.h - labelH) / 2;
             return [rc.line(n.x, lineY, n.x + n.w, lineY, opts)];
         },
         renderCanvas(rc, _ctx, n, _palette, opts) {
-            const labelH = n.label ? 20 : 0;
+            const labelH = getBottomLabelStripHeight(n);
             const lineY = n.y + (n.h - labelH) / 2;
             rc.line(n.x, lineY, n.x + n.w, lineY, opts);
         },
@@ -5585,18 +5620,18 @@ var AIDiagram = (function (exports) {
             stroke: bgStroke, strokeWidth: Number(s.strokeWidth ?? 1.2),
             ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
         }));
+        const { px, py, pw, ph, titleH, cx, cy } = chartLayout(c);
         // Title
         if (c.label) {
-            cg.appendChild(mkT(c.label, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
+            cg.appendChild(mkT(c.label, c.x + c.w / 2, c.y + titleH / 2 + 2, cFontSize, cFontWeight, lc, 'middle', cFont));
         }
-        const { px, py, pw, ph, cx, cy } = chartLayout(c);
         // ── Pie / Donut ──────────────────────────────────────────
         if (c.chartType === 'pie' || c.chartType === 'donut') {
             const { segments, total } = parsePie(c.data);
-            const r = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
+            const r = Math.min(c.w * 0.38, (c.h - titleH) * 0.44);
             const ir = c.chartType === 'donut' ? r * 0.48 : 0;
             const legendX = c.x + 8;
-            const legendY = c.y + (c.label ? 28 : 12);
+            const legendY = c.y + titleH + 4;
             let angle = -Math.PI / 2;
             for (const seg of segments) {
                 const sweep = (seg.value / total) * Math.PI * 2;
@@ -5634,7 +5669,7 @@ var AIDiagram = (function (exports) {
                     strokeWidth: 1.2,
                 }));
             });
-            legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
+            legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + titleH + 4, lc, cFont);
             return cg;
         }
         // ── Bar / Line / Area ─────────────────────────────────────
@@ -8380,9 +8415,10 @@ var AIDiagram = (function (exports) {
             }));
             // ── Group label typography ──────────────────────────
             const gTypo = resolveTypography(gs, { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding }, diagramFont, palette.groupLabel);
-            const gTextX = computeTextX(gTypo, g.x, g.w);
+            const gTextX = computeTextX(gTypo, g.x, g.w) + (g.labelDx ?? 0);
+            const gTextY = g.y + gTypo.padding + (g.labelDy ?? 0);
             if (g.label) {
-                gg.appendChild(mkText(g.label, gTextX, g.y + gTypo.padding, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAnchor, gTypo.font, gTypo.letterSpacing));
+                gg.appendChild(mkText(g.label, gTextX, gTextY, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAnchor, gTypo.font, gTypo.letterSpacing));
             }
             GL.appendChild(gg);
         }
@@ -8434,8 +8470,8 @@ var AIDiagram = (function (exports) {
                 eg.appendChild(startHead);
             }
             if (e.label) {
-                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
-                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
+                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
+                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
                 const tw = Math.max(e.label.length * 7 + 12, 36);
                 const bg = se("rect");
                 bg.setAttribute("x", String(mx - tw / 2));
@@ -8503,7 +8539,7 @@ var AIDiagram = (function (exports) {
             // ── Node / text typography ─────────────────────────
             const isText = n.shape === "text";
             const isNote = n.shape === "note";
-            const isMediaShape = n.shape === "icon" || n.shape === "image" || n.shape === "line";
+            const usesBottomStrip = usesBottomLabelStrip(n.shape);
             const typo = resolveTypography(n.style, {
                 fontSize: isText ? 13 : isNote ? 12 : 14,
                 fontWeight: isText || isNote ? 400 : 500,
@@ -8521,20 +8557,22 @@ var AIDiagram = (function (exports) {
                         : n.x + typo.padding)
                 : computeTextX(typo, n.x, n.w);
             const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
-            const shouldWrap = !isMediaShape && !n.label.includes('\n');
+            const shouldWrap = !usesBottomStrip && !n.label.includes('\n');
             const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
             const lines = shouldWrap
                 ? wrapText(n.label, innerW, typo.fontSize, fontStr)
                 : n.label.split('\n');
-            const textCY = isMediaShape
-                ? n.y + n.h - 10
+            const textCY = usesBottomStrip
+                ? getBottomLabelCenterY(n)
                 : isNote
                     ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
                     : computeTextCY(typo, n.y, n.h, lines.length);
+            const labelX = textX + (n.labelDx ?? 0);
+            const labelY = textCY + (n.labelDy ?? 0);
             if (n.label) {
                 ng.appendChild(lines.length > 1
-                    ? mkMultilineText(lines, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.lineHeight, typo.font, typo.letterSpacing)
-                    : mkText(n.label, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.font, typo.letterSpacing));
+                    ? mkMultilineText(lines, labelX, labelY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.lineHeight, typo.font, typo.letterSpacing)
+                    : mkText(n.label, labelX, labelY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAnchor, typo.font, typo.letterSpacing));
             }
             if (options.interactive) {
                 ng.style.cursor = "pointer";
@@ -8848,6 +8886,7 @@ var AIDiagram = (function (exports) {
             strokeWidth: Number(s.strokeWidth ?? 1.2),
             ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
         });
+        const { px, py, pw, ph, titleH, cx, cy } = chartLayout(c);
         // Title
         if (c.label) {
             ctx.save();
@@ -8855,17 +8894,16 @@ var AIDiagram = (function (exports) {
             ctx.fillStyle = lc;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(c.label, c.x + c.w / 2, c.y + 14);
+            ctx.fillText(c.label, c.x + c.w / 2, c.y + titleH / 2 + 2);
             ctx.restore();
         }
-        const { px, py, pw, ph, cx, cy } = chartLayout(c);
         // ── Pie / Donut ──────────────────────────────────────────
         if (c.chartType === 'pie' || c.chartType === 'donut') {
             const { segments, total } = parsePie(c.data);
-            const r = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
+            const r = Math.min(c.w * 0.38, (c.h - titleH) * 0.44);
             const ir = c.chartType === 'donut' ? r * 0.48 : 0;
             const legendX = c.x + 8;
-            const legendY = c.y + (c.label ? 28 : 12);
+            const legendY = c.y + titleH + 4;
             let angle = -Math.PI / 2;
             segments.forEach((seg, i) => {
                 const sweep = (seg.value / total) * Math.PI * 2;
@@ -8893,7 +8931,7 @@ var AIDiagram = (function (exports) {
                     strokeWidth: 1.2,
                 });
             });
-            drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
+            drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + titleH + 4, lc, cFont);
             ctx.globalAlpha = 1;
             return;
         }
@@ -9128,8 +9166,9 @@ var AIDiagram = (function (exports) {
             });
             if (g.label) {
                 const gTypo = resolveTypography(gs, { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding }, diagramFont, palette.groupLabel);
-                const gTextX = computeTextX(gTypo, g.x, g.w);
-                drawText(ctx, g.label, gTextX, g.y + gTypo.padding + 2, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAlign, gTypo.font, gTypo.letterSpacing);
+                const gTextX = computeTextX(gTypo, g.x, g.w) + (g.labelDx ?? 0);
+                const gTextY = g.y + gTypo.padding + 2 + (g.labelDy ?? 0);
+                drawText(ctx, g.label, gTextX, gTextY, gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAlign, gTypo.font, gTypo.letterSpacing);
             }
             if (gs.opacity != null)
                 ctx.globalAlpha = 1;
@@ -9167,8 +9206,8 @@ var AIDiagram = (function (exports) {
             if (arrowAt === 'start' || arrowAt === 'both')
                 drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + 'back'));
             if (e.label) {
-                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
-                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
+                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
+                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
                 // ── Edge label: font, font-size, letter-spacing ──
                 // always center-anchored (single line)
                 const eFontSize = Number(e.style?.fontSize ?? EDGE.labelFontSize);
@@ -9208,7 +9247,7 @@ var AIDiagram = (function (exports) {
             // ── Node / text typography ─────────────────────────
             const isText = n.shape === 'text';
             const isNote = n.shape === 'note';
-            const isMediaShape = n.shape === 'icon' || n.shape === 'image' || n.shape === 'line';
+            const usesBottomStrip = usesBottomLabelStrip(n.shape);
             const typo = resolveTypography(n.style, {
                 fontSize: isText ? 13 : isNote ? 12 : 14,
                 fontWeight: isText || isNote ? 400 : 500,
@@ -9226,23 +9265,25 @@ var AIDiagram = (function (exports) {
                         : n.x + typo.padding)
                 : computeTextX(typo, n.x, n.w);
             const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
-            const shouldWrap = !isMediaShape && !n.label.includes('\n');
+            const shouldWrap = !usesBottomStrip && !n.label.includes('\n');
             const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
             const rawLines = n.label.split('\n');
             const lines = shouldWrap && rawLines.length === 1
                 ? wrapText(n.label, innerW, typo.fontSize, fontStr)
                 : rawLines;
-            const textCY = isMediaShape
-                ? n.y + n.h - 10
+            const textCY = usesBottomStrip
+                ? getBottomLabelCenterY(n)
                 : isNote
                     ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
                     : computeTextCY(typo, n.y, n.h, lines.length);
+            const labelX = textX + (n.labelDx ?? 0);
+            const labelY = textCY + (n.labelDy ?? 0);
             if (n.label) {
                 if (lines.length > 1) {
-                    drawMultilineText(ctx, lines, textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.lineHeight, typo.font, typo.letterSpacing);
+                    drawMultilineText(ctx, lines, labelX, labelY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.lineHeight, typo.font, typo.letterSpacing);
                 }
                 else {
-                    drawText(ctx, lines[0] ?? '', textX, textCY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.font, typo.letterSpacing);
+                    drawText(ctx, lines[0] ?? '', labelX, labelY, typo.fontSize, typo.fontWeight, typo.textColor, typo.textAlign, typo.font, typo.letterSpacing);
                 }
             }
             if (hasTx)
@@ -9580,7 +9621,7 @@ var AIDiagram = (function (exports) {
                     [x + 1, y + h - 1],
                 ]);
             case "line": {
-                const labelH = el.querySelector("text") ? 20 : 0;
+                const labelH = el.querySelector("text") ? NODE.mediaLabelH : 0;
                 const lineY = y + (h - labelH) / 2;
                 return `M ${x} ${lineY} L ${x + w} ${lineY}`;
             }

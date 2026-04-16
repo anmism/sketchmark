@@ -76,6 +76,19 @@ end`, {
     expect(ast.nodes.some((node) => node.id === "__chem_attach_seg_1" && node.shape === "path")).toBe(true);
   });
 
+  it("supports label-dx / label-dy across chemistry-generated labels", () => {
+    const compiled = compileChemMolecule(`diagram
+chem.atom O x=120 y=150 element=O label-dx=14 label-dy=-6
+chem.atom H x=200 y=150 element=H
+chem.bond b1 from=O to=H label="bond" label-dx=8 label-dy=10
+chem.label water target=O side=top text="Water" label-dx=12 label-dy=4
+end`);
+
+    expect(compiled).toContain("bare O layout=absolute padding=0 gap=0 x=122 y=127 width=24 height=34");
+    expect(compiled).toContain("text __chem_b1_label label=bond x=8 y=18 width=57 height=26");
+    expect(compiled).toContain("bare water layout=absolute padding=0 gap=0 x=97 y=110 width=70 height=26");
+  });
+
   it("renders generated chemistry primitives through the normal render pipeline", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

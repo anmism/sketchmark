@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { ASTStep, ASTBeat, ASTStepItem } from "../ast/types";
-import { ANIMATION, SHAPES, SVG_NS } from "../config";
+import { ANIMATION, NODE, SHAPES, SVG_NS } from "../config";
 
 export type AnimationEventType =
   | "step-change"
@@ -186,7 +186,7 @@ function buildNodeGuidePath(el: SVGGElement): string | null {
         [x + 1, y + h - 1],
       ]);
     case "line": {
-      const labelH = el.querySelector("text") ? 20 : 0;
+      const labelH = el.querySelector("text") ? NODE.mediaLabelH : 0;
       const lineY = y + (h - labelH) / 2;
       return `M ${x} ${lineY} L ${x + w} ${lineY}`;
     }

@@ -26,6 +26,7 @@ Author valid, copy-pasteable Sketchmark DSL that matches the current public API 
 - Use quoted strings for labels with spaces and for table row cell values.
 - Use `x` and `y` only when the root diagram or parent group uses `layout=absolute`.
 - Treat group `items=[...]` order as visual order.
+- Use `label-dx` and `label-dy` explicitly for overlapping-label issues before changing the overall layout.
 - For `step bracket`, provide two targets. For `step narrate`, provide a quoted string.
 - Remember that core Sketchmark supports more than `box`, including `circle`, `diamond`, `hexagon`, `triangle`, `cylinder`, `parallelogram`, `text`, `image`, `icon`, `line`, `path`, `note`, `table`, `markdown`, and charts.
 - Remember that the animation system also includes annotation-style actions such as `circle`, `underline`, `crossout`, `bracket`, `tick`, and `strikeoff`, not just `draw` and `highlight`.

@@ -400,6 +400,12 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
       id,
       shape,
       label: props.label || "",
+      ...(props["label-dx"] !== undefined
+        ? { labelDx: parseFloat(props["label-dx"]) }
+        : {}),
+      ...(props["label-dy"] !== undefined
+        ? { labelDy: parseFloat(props["label-dy"]) }
+        : {}),
       ...(props.width ? { width: parseFloat(props.width) } : {}),
       ...(props.height ? { height: parseFloat(props.height) } : {}),
       ...(props.x ? { x: parseFloat(props.x) } : {}),
@@ -446,6 +452,12 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
       id,
       shape: "note",
       label: (props.label ?? "").replace(/\\n/g, "\n"),
+      ...(props["label-dx"] !== undefined
+        ? { labelDx: parseFloat(props["label-dx"]) }
+        : {}),
+      ...(props["label-dy"] !== undefined
+        ? { labelDy: parseFloat(props["label-dy"]) }
+        : {}),
       theme: props.theme,
       ...(meta ? { meta } : {}),
       style: propsToStyle(props),
@@ -515,6 +527,10 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
       kind: "group",
       id,
       label: props.label ?? "",
+      labelDx:
+        props["label-dx"] !== undefined ? parseFloat(props["label-dx"]) : undefined,
+      labelDy:
+        props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
       children: [],
       layout: props.layout as LayoutType | undefined,
       columns:
@@ -570,6 +586,10 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
       to: toTok.value,
       connector: connector as EdgeConnector,
       label: props.label,
+      labelDx:
+        props["label-dx"] !== undefined ? parseFloat(props["label-dx"]) : undefined,
+      labelDy:
+        props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
       fromAnchor: props["anchor-from"] as EdgeAnchor | undefined,
       toAnchor: props["anchor-to"] as EdgeAnchor | undefined,
       dashed,

@@ -84,6 +84,7 @@ Common node properties:
 
 - `label`, `width`, `height`
 - `x`, `y` for absolute layout
+- `label-dx`, `label-dy` to offset node labels when the default placement overlaps nearby content
 - `theme`, `fill`, `stroke`, `stroke-width`, `color`, `opacity`
 - `font-size`, `font-weight`, `font`, `text-align`, `vertical-align`, `line-height`, `letter-spacing`
 - `padding`, `dash`
@@ -126,6 +127,7 @@ end
 Edge style properties:
 
 - `label`
+- `label-dx`, `label-dy` to move edge labels away from crossings, arrowheads, or crowded centers
 - `stroke`
 - `stroke-width`
 - `color`
@@ -173,9 +175,12 @@ Group properties:
 - `layout=row|column|grid|absolute`
 - `gap`, `padding`, `columns`
 - `align`, `justify`
+- `label-dx`, `label-dy` to move group titles when they overlap group contents
 - `theme`, `fill`, `stroke`, `stroke-width`
 - `x`, `y`, `width`, `height`
 - `items=[...]`
+
+These label offsets are explicitly meant for overlap fixes. If the diagram is otherwise correct, prefer a small `label-dx` or `label-dy` adjustment over rewriting the whole layout.
 
 `bare` is an alias for a group with no visible border or fill.
 

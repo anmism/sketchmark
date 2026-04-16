@@ -1,17 +1,19 @@
 import type { ShapeDefinition } from "./types";
 import { MIN_W, MAX_W, SVG_NS } from "./types";
+import { getBottomLabelContentHeight, getBottomLabelStripHeight } from "./label-strip";
 
 export const imageShape: ShapeDefinition = {
   size(n, labelW) {
     const w = n.w || Math.max(MIN_W, Math.min(MAX_W, labelW));
     n.w = w;
     if (!n.h) {
+      const labelH = getBottomLabelStripHeight(n);
       if (labelW > w) {
         const fontSize = Number(n.style?.fontSize ?? 14);
         const lines = Math.ceil(labelW / (w - 16));
-        n.h = Math.max(52, lines * fontSize * 1.5 + 20);
+        n.h = Math.max(52, lines * fontSize * 1.5 + labelH);
       } else {
-        n.h = 52;
+        n.h = 52 + labelH;
       }
     }
   },
@@ -19,8 +21,7 @@ export const imageShape: ShapeDefinition = {
   renderSVG(rc, n, _palette, opts) {
     const s = n.style ?? {};
     if (n.imageUrl) {
-      const imgLabelSpace = n.label ? 20 : 0;
-      const imgAreaH = n.h - imgLabelSpace;
+      const imgAreaH = getBottomLabelContentHeight(n);
 
       const img = document.createElementNS(SVG_NS, "image") as SVGImageElement;
       img.setAttribute("href", n.imageUrl);
@@ -56,8 +57,7 @@ export const imageShape: ShapeDefinition = {
   renderCanvas(rc, ctx, n, _palette, opts) {
     const s = n.style ?? {};
     if (n.imageUrl) {
-      const imgLblSpace = n.label ? 20 : 0;
-      const imgAreaH = n.h - imgLblSpace;
+      const imgAreaH = getBottomLabelContentHeight(n);
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {

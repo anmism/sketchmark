@@ -64,6 +64,7 @@ export type RootItemRef =
 
 export interface ASTNode {
   kind: 'node'; id: string; shape: NodeShape; label: string;
+  labelDx?: number; labelDy?: number;
   groupId?: string; imageUrl?: string; iconName?: string; pathData?: string;
   width?: number; height?: number; x?: number; y?: number;
   deg?: number; dx?: number; dy?: number; factor?: number;
@@ -74,6 +75,7 @@ export interface ASTNode {
 export interface ASTEdge {
   kind: 'edge'; id: string; from: string; to: string;
   connector: EdgeConnector; label?: string;
+  labelDx?: number; labelDy?: number;
   fromAnchor?: EdgeAnchor;
   toAnchor?: EdgeAnchor;
   dashed?: boolean; bidirectional?: boolean;
@@ -85,6 +87,8 @@ export interface ASTGroup {
   kind:      'group';
   id:        string;
   label:     string;
+  labelDx?:  number;
+  labelDy?:  number;
   children:  GroupChildRef[];
   layout?:   LayoutType;
   columns?:  number;

@@ -72,6 +72,29 @@ end`, {
     expect(ast.nodes.some((node) => node.id === "__wf_agree_marker")).toBe(true);
   });
 
+  it("forwards label-dx / label-dy onto generated labels", () => {
+    const ast = parse(`diagram layout=column
+wf.screen mobile frame=phone label="Phone" label-dx=6 label-dy=4
+wf.control agree kind=checkbox label="Email me updates" label-dx=10 label-dy=-3
+wf.control cta kind=button label="Continue" label-dx=8 label-dy=2
+end`, {
+      plugins: [wireframe()],
+    });
+
+    expect(ast.groups.find((group) => group.id === "mobile")).toMatchObject({
+      labelDx: 6,
+      labelDy: 4,
+    });
+    expect(ast.nodes.find((node) => node.id === "__wf_agree_label")).toMatchObject({
+      labelDx: 10,
+      labelDy: -3,
+    });
+    expect(ast.nodes.find((node) => node.id === "cta")).toMatchObject({
+      labelDx: 8,
+      labelDy: 2,
+    });
+  });
+
   it("keeps checkbox labels compact by default while preserving explicit text-width overrides", () => {
     const compact = compileWireframe(`diagram
 wf.control agree kind=checkbox label="Yes"

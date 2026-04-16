@@ -152,20 +152,20 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
     ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
   }));
 
+  const { px, py, pw, ph, titleH, cx, cy } = chartLayout(c);
+
   // Title
   if (c.label) {
-    cg.appendChild(mkT(c.label, c.x + c.w / 2, c.y + 14, cFontSize, cFontWeight, lc, 'middle', cFont));
+    cg.appendChild(mkT(c.label, c.x + c.w / 2, c.y + titleH / 2 + 2, cFontSize, cFontWeight, lc, 'middle', cFont));
   }
-
-  const { px, py, pw, ph, cx, cy } = chartLayout(c);
 
   // ── Pie / Donut ──────────────────────────────────────────
   if (c.chartType === 'pie' || c.chartType === 'donut') {
     const { segments, total } = parsePie(c.data);
-    const r  = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
+    const r  = Math.min(c.w * 0.38, (c.h - titleH) * 0.44);
     const ir = c.chartType === 'donut' ? r * 0.48 : 0;
     const legendX = c.x + 8;
-    const legendY = c.y + (c.label ? 28 : 12);
+    const legendY = c.y + titleH + 4;
 
     let angle = -Math.PI / 2;
     for (const seg of segments) {
@@ -214,7 +214,7 @@ cg.appendChild(rc.rectangle(c.x, c.y, c.w, c.h, {
       }));
     });
 
-    legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
+    legend(cg, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + titleH + 4, lc, cFont);
     return cg;
   }
 

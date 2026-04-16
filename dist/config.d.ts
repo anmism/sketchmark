@@ -9,6 +9,7 @@ export declare const NODE: {
     readonly minW: 90;
     readonly maxW: 300;
     readonly defaultH: 52;
+    readonly mediaLabelH: 20;
     readonly fontPxPerChar: 8.6;
     readonly basePad: 26;
 };

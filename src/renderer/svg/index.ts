@@ -23,6 +23,7 @@ import {
   connMeta, resolveEndpoint, getConnPoint, groupDepth,
 } from '../shared';
 import { getShape } from '../shapes';
+import { getBottomLabelCenterY, usesBottomLabelStrip } from "../shapes/label-strip";
 import { getRenderableNodePathData } from '../shapes/path-geometry';
 import { resolveTypography, computeTextX, computeTextCY } from '../typography';
 
@@ -404,12 +405,13 @@ export function renderToSVG(
       { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding },
       diagramFont, palette.groupLabel,
     );
-    const gTextX = computeTextX(gTypo, g.x, g.w);
+    const gTextX = computeTextX(gTypo, g.x, g.w) + (g.labelDx ?? 0);
+    const gTextY = g.y + gTypo.padding + (g.labelDy ?? 0);
 
     if (g.label) {
       gg.appendChild(
         mkText(
-          g.label, gTextX, g.y + gTypo.padding,
+          g.label, gTextX, gTextY,
           gTypo.fontSize, gTypo.fontWeight, gTypo.textColor,
           gTypo.textAnchor, gTypo.font, gTypo.letterSpacing,
         ),
@@ -487,8 +489,8 @@ export function renderToSVG(
     }
 
     if (e.label) {
-      const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset;
-      const my = (y1 + y2) / 2 + nx * EDGE.labelOffset;
+      const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
+      const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
       const tw = Math.max(e.label.length * 7 + 12, 36);
 
       const bg = se("rect") as SVGRectElement;
@@ -571,7 +573,7 @@ export function renderToSVG(
     // ── Node / text typography ─────────────────────────
     const isText = n.shape === "text";
     const isNote = n.shape === "note";
-    const isMediaShape = n.shape === "icon" || n.shape === "image" || n.shape === "line";
+    const usesBottomStrip = usesBottomLabelStrip(n.shape);
     const typo = resolveTypography(
       n.style as Record<string, unknown>,
       {
@@ -596,28 +598,30 @@ export function renderToSVG(
       : computeTextX(typo, n.x, n.w);
 
     const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
-    const shouldWrap = !isMediaShape && !n.label.includes('\n');
+    const shouldWrap = !usesBottomStrip && !n.label.includes('\n');
     const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
     const lines = shouldWrap
       ? wrapText(n.label, innerW, typo.fontSize, fontStr)
       : n.label.split('\n');
 
-    const textCY = isMediaShape
-      ? n.y + n.h - 10
+    const textCY = usesBottomStrip
+      ? getBottomLabelCenterY(n)
       : isNote
         ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
         : computeTextCY(typo, n.y, n.h, lines.length);
+    const labelX = textX + (n.labelDx ?? 0);
+    const labelY = textCY + (n.labelDy ?? 0);
 
     if (n.label) {
       ng.appendChild(
         lines.length > 1
           ? mkMultilineText(
-              lines, textX, textCY,
+              lines, labelX, labelY,
               typo.fontSize, typo.fontWeight, typo.textColor,
               typo.textAnchor, typo.lineHeight, typo.font, typo.letterSpacing,
             )
           : mkText(
-              n.label, textX, textCY,
+              n.label, labelX, labelY,
               typo.fontSize, typo.fontWeight, typo.textColor,
               typo.textAnchor, typo.font, typo.letterSpacing,
             ),

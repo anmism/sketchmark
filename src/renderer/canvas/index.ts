@@ -24,6 +24,7 @@ import {
   connMeta, resolveEndpoint, getConnPoint, groupDepth,
 } from '../shared';
 import { getShape } from '../shapes';
+import { getBottomLabelCenterY, usesBottomLabelStrip } from "../shapes/label-strip";
 import { resolveTypography, computeTextX, computeTextCY } from '../typography';
 import { ROUGH, EDGE, NOTE as NOTE_CFG, TITLE, GROUP_LABEL } from '../../config';
 
@@ -236,8 +237,9 @@ export function renderToCanvas(
         { fontSize: GROUP_LABEL.fontSize, fontWeight: GROUP_LABEL.fontWeight, textAlign: "left", padding: GROUP_LABEL.padding },
         diagramFont, palette.groupLabel,
       );
-      const gTextX = computeTextX(gTypo, g.x, g.w);
-      drawText(ctx, g.label, gTextX, g.y + gTypo.padding + 2,
+      const gTextX = computeTextX(gTypo, g.x, g.w) + (g.labelDx ?? 0);
+      const gTextY = g.y + gTypo.padding + 2 + (g.labelDy ?? 0);
+      drawText(ctx, g.label, gTextX, gTextY,
         gTypo.fontSize, gTypo.fontWeight, gTypo.textColor, gTypo.textAlign, gTypo.font, gTypo.letterSpacing);
     }
 
@@ -281,8 +283,8 @@ export function renderToCanvas(
       drawArrowHead(rc, x1, y1, Math.atan2(y1-y2, x1-x2), ecol, hashStr(e.from+'back'), R);
 
     if (e.label) {
-      const mx = (x1+x2)/2 - ny*EDGE.labelOffset;
-      const my = (y1+y2)/2 + nx*EDGE.labelOffset;
+      const mx = (x1+x2)/2 - ny*EDGE.labelOffset + (e.labelDx ?? 0);
+      const my = (y1+y2)/2 + nx*EDGE.labelOffset + (e.labelDy ?? 0);
 
       // ── Edge label: font, font-size, letter-spacing ──
       // always center-anchored (single line)
@@ -328,7 +330,7 @@ export function renderToCanvas(
     // ── Node / text typography ─────────────────────────
     const isText = n.shape === 'text';
     const isNote = n.shape === 'note';
-    const isMediaShape = n.shape === 'icon' || n.shape === 'image' || n.shape === 'line';
+    const usesBottomStrip = usesBottomLabelStrip(n.shape);
     const typo = resolveTypography(
       n.style as Record<string, unknown>,
       {
@@ -352,26 +354,28 @@ export function renderToCanvas(
       : computeTextX(typo, n.x, n.w);
 
     const fontStr = buildFontStr(typo.fontSize, typo.fontWeight, typo.font);
-    const shouldWrap = !isMediaShape && !n.label.includes('\n');
+    const shouldWrap = !usesBottomStrip && !n.label.includes('\n');
 
     const innerW = shapeInnerTextWidth(n.shape, n.w, typo.padding);
     const rawLines = n.label.split('\n');
     const lines = shouldWrap && rawLines.length === 1
       ? wrapText(n.label, innerW, typo.fontSize, fontStr)
       : rawLines;
-    const textCY = isMediaShape
-      ? n.y + n.h - 10
+    const textCY = usesBottomStrip
+      ? getBottomLabelCenterY(n)
       : isNote
         ? computeTextCY(typo, n.y, n.h, lines.length, FOLD + typo.padding)
         : computeTextCY(typo, n.y, n.h, lines.length);
+    const labelX = textX + (n.labelDx ?? 0);
+    const labelY = textCY + (n.labelDy ?? 0);
 
     if (n.label) {
       if (lines.length > 1) {
-        drawMultilineText(ctx, lines, textX, textCY,
+        drawMultilineText(ctx, lines, labelX, labelY,
           typo.fontSize, typo.fontWeight, typo.textColor,
           typo.textAlign, typo.lineHeight, typo.font, typo.letterSpacing);
       } else {
-        drawText(ctx, lines[0] ?? '', textX, textCY,
+        drawText(ctx, lines[0] ?? '', labelX, labelY,
           typo.fontSize, typo.fontWeight, typo.textColor,
           typo.textAlign, typo.font, typo.letterSpacing);
       }

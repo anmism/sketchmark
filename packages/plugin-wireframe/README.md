@@ -52,6 +52,7 @@ end
 
 - `wf.screen` and `wf.panel` are visible group containers.
 - `wf.text` can render authored text, or placeholder bars when no `label` is given.
+- Commands that render authored labels accept `label-dx=` and `label-dy=` to nudge those labels without moving the underlying shape or container.
 - `wf.control` stays generic on purpose so compounds like navbars, forms, and cards can be built from a small primitive set.
 - `wf.control kind=checkbox|radio` now auto-sizes short labels more tightly and lays them out as compact top-aligned inline rows; use `text-width=` when you want a wider label area.
 - The plugin works with normal Sketchmark layouts and absolute positioning.

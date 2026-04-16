@@ -221,10 +221,12 @@ function emitCommand(command, entities, settings) {
 }
 function emitAtom(atom, settings) {
     const fontSize = readNumber(atom.props["font-size"]) ?? settings.fontSize;
+    const labelDx = readNumber(atom.props["label-dx"]) ?? 0;
+    const labelDy = readNumber(atom.props["label-dy"]) ?? 0;
     const width = Math.max(18, readNumber(atom.props.width) ?? estimateTextWidth(atom.label || "C", fontSize) + 10);
     const height = Math.max(20, readNumber(atom.props.height) ?? Math.round(fontSize * 1.55));
-    const x = atom.x - width / 2;
-    const y = atom.y - height / 2;
+    const x = atom.x - width / 2 + labelDx;
+    const y = atom.y - height / 2 + labelDy;
     const items = [];
     const primitives = [];
     if (atom.visible) {
@@ -275,14 +277,16 @@ function emitBond(command, entities, settings) {
     if (command.props.label) {
         const labelId = helperId(command.id, "label");
         const labelPoint = bondLabelPoint(trimmed.from, trimmed.to, spacing, settings.labelOffset);
+        const labelDx = readNumber(command.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(command.props["label-dy"]) ?? 0;
         const fontSize = readNumber(command.props["font-size"]) ?? settings.fontSize - 4;
         const width = Math.max(40, estimateTextWidth(command.props.label, fontSize) + 12);
         const height = Math.max(20, Math.round(fontSize * 1.45));
         primitives.push({
             kind: "text",
             id: labelId,
-            x: labelPoint.x - width / 2,
-            y: labelPoint.y - height / 2,
+            x: labelPoint.x - width / 2 + labelDx,
+            y: labelPoint.y - height / 2 + labelDy,
             width,
             height,
             label: command.props.label,
@@ -334,6 +338,8 @@ function emitRing(ring, settings) {
         });
     }
     if (ring.labels.length > 0) {
+        const labelDx = readNumber(ring.props["label-dx"]) ?? 0;
+        const labelDy = readNumber(ring.props["label-dy"]) ?? 0;
         for (let index = 0; index < ring.vertices.length; index += 1) {
             const label = ring.labels[index] ?? "";
             if (!label)
@@ -353,8 +359,8 @@ function emitRing(ring, settings) {
             primitives.push({
                 kind: "text",
                 id: helperId(ring.id, `label_${index + 1}`),
-                x: labelPoint.x - width / 2,
-                y: labelPoint.y - height / 2,
+                x: labelPoint.x - width / 2 + labelDx,
+                y: labelPoint.y - height / 2 + labelDy,
                 width,
                 height,
                 label,
@@ -387,8 +393,8 @@ function emitLabel(command, entities, settings) {
     }
     const side = normalizeLabelSide(command.props.side);
     const offset = readNumber(command.props.offset) ?? settings.labelOffset;
-    const dx = readNumber(command.props.dx) ?? 0;
-    const dy = readNumber(command.props.dy) ?? 0;
+    const dx = readNumber(command.props["label-dx"]) ?? readNumber(command.props.dx) ?? 0;
+    const dy = readNumber(command.props["label-dy"]) ?? readNumber(command.props.dy) ?? 0;
     const fontSize = readNumber(command.props["font-size"]) ?? settings.fontSize - 4;
     const width = Math.max(36, readNumber(command.props.width) ?? estimateTextWidth(label, fontSize) + 14);
     const height = Math.max(20, readNumber(command.props.height) ?? Math.round(fontSize * 1.45));

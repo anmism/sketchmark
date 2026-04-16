@@ -11,6 +11,8 @@ export interface SceneNode extends SceneRect {
     id: string;
     shape: ASTNode["shape"];
     label: string;
+    labelDx?: number;
+    labelDy?: number;
     style: StyleProps;
     groupId?: string;
     width?: number;
@@ -36,6 +38,8 @@ export interface SceneEdge {
     to: string;
     connector: string;
     label?: string;
+    labelDx?: number;
+    labelDy?: number;
     fromAnchor?: string;
     toAnchor?: string;
     dashed: boolean;
@@ -46,6 +50,8 @@ export interface SceneEdge {
 export interface SceneGroup {
     id: string;
     label: string;
+    labelDx?: number;
+    labelDy?: number;
     parentId?: string;
     children: GroupChildRef[];
     layout: "row" | "column" | "grid" | "absolute";

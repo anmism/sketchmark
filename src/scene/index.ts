@@ -28,6 +28,8 @@ export interface SceneNode extends SceneRect {
   id: string;
   shape: ASTNode["shape"];
   label: string;
+  labelDx?: number;
+  labelDy?: number;
   style: StyleProps;
   groupId?: string; // immediate parent group id
   width?: number; // user-specified size override
@@ -54,6 +56,8 @@ export interface SceneEdge {
   to: string;
   connector: string;
   label?: string;
+  labelDx?: number;
+  labelDy?: number;
   fromAnchor?: string;
   toAnchor?: string;
   dashed: boolean;
@@ -65,6 +69,8 @@ export interface SceneEdge {
 export interface SceneGroup {
   id: string;
   label: string;
+  labelDx?: number;
+  labelDy?: number;
   parentId?: string; // parent group id (set for nested groups)
   children: GroupChildRef[]; // mixed node/group children — supports nesting
   // ── layout props ──────────────────────────────────────
@@ -173,6 +179,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
       id: n.id,
       shape: n.shape,
       label: n.label,
+      labelDx: n.labelDx,
+      labelDy: n.labelDy,
       style: { ...ast.styles[n.id], ...themeStyle, ...n.style },
       groupId: nodeParentById.get(n.id),
       width: n.width,
@@ -199,6 +207,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     return {
       id: g.id,
       label: g.label,
+      labelDx: g.labelDx,
+      labelDy: g.labelDy,
       parentId: groupParentById.get(g.id),
       children: g.children,
       layout: (g.layout ?? "column") as SceneGroup["layout"],
@@ -280,6 +290,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     to: e.to,
     connector: e.connector,
     label: e.label,
+    labelDx: e.labelDx,
+    labelDy: e.labelDy,
     fromAnchor: e.fromAnchor,
     toAnchor: e.toAnchor,
     dashed: e.dashed ?? false,

@@ -160,6 +160,8 @@ export function drawRoughChartCanvas(
     ...(s.strokeDash ? { strokeLineDash: s.strokeDash } : {}),
   });
   
+  const { px, py, pw, ph, titleH, cx, cy } = chartLayout(c);
+
   // Title
   if (c.label) {
     ctx.save();
@@ -167,19 +169,17 @@ export function drawRoughChartCanvas(
     ctx.fillStyle    = lc;
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(c.label, c.x + c.w / 2, c.y + 14);
+    ctx.fillText(c.label, c.x + c.w / 2, c.y + titleH / 2 + 2);
     ctx.restore();
   }
-
-  const { px, py, pw, ph, cx, cy } = chartLayout(c);
 
   // ── Pie / Donut ──────────────────────────────────────────
   if (c.chartType === 'pie' || c.chartType === 'donut') {
     const { segments, total } = parsePie(c.data);
-    const r  = Math.min(c.w * 0.38, (c.h - (c.label ? 24 : 8)) * 0.44);
+    const r  = Math.min(c.w * 0.38, (c.h - titleH) * 0.44);
     const ir = c.chartType === 'donut' ? r * 0.48 : 0;
     const legendX = c.x + 8;
-    const legendY = c.y + (c.label ? 28 : 12);
+    const legendY = c.y + titleH + 4;
 
     let angle = -Math.PI / 2;
     segments.forEach((seg, i) => {
@@ -218,7 +218,7 @@ export function drawRoughChartCanvas(
       });
     });
 
-    drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + (c.label ? 28 : 12), lc, cFont);
+    drawLegend(ctx, pts.map(p => p.label), CHART_COLORS, c.x + 8, c.y + titleH + 4, lc, cFont);
     ctx.globalAlpha = 1;
     return;
   }

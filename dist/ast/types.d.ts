@@ -60,6 +60,8 @@ export interface ASTNode {
     id: string;
     shape: NodeShape;
     label: string;
+    labelDx?: number;
+    labelDy?: number;
     groupId?: string;
     imageUrl?: string;
     iconName?: string;
@@ -83,6 +85,8 @@ export interface ASTEdge {
     to: string;
     connector: EdgeConnector;
     label?: string;
+    labelDx?: number;
+    labelDy?: number;
     fromAnchor?: EdgeAnchor;
     toAnchor?: EdgeAnchor;
     dashed?: boolean;
@@ -94,6 +98,8 @@ export interface ASTGroup {
     kind: 'group';
     id: string;
     label: string;
+    labelDx?: number;
+    labelDy?: number;
     children: GroupChildRef[];
     layout?: LayoutType;
     columns?: number;

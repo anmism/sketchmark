@@ -49,6 +49,8 @@ const GROUP_PROP_KEYS = [
     "y",
     "width",
     "height",
+    "label-dx",
+    "label-dy",
     "items",
 ];
 const TEXT_PROP_KEYS = [
@@ -62,6 +64,8 @@ const TEXT_PROP_KEYS = [
     "x",
     "y",
     "height",
+    "label-dx",
+    "label-dy",
 ];
 const NODE_PROP_KEYS = [
     "theme",
@@ -78,6 +82,8 @@ const NODE_PROP_KEYS = [
     "x",
     "y",
     "deg",
+    "label-dx",
+    "label-dy",
 ];
 function wireframe(options = {}) {
     return {
@@ -340,6 +346,8 @@ function emitChoiceControl(command, kind, settings) {
     appendProp(labelParts, "text-align", "left");
     appendProp(labelParts, "vertical-align", "middle");
     appendProp(labelParts, "color", command.props.color ?? settings.mutedTextColor);
+    appendProp(labelParts, "label-dx", command.props["label-dx"]);
+    appendProp(labelParts, "label-dy", command.props["label-dy"]);
     appendProp(groupParts, "layout", "row");
     appendProp(groupParts, "align", "start");
     appendProp(groupParts, "gap", command.props.gap ?? String(settings.choiceGap));

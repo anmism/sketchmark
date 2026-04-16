@@ -25,6 +25,23 @@ end`);
     expect(compiled).toContain("a --> b label=\"request\" anchor-from=right anchor-to=left");
   });
 
+  it("preserves label offsets while rewriting anchored edges", () => {
+    const ast = parse(`diagram
+box a label="A"
+box b label="B"
+a@right --> b@left label="request" label-dx=12 label-dy=-4
+end`, {
+      plugins: [anchors()],
+    });
+
+    expect(ast.edges[0]).toMatchObject({
+      fromAnchor: "right",
+      toAnchor: "left",
+      labelDx: 12,
+      labelDy: -4,
+    });
+  });
+
   it("stores anchor metadata on parsed edges", () => {
     const ast = parse(`diagram
 box a label="A"

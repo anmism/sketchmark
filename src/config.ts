@@ -20,6 +20,7 @@ export const NODE = {
   minW:         90,    // minimum auto-sized node width (px)
   maxW:         300,   // maximum auto-sized node width (px)
   defaultH:     52,    // default node height (px)
+  mediaLabelH:  20,    // reserved bottom strip for icon/image/line labels (px)
   fontPxPerChar: 8.6,  // approximate px per character for label width
   basePad:      26,    // base padding added to label width (px)
 } as const;

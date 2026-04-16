@@ -34,15 +34,16 @@ end
 
 ## Supported Commands
 
-- `chem.atom <id> x=<n> y=<n> [element=C] [label="..."] [charge=+]`
-- `chem.bond <id> from=<ref> to=<ref> [order=1|2|3|single|double|triple]`
-- `chem.ring <id> x=<n> y=<n> [kind=benzene|hexagon|pentagon] [sides=<n>] [radius=<n>] [aromatic=true] [order=alternating] [labels=[...]]`
-- `chem.label <id> target=<ref> text="..." [side=top|right|bottom|left|center]`
+- `chem.atom <id> x=<n> y=<n> [element=C] [label="..."] [charge=+] [label-dx=<n>] [label-dy=<n>]`
+- `chem.bond <id> from=<ref> to=<ref> [order=1|2|3|single|double|triple] [label="..."] [label-dx=<n>] [label-dy=<n>]`
+- `chem.ring <id> x=<n> y=<n> [kind=benzene|hexagon|pentagon] [sides=<n>] [radius=<n>] [aromatic=true] [order=alternating] [labels=[...]] [label-dx=<n>] [label-dy=<n>]`
+- `chem.label <id> target=<ref> text="..." [side=top|right|bottom|left|center] [dx=<n>] [dy=<n>] [label-dx=<n>] [label-dy=<n>]`
 
 ## Notes
 
 - `chem.atom` uses `x` / `y` as the atom center and renders text labels by default.
 - `chem.bond` supports atom refs directly and ring refs like `ring1.center` or `ring1.v1`.
+- `label-dx` / `label-dy` nudge generated atom, bond, ring, and free-positioned chemistry labels after their default placement is computed.
 - The plugin auto-inserts `layout=absolute` on the `diagram` line if the root diagram does not declare a layout yet.
 - If a diagram already declares a layout, it must be `layout=absolute`.
 - This version does not do valence validation, automatic molecule layout, or reaction solving.

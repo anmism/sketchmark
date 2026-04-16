@@ -379,6 +379,8 @@ For `path`, write `value` in local coordinates near `0,0`. The renderer normaliz
 | `height` | number | Override auto-height (px) | `height=55` |
 | `x` | number | Authored X position when parent/root uses `layout=absolute` | `x=80` |
 | `y` | number | Authored Y position when parent/root uses `layout=absolute` | `y=40` |
+| `label-dx` | number | Horizontal label nudge for overlap fixes and fine positioning | `label-dx=12` |
+| `label-dy` | number | Vertical label nudge for overlap fixes and fine positioning | `label-dy=-6` |
 | `theme` | string | Named theme preset | `theme=primary` |
 | `fill` | CSS color | Background fill color | `fill="#e8f4ff"` |
 | `stroke` | CSS color | Border/outline color | `stroke="#0044cc"` |
@@ -443,6 +445,8 @@ a --> b label="HTTPS" stroke="#cc0000" stroke-width=2 color="#aa0000" font-size=
 | Property | Description |
 |----------|-------------|
 | `label` | Text label floating on the edge |
+| `label-dx` | Horizontal edge-label nudge to avoid crowded midpoints or crossings |
+| `label-dy` | Vertical edge-label nudge to avoid crowded midpoints or crossings |
 | `stroke` | Line color |
 | `stroke-width` | Line thickness |
 | `color` | Label text color |
@@ -486,6 +490,8 @@ group <id> [label="..."] [layout=row|column|grid|absolute] [gap=N] [padding=N]
 | Property | Type | Description |
 |----------|------|-------------|
 | `label` | string | Group title (shown at top) |
+| `label-dx` | number | Horizontal group-title nudge for overlap fixes |
+| `label-dy` | number | Vertical group-title nudge for overlap fixes |
 | `layout` | row / column / grid / absolute | Child arrangement direction |
 | `gap` | number | Space between children (px) |
 | `padding` | number | Inner padding (px) |

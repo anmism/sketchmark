@@ -1,10 +1,11 @@
 import type { ShapeDefinition } from "./types";
 import { SVG_NS } from "./types";
+import { getBottomLabelContentHeight, getBottomLabelStripHeight } from "./label-strip";
 
 export const iconShape: ShapeDefinition = {
   size(n, labelW) {
     const iconBase = 48;
-    const labelH = n.label ? 20 : 0;
+    const labelH = getBottomLabelStripHeight(n);
     n.w = n.w || Math.max(iconBase, n.label ? labelW : 0);
     n.h = n.h || (iconBase + labelH);
   },
@@ -18,8 +19,7 @@ export const iconShape: ShapeDefinition = {
       const iconColor = s.color
         ? encodeURIComponent(String(s.color))
         : encodeURIComponent(String(palette.nodeStroke));
-      const labelSpace = n.label ? 20 : 0;
-      const iconAreaH = n.h - labelSpace;
+      const iconAreaH = getBottomLabelContentHeight(n);
       const iconSize = Math.min(n.w, iconAreaH) - 4;
       const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
 
@@ -66,8 +66,7 @@ export const iconShape: ShapeDefinition = {
       const iconColor = s.color
         ? encodeURIComponent(String(s.color))
         : encodeURIComponent(String(palette.nodeStroke));
-      const iconLabelSpace = n.label ? 20 : 0;
-      const iconAreaH = n.h - iconLabelSpace;
+      const iconAreaH = getBottomLabelContentHeight(n);
       const iconSize = Math.min(n.w, iconAreaH) - 4;
       const iconUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=${iconColor}&width=${iconSize}&height=${iconSize}`;
       const img = new Image();
