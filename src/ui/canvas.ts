@@ -277,7 +277,13 @@ export class SketchmarkCanvas {
     this.resetButton.addEventListener("click", () => this.resetAnimation());
     this.prevButton.addEventListener("click", () => this.prevStep());
     this.nextButton.addEventListener("click", () => this.nextStep());
-    this.playButton.addEventListener("click", () => void this.play());
+    this.playButton.addEventListener("click", () => {
+      if (this.playInFlight) {
+        this.stopPlayback();
+        return;
+      }
+      void this.play();
+    });
     this.captionButton.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
     this.ttsButton.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
 
@@ -344,6 +350,7 @@ export class SketchmarkCanvas {
     if (typeof nextDsl === "string") this.dsl = normalizeNewlines(nextDsl);
     this.clearError();
     this.mirroredEditor?.clearError();
+    this.playInFlight = false;
     this.animUnsub?.();
     this.animUnsub = null;
     this.instance?.anim?.destroy();
@@ -410,8 +417,15 @@ export class SketchmarkCanvas {
     }
   }
 
+  stopPlayback(): void {
+    this.playInFlight = false;
+    if (this.renderer === "svg") this.instance?.anim.stop();
+    this.syncAnimationUi();
+  }
+
   nextStep(): void {
     if (!this.instance || this.renderer !== "svg") return;
+    this.playInFlight = false;
     this.instance.anim.next();
     this.syncAnimationUi();
     this.focusCurrentStep();
@@ -419,6 +433,7 @@ export class SketchmarkCanvas {
 
   prevStep(): void {
     if (!this.instance || this.renderer !== "svg") return;
+    this.playInFlight = false;
     this.instance.anim.prev();
     this.syncAnimationUi();
     this.focusCurrentStep();
@@ -426,6 +441,7 @@ export class SketchmarkCanvas {
 
   resetAnimation(): void {
     if (!this.instance || this.renderer !== "svg") return;
+    this.playInFlight = false;
     this.instance.anim.reset();
     this.syncAnimationUi();
   }
@@ -457,6 +473,7 @@ export class SketchmarkCanvas {
   }
 
   destroy(): void {
+    this.playInFlight = false;
     this.editorCleanup?.();
     this.animUnsub?.();
     this.instance?.anim?.destroy();
@@ -538,6 +555,9 @@ export class SketchmarkCanvas {
       this.prevButton.disabled = true;
       this.nextButton.disabled = true;
       this.resetButton.disabled = true;
+      this.playButton.textContent = "Play";
+      this.playButton.classList.remove("is-active");
+      this.playButton.setAttribute("aria-pressed", "false");
       this.playButton.disabled = true;
       this.syncToggleUi();
       return;
@@ -547,7 +567,10 @@ export class SketchmarkCanvas {
     this.prevButton.disabled = !anim.canPrev;
     this.nextButton.disabled = !anim.canNext;
     this.resetButton.disabled = false;
-    this.playButton.disabled = this.playInFlight || !anim.canNext;
+    this.playButton.textContent = this.playInFlight ? "Stop" : "Play";
+    this.playButton.classList.toggle("is-active", this.playInFlight);
+    this.playButton.setAttribute("aria-pressed", this.playInFlight ? "true" : "false");
+    this.playButton.disabled = this.playInFlight ? false : !anim.canNext;
     this.syncToggleUi();
   }
 

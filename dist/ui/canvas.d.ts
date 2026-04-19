@@ -113,6 +113,7 @@ export declare class SketchmarkCanvas {
     on<K extends keyof SketchmarkCanvasEvents>(event: K, listener: (payload: SketchmarkCanvasEvents[K]) => void): () => void;
     render(nextDsl?: string): DiagramInstance | null;
     play(): Promise<void>;
+    stopPlayback(): void;
     nextStep(): void;
     prevStep(): void;
     resetAnimation(): void;

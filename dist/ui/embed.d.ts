@@ -96,6 +96,7 @@ export declare class SketchmarkEmbed {
     on<K extends keyof SketchmarkEmbedEvents>(event: K, listener: (payload: SketchmarkEmbedEvents[K]) => void): () => void;
     render(nextDsl?: string): DiagramInstance | null;
     play(): Promise<void>;
+    stopPlayback(): void;
     nextStep(): void;
     prevStep(): void;
     resetAnimation(): void;

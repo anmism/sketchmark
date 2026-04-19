@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe("SketchmarkEmbed", () => {
-  it("applies fixed sizing and follows the next focusable step inside the clipped viewport", () => {
+  it("applies fixed sizing and follows the next focusable step inside the clipped viewport", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
 
@@ -96,9 +96,43 @@ end
     focusNode.getBoundingClientRect = () => rect(900, 40, 120, 60);
 
     embed.nextStep();
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
 
     expect(embed.world.style.transform).toBe(
       "translate(16px, 45.333333333333336px) scale(0.22333333333333333)",
     );
+  });
+
+  it("lets the play control hard-stop autoplay mid-run", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const embed = new SketchmarkEmbed({
+      container: host,
+      width: 320,
+      height: 220,
+      dsl: `
+diagram
+box a label="Start"
+box b label="Finish"
+
+step draw a
+step draw b
+end
+      `.trim(),
+    });
+
+    const playButton = embed.root.querySelector('[data-action="play"]') as HTMLButtonElement;
+    const playPromise = embed.play();
+
+    expect(playButton.textContent).toBe("Stop");
+
+    playButton.click();
+    await playPromise;
+
+    expect(playButton.textContent).toBe("Play");
+    expect(embed.instance?.anim.currentStep).toBe(0);
   });
 });

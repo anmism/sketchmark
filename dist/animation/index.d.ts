@@ -19,8 +19,12 @@ export declare class AnimationController {
     private _rc?;
     private _config?;
     private _step;
+    private _isPlaying;
+    private _playRunId;
     private _pendingStepTimers;
     private _pendingNarrationTimers;
+    private _playbackDelayTimerId;
+    private _resolvePlaybackDelay;
     private _transforms;
     private _listeners;
     readonly drawTargetEdges: Set<string>;
@@ -43,6 +47,7 @@ export declare class AnimationController {
     private _pointerType;
     private _tts;
     private _speechDone;
+    private _resolveSpeechDone;
     get drawTargets(): Set<string>;
     constructor(svg: SVGSVGElement, steps: ASTStepItem[], _container?: HTMLElement | undefined, _rc?: any | undefined, _config?: Record<string, string | number | boolean> | undefined);
     private _buildDrawStepIndex;
@@ -62,6 +67,7 @@ export declare class AnimationController {
     get canNext(): boolean;
     get canPrev(): boolean;
     get atEnd(): boolean;
+    get isPlaying(): boolean;
     on(listener: AnimationListener): () => void;
     private emit;
     reset(): void;
@@ -71,11 +77,15 @@ export declare class AnimationController {
     prev(): boolean;
     play(msPerStep?: number): Promise<void>;
     goTo(index: number): void;
+    stop(): void;
+    private _advanceNext;
     private _clearTimerBucket;
     private _clearPendingStepTimers;
     private _cancelNarrationTyping;
     private _scheduleTimer;
     private _scheduleStep;
+    private _waitForPlaybackDelay;
+    private _cancelPlaybackDelay;
     private _stepWaitMs;
     private _playbackWaitMs;
     private _clearAll;

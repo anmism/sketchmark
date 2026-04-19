@@ -659,8 +659,12 @@ function animateEdgeDraw(
 // ── AnimationController ───────────────────────────────────
 export class AnimationController {
   private _step = -1;
+  private _isPlaying = false;
+  private _playRunId = 0;
   private _pendingStepTimers = new Set<number>();
   private _pendingNarrationTimers = new Set<number>();
+  private _playbackDelayTimerId: number | null = null;
+  private _resolvePlaybackDelay: (() => void) | null = null;
   private _transforms = new Map<
     string,
     {
@@ -699,6 +703,7 @@ export class AnimationController {
   // ── TTS ──
   private _tts = false;
   private _speechDone: Promise<void> | null = null;
+  private _resolveSpeechDone: (() => void) | null = null;
 
   get drawTargets(): Set<string> {
     return this.drawTargetEdges;
@@ -960,6 +965,9 @@ export class AnimationController {
   get atEnd(): boolean {
     return this._step === this.steps.length - 1;
   }
+  get isPlaying(): boolean {
+    return this._isPlaying;
+  }
 
   on(listener: AnimationListener): () => void {
     this._listeners.push(listener);
@@ -978,6 +986,7 @@ export class AnimationController {
   }
 
   reset(): void {
+    this.stop();
     this._step = -1;
     this._clearAll();
     this.emit("animation-reset");
@@ -985,6 +994,7 @@ export class AnimationController {
 
   /** Remove caption and annotation layer from the DOM */
   destroy(): void {
+    this.stop();
     this._clearAll();
     this._captionEl?.remove();
     this._captionEl = null;
@@ -996,15 +1006,12 @@ export class AnimationController {
   }
 
   next(): boolean {
-    if (!this.canNext) return false;
-    this._step++;
-    this._applyStep(this._step, false);
-    this.emit("step-change");
-    if (!this.canNext) this.emit("animation-end");
-    return true;
+    this.stop();
+    return this._advanceNext();
   }
 
   prev(): boolean {
+    this.stop();
     if (!this.canPrev) return false;
     this._step--;
     this._clearAll();
@@ -1014,21 +1021,30 @@ export class AnimationController {
   }
 
   async play(msPerStep = 900): Promise<void> {
+    if (this._isPlaying || !this.canNext) return;
+    const runId = ++this._playRunId;
+    this._isPlaying = true;
     this.emit("animation-start");
-    while (this.canNext) {
-      const nextStep = this.steps[this._step + 1];
-      this.next();
-      // Wait for timer AND speech to finish (whichever is longer)
-      await Promise.all([
-        new Promise<void>((r) =>
-          setTimeout(r, this._playbackWaitMs(nextStep, msPerStep)),
-        ),
-        this._speechDone ?? Promise.resolve(),
-      ]);
+    try {
+      while (this.canNext && this._playRunId === runId) {
+        const nextStep = this.steps[this._step + 1];
+        if (!this._advanceNext()) break;
+        if (this._playRunId !== runId) break;
+        await Promise.all([
+          this._waitForPlaybackDelay(this._playbackWaitMs(nextStep, msPerStep)),
+          this._speechDone ?? Promise.resolve(),
+        ]);
+      }
+    } finally {
+      if (this._playRunId === runId) {
+        this._isPlaying = false;
+        this._cancelPlaybackDelay();
+      }
     }
   }
 
   goTo(index: number): void {
+    this.stop();
     index = Math.max(-1, Math.min(this.steps.length - 1, index));
     if (index === this._step) return;
     if (index < this._step) {
@@ -1040,6 +1056,30 @@ export class AnimationController {
       this._applyStep(this._step, true);
     }
     this.emit("step-change");
+  }
+
+  stop(): void {
+    if (!this._isPlaying && !this._resolvePlaybackDelay) {
+      this._clearPendingStepTimers();
+      this._cancelNarrationTyping();
+      this._cancelSpeech();
+      return;
+    }
+    this._isPlaying = false;
+    this._playRunId += 1;
+    this._cancelPlaybackDelay();
+    this._clearPendingStepTimers();
+    this._cancelNarrationTyping();
+    this._cancelSpeech();
+  }
+
+  private _advanceNext(): boolean {
+    if (!this.canNext) return false;
+    this._step++;
+    this._applyStep(this._step, false);
+    this.emit("step-change");
+    if (!this.canNext) this.emit("animation-end");
+    return true;
   }
 
   private _clearTimerBucket(bucket: Set<number>): void {
@@ -1074,6 +1114,36 @@ export class AnimationController {
 
   private _scheduleStep(fn: () => void, delayMs: number): void {
     this._scheduleTimer(fn, delayMs, this._pendingStepTimers);
+  }
+
+  private _waitForPlaybackDelay(delayMs: number): Promise<void> {
+    this._cancelPlaybackDelay();
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (this._playbackDelayTimerId !== null) {
+          window.clearTimeout(this._playbackDelayTimerId);
+          this._playbackDelayTimerId = null;
+        }
+        if (this._resolvePlaybackDelay === finish) {
+          this._resolvePlaybackDelay = null;
+        }
+        resolve();
+      };
+
+      this._resolvePlaybackDelay = finish;
+      if (delayMs <= 0) {
+        finish();
+        return;
+      }
+      this._playbackDelayTimerId = window.setTimeout(finish, delayMs);
+    });
+  }
+
+  private _cancelPlaybackDelay(): void {
+    this._resolvePlaybackDelay?.();
   }
 
   private _stepWaitMs(step: ASTStep, fallbackMs: number): number {
@@ -1115,6 +1185,7 @@ export class AnimationController {
   }
 
   private _clearAll(): void {
+    this._cancelPlaybackDelay();
     this._clearPendingStepTimers();
     this._cancelNarrationTyping();
     this._cancelSpeech();
@@ -1770,16 +1841,29 @@ export class AnimationController {
     utter.rate = 0.95;
     utter.pitch = 1;
     utter.lang = "en-US";
-    // Track when speech actually finishes
+    // Track when speech actually finishes so play() can block until the utterance ends.
     this._speechDone = new Promise<void>((resolve) => {
-      utter.onend = () => resolve();
-      utter.onerror = () => resolve();
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (this._resolveSpeechDone === finish) {
+          this._resolveSpeechDone = null;
+          this._speechDone = null;
+        }
+        resolve();
+      };
+      this._resolveSpeechDone = finish;
+      utter.onend = finish;
+      utter.onerror = finish;
     });
     speechSynthesis.speak(utter);
   }
 
   private _cancelSpeech(): void {
     if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    this._resolveSpeechDone?.();
+    this._resolveSpeechDone = null;
     this._speechDone = null;
   }
 

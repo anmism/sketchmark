@@ -376,6 +376,10 @@ export class SketchmarkEmbed {
     this.btnPrev.addEventListener("click", () => this.prevStep());
     this.btnNext.addEventListener("click", () => this.nextStep());
     this.btnPlay.addEventListener("click", () => {
+      if (this.playInFlight) {
+        this.stopPlayback();
+        return;
+      }
       void this.play();
     });
     this.btnCaption.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
@@ -446,6 +450,7 @@ export class SketchmarkEmbed {
 
     this.clearError();
     this.stopMotion();
+    this.playInFlight = false;
     this.animUnsub?.();
     this.animUnsub = null;
     this.instance?.anim?.destroy();
@@ -520,8 +525,15 @@ export class SketchmarkEmbed {
     }
   }
 
+  stopPlayback(): void {
+    this.playInFlight = false;
+    this.instance?.anim.stop();
+    this.syncControls();
+  }
+
   nextStep(): void {
     if (!this.instance) return;
+    this.playInFlight = false;
     this.instance.anim.next();
     this.syncControls();
     if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
@@ -531,6 +543,7 @@ export class SketchmarkEmbed {
 
   prevStep(): void {
     if (!this.instance) return;
+    this.playInFlight = false;
     this.instance.anim.prev();
     this.syncControls();
     if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
@@ -540,6 +553,7 @@ export class SketchmarkEmbed {
 
   resetAnimation(): void {
     if (!this.instance) return;
+    this.playInFlight = false;
     this.instance.anim.reset();
     this.syncControls();
   }
@@ -572,6 +586,7 @@ export class SketchmarkEmbed {
 
   destroy(): void {
     this.stopMotion();
+    this.playInFlight = false;
     this.animUnsub?.();
     this.instance?.anim?.destroy();
     this.instance = null;
@@ -608,6 +623,9 @@ export class SketchmarkEmbed {
       this.btnRestart.disabled = true;
       this.btnPrev.disabled = true;
       this.btnNext.disabled = true;
+      this.btnPlay.textContent = "Play";
+      this.btnPlay.classList.remove("is-active");
+      this.btnPlay.setAttribute("aria-pressed", "false");
       this.btnPlay.disabled = true;
       return;
     }
@@ -617,7 +635,10 @@ export class SketchmarkEmbed {
     this.btnRestart.disabled = false;
     this.btnPrev.disabled = !anim.canPrev;
     this.btnNext.disabled = !anim.canNext;
-    this.btnPlay.disabled = this.playInFlight || !anim.canNext;
+    this.btnPlay.textContent = this.playInFlight ? "Stop" : "Play";
+    this.btnPlay.classList.toggle("is-active", this.playInFlight);
+    this.btnPlay.setAttribute("aria-pressed", this.playInFlight ? "true" : "false");
+    this.btnPlay.disabled = this.playInFlight ? false : !anim.canNext;
   }
 
   private syncViewControls(): void {

@@ -9991,8 +9991,12 @@ class AnimationController {
         this._rc = _rc;
         this._config = _config;
         this._step = -1;
+        this._isPlaying = false;
+        this._playRunId = 0;
         this._pendingStepTimers = new Set();
         this._pendingNarrationTimers = new Set();
+        this._playbackDelayTimerId = null;
+        this._resolvePlaybackDelay = null;
         this._transforms = new Map();
         this._listeners = [];
         // ── Narration caption ──
@@ -10008,6 +10012,7 @@ class AnimationController {
         // ── TTS ──
         this._tts = false;
         this._speechDone = null;
+        this._resolveSpeechDone = null;
         this.drawTargetEdges = getDrawTargetEdgeIds(steps);
         this.drawTargetNodes = getDrawTargetNodeIds(steps);
         // Groups: non-edge draw steps whose target has a #group-{id} element in the SVG.
@@ -10231,6 +10236,9 @@ class AnimationController {
     get atEnd() {
         return this._step === this.steps.length - 1;
     }
+    get isPlaying() {
+        return this._isPlaying;
+    }
     on(listener) {
         this._listeners.push(listener);
         return () => {
@@ -10248,12 +10256,14 @@ class AnimationController {
             l(e);
     }
     reset() {
+        this.stop();
         this._step = -1;
         this._clearAll();
         this.emit("animation-reset");
     }
     /** Remove caption and annotation layer from the DOM */
     destroy() {
+        this.stop();
         this._clearAll();
         this._captionEl?.remove();
         this._captionEl = null;
@@ -10264,16 +10274,11 @@ class AnimationController {
         this._pointerEl = null;
     }
     next() {
-        if (!this.canNext)
-            return false;
-        this._step++;
-        this._applyStep(this._step, false);
-        this.emit("step-change");
-        if (!this.canNext)
-            this.emit("animation-end");
-        return true;
+        this.stop();
+        return this._advanceNext();
     }
     prev() {
+        this.stop();
         if (!this.canPrev)
             return false;
         this._step--;
@@ -10284,18 +10289,33 @@ class AnimationController {
         return true;
     }
     async play(msPerStep = 900) {
+        if (this._isPlaying || !this.canNext)
+            return;
+        const runId = ++this._playRunId;
+        this._isPlaying = true;
         this.emit("animation-start");
-        while (this.canNext) {
-            const nextStep = this.steps[this._step + 1];
-            this.next();
-            // Wait for timer AND speech to finish (whichever is longer)
-            await Promise.all([
-                new Promise((r) => setTimeout(r, this._playbackWaitMs(nextStep, msPerStep))),
-                this._speechDone ?? Promise.resolve(),
-            ]);
+        try {
+            while (this.canNext && this._playRunId === runId) {
+                const nextStep = this.steps[this._step + 1];
+                if (!this._advanceNext())
+                    break;
+                if (this._playRunId !== runId)
+                    break;
+                await Promise.all([
+                    this._waitForPlaybackDelay(this._playbackWaitMs(nextStep, msPerStep)),
+                    this._speechDone ?? Promise.resolve(),
+                ]);
+            }
+        }
+        finally {
+            if (this._playRunId === runId) {
+                this._isPlaying = false;
+                this._cancelPlaybackDelay();
+            }
         }
     }
     goTo(index) {
+        this.stop();
         index = Math.max(-1, Math.min(this.steps.length - 1, index));
         if (index === this._step)
             return;
@@ -10308,6 +10328,30 @@ class AnimationController {
             this._applyStep(this._step, true);
         }
         this.emit("step-change");
+    }
+    stop() {
+        if (!this._isPlaying && !this._resolvePlaybackDelay) {
+            this._clearPendingStepTimers();
+            this._cancelNarrationTyping();
+            this._cancelSpeech();
+            return;
+        }
+        this._isPlaying = false;
+        this._playRunId += 1;
+        this._cancelPlaybackDelay();
+        this._clearPendingStepTimers();
+        this._cancelNarrationTyping();
+        this._cancelSpeech();
+    }
+    _advanceNext() {
+        if (!this.canNext)
+            return false;
+        this._step++;
+        this._applyStep(this._step, false);
+        this.emit("step-change");
+        if (!this.canNext)
+            this.emit("animation-end");
+        return true;
     }
     _clearTimerBucket(bucket) {
         bucket.forEach((id) => window.clearTimeout(id));
@@ -10333,6 +10377,34 @@ class AnimationController {
     }
     _scheduleStep(fn, delayMs) {
         this._scheduleTimer(fn, delayMs, this._pendingStepTimers);
+    }
+    _waitForPlaybackDelay(delayMs) {
+        this._cancelPlaybackDelay();
+        return new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+                if (settled)
+                    return;
+                settled = true;
+                if (this._playbackDelayTimerId !== null) {
+                    window.clearTimeout(this._playbackDelayTimerId);
+                    this._playbackDelayTimerId = null;
+                }
+                if (this._resolvePlaybackDelay === finish) {
+                    this._resolvePlaybackDelay = null;
+                }
+                resolve();
+            };
+            this._resolvePlaybackDelay = finish;
+            if (delayMs <= 0) {
+                finish();
+                return;
+            }
+            this._playbackDelayTimerId = window.setTimeout(finish, delayMs);
+        });
+    }
+    _cancelPlaybackDelay() {
+        this._resolvePlaybackDelay?.();
     }
     _stepWaitMs(step, fallbackMs) {
         const delay = Math.max(0, step.delay ?? 0);
@@ -10375,6 +10447,7 @@ class AnimationController {
         return this._stepWaitMs(step, fallbackMs);
     }
     _clearAll() {
+        this._cancelPlaybackDelay();
         this._clearPendingStepTimers();
         this._cancelNarrationTyping();
         this._cancelSpeech();
@@ -10986,16 +11059,30 @@ class AnimationController {
         utter.rate = 0.95;
         utter.pitch = 1;
         utter.lang = "en-US";
-        // Track when speech actually finishes
+        // Track when speech actually finishes so play() can block until the utterance ends.
         this._speechDone = new Promise((resolve) => {
-            utter.onend = () => resolve();
-            utter.onerror = () => resolve();
+            let settled = false;
+            const finish = () => {
+                if (settled)
+                    return;
+                settled = true;
+                if (this._resolveSpeechDone === finish) {
+                    this._resolveSpeechDone = null;
+                    this._speechDone = null;
+                }
+                resolve();
+            };
+            this._resolveSpeechDone = finish;
+            utter.onend = finish;
+            utter.onerror = finish;
         });
         speechSynthesis.speak(utter);
     }
     _cancelSpeech() {
         if (typeof speechSynthesis !== "undefined")
             speechSynthesis.cancel();
+        this._resolveSpeechDone?.();
+        this._resolveSpeechDone = null;
         this._speechDone = null;
     }
     /** Pre-warm the speech engine with a silent utterance to eliminate cold-start delay */
@@ -11804,7 +11891,13 @@ class SketchmarkCanvas {
         this.resetButton.addEventListener("click", () => this.resetAnimation());
         this.prevButton.addEventListener("click", () => this.prevStep());
         this.nextButton.addEventListener("click", () => this.nextStep());
-        this.playButton.addEventListener("click", () => void this.play());
+        this.playButton.addEventListener("click", () => {
+            if (this.playInFlight) {
+                this.stopPlayback();
+                return;
+            }
+            void this.play();
+        });
         this.captionButton.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
         this.ttsButton.addEventListener("click", () => this.setTtsEnabled(!this.getTtsEnabled()));
         this.viewport.addEventListener("pointerdown", this.onPointerDown);
@@ -11868,6 +11961,7 @@ class SketchmarkCanvas {
             this.dsl = normalizeNewlines(nextDsl);
         this.clearError();
         this.mirroredEditor?.clearError();
+        this.playInFlight = false;
         this.animUnsub?.();
         this.animUnsub = null;
         this.instance?.anim?.destroy();
@@ -11938,9 +12032,16 @@ class SketchmarkCanvas {
             this.syncAnimationUi();
         }
     }
+    stopPlayback() {
+        this.playInFlight = false;
+        if (this.renderer === "svg")
+            this.instance?.anim.stop();
+        this.syncAnimationUi();
+    }
     nextStep() {
         if (!this.instance || this.renderer !== "svg")
             return;
+        this.playInFlight = false;
         this.instance.anim.next();
         this.syncAnimationUi();
         this.focusCurrentStep();
@@ -11948,6 +12049,7 @@ class SketchmarkCanvas {
     prevStep() {
         if (!this.instance || this.renderer !== "svg")
             return;
+        this.playInFlight = false;
         this.instance.anim.prev();
         this.syncAnimationUi();
         this.focusCurrentStep();
@@ -11955,6 +12057,7 @@ class SketchmarkCanvas {
     resetAnimation() {
         if (!this.instance || this.renderer !== "svg")
             return;
+        this.playInFlight = false;
         this.instance.anim.reset();
         this.syncAnimationUi();
     }
@@ -11983,6 +12086,7 @@ class SketchmarkCanvas {
         this.render();
     }
     destroy() {
+        this.playInFlight = false;
         this.editorCleanup?.();
         this.animUnsub?.();
         this.instance?.anim?.destroy();
@@ -12057,6 +12161,9 @@ class SketchmarkCanvas {
             this.prevButton.disabled = true;
             this.nextButton.disabled = true;
             this.resetButton.disabled = true;
+            this.playButton.textContent = "Play";
+            this.playButton.classList.remove("is-active");
+            this.playButton.setAttribute("aria-pressed", "false");
             this.playButton.disabled = true;
             this.syncToggleUi();
             return;
@@ -12066,7 +12173,10 @@ class SketchmarkCanvas {
         this.prevButton.disabled = !anim.canPrev;
         this.nextButton.disabled = !anim.canNext;
         this.resetButton.disabled = false;
-        this.playButton.disabled = this.playInFlight || !anim.canNext;
+        this.playButton.textContent = this.playInFlight ? "Stop" : "Play";
+        this.playButton.classList.toggle("is-active", this.playInFlight);
+        this.playButton.setAttribute("aria-pressed", this.playInFlight ? "true" : "false");
+        this.playButton.disabled = this.playInFlight ? false : !anim.canNext;
         this.syncToggleUi();
     }
     getStepTarget(stepItem) {
@@ -12972,6 +13082,10 @@ class SketchmarkEmbed {
         this.btnPrev.addEventListener("click", () => this.prevStep());
         this.btnNext.addEventListener("click", () => this.nextStep());
         this.btnPlay.addEventListener("click", () => {
+            if (this.playInFlight) {
+                this.stopPlayback();
+                return;
+            }
             void this.play();
         });
         this.btnCaption.addEventListener("click", () => this.setCaptionVisible(!this.showCaption));
@@ -13029,6 +13143,7 @@ class SketchmarkEmbed {
         }
         this.clearError();
         this.stopMotion();
+        this.playInFlight = false;
         this.animUnsub?.();
         this.animUnsub = null;
         this.instance?.anim?.destroy();
@@ -13101,9 +13216,15 @@ class SketchmarkEmbed {
             this.syncControls();
         }
     }
+    stopPlayback() {
+        this.playInFlight = false;
+        this.instance?.anim.stop();
+        this.syncControls();
+    }
     nextStep() {
         if (!this.instance)
             return;
+        this.playInFlight = false;
         this.instance.anim.next();
         this.syncControls();
         if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
@@ -13113,6 +13234,7 @@ class SketchmarkEmbed {
     prevStep() {
         if (!this.instance)
             return;
+        this.playInFlight = false;
         this.instance.anim.prev();
         this.syncControls();
         if (this.options.autoFocus !== false && this.options.autoFocusOnStep !== false) {
@@ -13122,6 +13244,7 @@ class SketchmarkEmbed {
     resetAnimation() {
         if (!this.instance)
             return;
+        this.playInFlight = false;
         this.instance.anim.reset();
         this.syncControls();
     }
@@ -13148,6 +13271,7 @@ class SketchmarkEmbed {
     }
     destroy() {
         this.stopMotion();
+        this.playInFlight = false;
         this.animUnsub?.();
         this.instance?.anim?.destroy();
         this.instance = null;
@@ -13180,6 +13304,9 @@ class SketchmarkEmbed {
             this.btnRestart.disabled = true;
             this.btnPrev.disabled = true;
             this.btnNext.disabled = true;
+            this.btnPlay.textContent = "Play";
+            this.btnPlay.classList.remove("is-active");
+            this.btnPlay.setAttribute("aria-pressed", "false");
             this.btnPlay.disabled = true;
             return;
         }
@@ -13188,7 +13315,10 @@ class SketchmarkEmbed {
         this.btnRestart.disabled = false;
         this.btnPrev.disabled = !anim.canPrev;
         this.btnNext.disabled = !anim.canNext;
-        this.btnPlay.disabled = this.playInFlight || !anim.canNext;
+        this.btnPlay.textContent = this.playInFlight ? "Stop" : "Play";
+        this.btnPlay.classList.toggle("is-active", this.playInFlight);
+        this.btnPlay.setAttribute("aria-pressed", this.playInFlight ? "true" : "false");
+        this.btnPlay.disabled = this.playInFlight ? false : !anim.canNext;
     }
     syncViewControls() {
         const hasView = !!this.instance?.svg;

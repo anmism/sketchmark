@@ -74,4 +74,29 @@ describe("AnimationController narration typing", () => {
       cleanup();
     }
   });
+
+  it("stops autoplay immediately without advancing remaining steps", async () => {
+    const { anim, cleanup } = renderAnimatedDiagram([
+      { kind: "step", action: "draw", target: "a" },
+      { kind: "step", action: "narrate", target: "", value: "Beta" },
+    ]);
+
+    try {
+      const playPromise = anim.play(1000);
+
+      expect(anim.isPlaying).toBe(true);
+      expect(anim.currentStep).toBe(0);
+
+      anim.stop();
+      await playPromise;
+
+      vi.advanceTimersByTime(5_000);
+
+      expect(anim.isPlaying).toBe(false);
+      expect(anim.currentStep).toBe(0);
+      expect(anim.canNext).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
 });

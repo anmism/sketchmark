@@ -149,7 +149,7 @@ const embed = new SketchmarkEmbed({
 });
 ```
 
-Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, support drag-to-pan plus wheel/trackpad zoom, and expose built-in zoom, playback, caption, and TTS controls.
+Use `SketchmarkCanvas` for the full playground-style surface, and `SketchmarkEmbed` for fixed-size embeds that clip overflow, auto-fit large diagrams, support drag-to-pan plus wheel/trackpad zoom, and expose built-in zoom, playback, caption, and TTS controls. While autoplay is running, their built-in `Play` control switches to `Stop` so you can hard-stop the sequence immediately.
 
 ---
 
@@ -855,6 +855,7 @@ anim.currentStep      // current step index (-1 = before start)
 anim.canNext          // boolean
 anim.canPrev          // boolean
 anim.atEnd            // boolean
+anim.isPlaying        // boolean
 anim.captionElement   // HTMLDivElement | null — the narration caption element
 anim.tts              // boolean — text-to-speech enabled/disabled
 
@@ -864,6 +865,7 @@ anim.prev()                // go back one step (returns bool)
 anim.reset()               // reset to before step 0
 anim.goTo(index)           // jump to step N
 await anim.play(700)       // play all remaining steps (700ms between)
+anim.stop()                // hard-stop autoplay without resetting the current step
 anim.destroy()             // remove caption, annotations, pointer from DOM
 
 // Toggle TTS programmatically

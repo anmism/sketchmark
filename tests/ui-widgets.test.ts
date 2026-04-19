@@ -135,4 +135,35 @@ describe("reusable UI widgets", () => {
     expect(canvas.errorElement.textContent).toContain("ParseError");
     expect(editor.errorElement.textContent).toContain("ParseError");
   });
+
+  it("turns the play control into a stop button while autoplay is active", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const canvas = new SketchmarkCanvas({
+      container: host,
+      autoFit: false,
+      showMinimap: false,
+      dsl: `
+diagram
+box a label="Start"
+box b label="Finish"
+
+step draw a
+step draw b
+end
+      `.trim(),
+    });
+
+    const playButton = canvas.root.querySelector('[data-action="play"]') as HTMLButtonElement;
+    const playPromise = canvas.play();
+
+    expect(playButton.textContent).toBe("Stop");
+
+    playButton.click();
+    await playPromise;
+
+    expect(playButton.textContent).toBe("Play");
+    expect(canvas.instance?.anim.currentStep).toBe(0);
+  });
 });
