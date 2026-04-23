@@ -940,17 +940,17 @@ Any element targeted by a `step draw` action starts **hidden** and only appears 
 
 For groups, this applies to the whole subtree:
 
-- `step draw group1` pre-hides the group and all descendant nodes, nested groups, tables, charts, notes, and markdown blocks.
+- `step draw group1` pre-hides the group and all descendant nodes, nested groups, tables, charts, notes, markdown blocks, and any edge whose endpoints stay inside that group subtree.
 - When the group step fires, descendants without their own later `draw` step are revealed immediately.
 - Descendants with an explicit later `draw` step stay hidden until that later step.
-- Edges are still independent; a group draw does not automatically reveal connected edges.
+- Boundary-crossing edges are still independent; a group draw only cascades to edges whose endpoints share that group subtree.
 
 For group targets, these actions also apply recursively to the same subtree:
 
 - `fade` / `unfade`
 - `show` / `hide`
 - `erase`
-- Edges still remain explicit for these actions too.
+- The same internal-edge rule applies here too; boundary-crossing edges remain explicit.
 
 ---
 

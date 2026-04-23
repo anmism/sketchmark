@@ -8281,6 +8281,36 @@ var AIDiagram = (function (exports) {
         if (groupId)
             el.dataset.parentGroup = groupId;
     }
+    function resolveEdgeEndpointKind(id, nm, tm, gm, cm) {
+        if (nm.has(id))
+            return "node";
+        if (gm.has(id))
+            return "group";
+        if (tm.has(id))
+            return "table";
+        if (cm.has(id))
+            return "chart";
+        return null;
+    }
+    function collectEdgeGroupLineage(endpointId, endpointKind, parentGroups) {
+        const lineage = [];
+        let groupId = endpointKind === "group"
+            ? endpointId
+            : parentGroups.get(`${endpointKind}:${endpointId}`);
+        while (groupId) {
+            lineage.push(groupId);
+            groupId = parentGroups.get(`group:${groupId}`);
+        }
+        return lineage;
+    }
+    function resolveEdgeParentGroupId(fromId, toId, nm, tm, gm, cm, parentGroups) {
+        const fromKind = resolveEdgeEndpointKind(fromId, nm, tm, gm, cm);
+        const toKind = resolveEdgeEndpointKind(toId, nm, tm, gm, cm);
+        if (!fromKind || !toKind)
+            return undefined;
+        const toLineage = new Set(collectEdgeGroupLineage(toId, toKind, parentGroups));
+        return collectEdgeGroupLineage(fromId, fromKind, parentGroups).find((groupId) => toLineage.has(groupId));
+    }
     // ── Node shapes ───────────────────────────────────────────────────────────
     function renderShape$1(rc, n, palette) {
         const s = n.style ?? {};
@@ -8438,6 +8468,7 @@ var AIDiagram = (function (exports) {
             const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
             const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
             const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
+            setParentGroupData(eg, resolveEdgeParentGroupId(e.from, e.to, nm, tm, gmMap, cm, parentGroups));
             if (e.style?.opacity != null)
                 eg.setAttribute("opacity", String(e.style.opacity));
             const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
@@ -9484,7 +9515,7 @@ var AIDiagram = (function (exports) {
     const getNoteEl = (svg, id) => getEl(svg, `note-${id}`);
     const getChartEl = (svg, id) => getEl(svg, `chart-${id}`);
     const getMarkdownEl = (svg, id) => getEl(svg, `markdown-${id}`);
-    const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .mdg";
+    const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .eg, .mdg";
     function resolveNonEdgeDrawEl(svg, target) {
         return (getGroupEl(svg, target) ??
             getTableEl(svg, target) ??
@@ -10078,8 +10109,16 @@ var AIDiagram = (function (exports) {
         _buildDrawStepIndex() {
             const drawStepIndexByElementId = new Map();
             forEachPlaybackStep(this.steps, (step, stepIndex) => {
-                if (step.action !== "draw" || parseEdgeTarget(step.target))
+                if (step.action !== "draw")
                     return;
+                const edge = parseEdgeTarget(step.target);
+                if (edge) {
+                    const edgeEl = getEdgeEl(this.svg, edge.from, edge.to);
+                    if (edgeEl && !drawStepIndexByElementId.has(edgeEl.id)) {
+                        drawStepIndexByElementId.set(edgeEl.id, stepIndex);
+                    }
+                    return;
+                }
                 const el = resolveNonEdgeDrawEl(this.svg, step.target);
                 if (el && !drawStepIndexByElementId.has(el.id)) {
                     drawStepIndexByElementId.set(el.id, stepIndex);
@@ -10779,6 +10818,7 @@ var AIDiagram = (function (exports) {
                 const el = getEdgeEl(this.svg, edge.from, edge.to);
                 if (!el)
                     return;
+                showDrawEl(el);
                 if (silent) {
                     revealEdgeInstant(el);
                     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -11396,6 +11436,7 @@ var AIDiagram = (function (exports) {
 .tg.gg-hidden  { opacity: 0; }
 .ntg.gg-hidden { opacity: 0; }
 .cg.gg-hidden  { opacity: 0; }
+.eg.gg-hidden  { opacity: 0; }
 .mdg.gg-hidden { opacity: 0; }
 
 /* narration caption */

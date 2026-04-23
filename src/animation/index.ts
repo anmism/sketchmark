@@ -34,7 +34,7 @@ const getChartEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `chart-${id}`);
 const getMarkdownEl = (svg: SVGSVGElement, id: string) =>
   getEl(svg, `markdown-${id}`);
-const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .mdg";
+const POSITIONABLE_SELECTOR = ".ng, .gg, .tg, .ntg, .cg, .eg, .mdg";
 
 function resolveNonEdgeDrawEl(svg: SVGSVGElement, target: string): SVGGElement | null {
   return (
@@ -786,7 +786,15 @@ export class AnimationController {
     const drawStepIndexByElementId = new Map<string, number>();
 
     forEachPlaybackStep(this.steps, (step, stepIndex) => {
-      if (step.action !== "draw" || parseEdgeTarget(step.target)) return;
+      if (step.action !== "draw") return;
+      const edge = parseEdgeTarget(step.target);
+      if (edge) {
+        const edgeEl = getEdgeEl(this.svg, edge.from, edge.to);
+        if (edgeEl && !drawStepIndexByElementId.has(edgeEl.id)) {
+          drawStepIndexByElementId.set(edgeEl.id, stepIndex);
+        }
+        return;
+      }
       const el = resolveNonEdgeDrawEl(this.svg, step.target);
       if (el && !drawStepIndexByElementId.has(el.id)) {
         drawStepIndexByElementId.set(el.id, stepIndex);
@@ -1528,6 +1536,7 @@ export class AnimationController {
       // ── Edge draw ──────────────────────────────────────
       const el = getEdgeEl(this.svg, edge.from, edge.to);
       if (!el) return;
+      showDrawEl(el);
       if (silent) {
         revealEdgeInstant(el);
         requestAnimationFrame(() =>
@@ -2183,6 +2192,7 @@ export const ANIMATION_CSS = `
 .tg.gg-hidden  { opacity: 0; }
 .ntg.gg-hidden { opacity: 0; }
 .cg.gg-hidden  { opacity: 0; }
+.eg.gg-hidden  { opacity: 0; }
 .mdg.gg-hidden { opacity: 0; }
 
 /* narration caption */

@@ -6,6 +6,9 @@
 import type {
   SceneGraph,
   SceneNode,
+  SceneGroup,
+  SceneTable,
+  SceneChart,
 } from "../../scene";
 import { nodeMap, tableMap, chartMap } from "../../scene";
 import { renderRoughChartSVG } from "./roughChartSVG";
@@ -204,6 +207,60 @@ function buildParentGroupLookup(sg: SceneGraph): Map<string, string> {
 
 function setParentGroupData(el: SVGGElement, groupId?: string): void {
   if (groupId) el.dataset.parentGroup = groupId;
+}
+
+type EdgeEndpointKind = "node" | "group" | "table" | "chart";
+
+function resolveEdgeEndpointKind(
+  id: string,
+  nm: Map<string, SceneNode>,
+  tm: Map<string, SceneTable>,
+  gm: Map<string, SceneGroup>,
+  cm: Map<string, SceneChart>,
+): EdgeEndpointKind | null {
+  if (nm.has(id)) return "node";
+  if (gm.has(id)) return "group";
+  if (tm.has(id)) return "table";
+  if (cm.has(id)) return "chart";
+  return null;
+}
+
+function collectEdgeGroupLineage(
+  endpointId: string,
+  endpointKind: EdgeEndpointKind,
+  parentGroups: Map<string, string>,
+): string[] {
+  const lineage: string[] = [];
+  let groupId =
+    endpointKind === "group"
+      ? endpointId
+      : parentGroups.get(`${endpointKind}:${endpointId}`);
+
+  while (groupId) {
+    lineage.push(groupId);
+    groupId = parentGroups.get(`group:${groupId}`);
+  }
+
+  return lineage;
+}
+
+function resolveEdgeParentGroupId(
+  fromId: string,
+  toId: string,
+  nm: Map<string, SceneNode>,
+  tm: Map<string, SceneTable>,
+  gm: Map<string, SceneGroup>,
+  cm: Map<string, SceneChart>,
+  parentGroups: Map<string, string>,
+): string | undefined {
+  const fromKind = resolveEdgeEndpointKind(fromId, nm, tm, gm, cm);
+  const toKind = resolveEdgeEndpointKind(toId, nm, tm, gm, cm);
+  if (!fromKind || !toKind) return undefined;
+
+  const toLineage = new Set(collectEdgeGroupLineage(toId, toKind, parentGroups));
+  return collectEdgeGroupLineage(fromId, fromKind, parentGroups).find((groupId) =>
+    toLineage.has(groupId),
+  );
 }
 
 
@@ -439,6 +496,10 @@ export function renderToSVG(
     const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
 
     const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
+    setParentGroupData(
+      eg,
+      resolveEdgeParentGroupId(e.from, e.to, nm, tm, gmMap, cm, parentGroups),
+    );
     if (e.style?.opacity != null) eg.setAttribute("opacity", String(e.style.opacity));
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
     const nx = (x2 - x1) / len,

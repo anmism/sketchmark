@@ -70,6 +70,7 @@ describe("AnimationController group draw cascade", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
 box a
 box b
+a->b
 group g1 items=[a,b]
 step draw g1
 end`);
@@ -78,51 +79,90 @@ end`);
       const group = getById(svg, "group-g1");
       const a = getById(svg, "node-a");
       const b = getById(svg, "node-b");
+      const edge = getById(svg, "edge-a-b");
 
       expect(isHidden(group)).toBe(true);
       expect(isHidden(a)).toBe(true);
       expect(isHidden(b)).toBe(true);
+      expect(isHidden(edge)).toBe(true);
 
       anim.next();
 
       expect(isHidden(group)).toBe(false);
       expect(isHidden(a)).toBe(false);
       expect(isHidden(b)).toBe(false);
+      expect(isHidden(edge)).toBe(false);
 
       anim.reset();
 
       expect(isHidden(group)).toBe(true);
       expect(isHidden(a)).toBe(true);
       expect(isHidden(b)).toBe(true);
+      expect(isHidden(edge)).toBe(true);
     } finally {
       cleanup();
     }
   });
 
-  it("keeps explicitly drawn child nodes hidden until their own step and restores that state on prev()", () => {
+  it("keeps explicitly drawn child nodes and edges hidden until their own step and restores that state on prev()", () => {
     const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
 box a
 box b
+a->b
 group g1 items=[a,b]
 step draw g1
 step draw a
+step draw a->b
 end`);
 
     try {
       const a = getById(svg, "node-a");
       const b = getById(svg, "node-b");
+      const edge = getById(svg, "edge-a-b");
 
       anim.next();
       expect(isHidden(a)).toBe(true);
       expect(isHidden(b)).toBe(false);
+      expect(isHidden(edge)).toBe(true);
 
       anim.next();
       expect(isHidden(a)).toBe(false);
+      expect(isHidden(edge)).toBe(true);
+
+      anim.next();
+      expect(isHidden(edge)).toBe(false);
 
       anim.prev();
-      expect(anim.currentStep).toBe(0);
-      expect(isHidden(a)).toBe(true);
+      expect(anim.currentStep).toBe(1);
+      expect(isHidden(a)).toBe(false);
       expect(isHidden(b)).toBe(false);
+      expect(isHidden(edge)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps boundary-crossing edges independent from group draw", () => {
+    const { svg, anim, cleanup } = renderAnimatedDiagram(`diagram
+box a
+box b
+box c
+a->b
+a->c
+group g1 items=[a,b]
+step draw g1
+end`);
+
+    try {
+      const internalEdge = getById(svg, "edge-a-b");
+      const externalEdge = getById(svg, "edge-a-c");
+
+      expect(isHidden(internalEdge)).toBe(true);
+      expect(isHidden(externalEdge)).toBe(false);
+
+      anim.next();
+      expect(isHidden(internalEdge)).toBe(false);
+      expect(isHidden(externalEdge)).toBe(false);
     } finally {
       cleanup();
     }
