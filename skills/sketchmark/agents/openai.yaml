@@ -1,4 +1,4 @@
 interface:
   display_name: "Sketchmark"
-  short_description: "Author and revise Sketchmark DSL diagrams and animation steps"
-  default_prompt: "Create or edit valid Sketchmark DSL, keep examples non-indented with .trim() in JS or TS snippets, prefer core primitives unless an official plugin clearly improves the task, and when the user needs to view the result default to SketchmarkEmbed instead of mixing rendering approaches."
+  short_description: "Author and revise Sketchmark DSL diagrams with strong primitive layouts"
+  default_prompt: "Create or edit valid Sketchmark DSL. Choose a primitive layout archetype before authoring, build the skeleton with group or bare containers, prefer core primitives unless an official plugin clearly improves the task, keep examples non-indented with .trim() in JS or TS snippets, and when the user needs to view the result default to SketchmarkEmbed instead of mixing rendering approaches."
