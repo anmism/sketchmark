@@ -7,6 +7,8 @@ import type {
   ASTNode,
   ASTStepItem,
   StyleProps,
+  EdgePoint,
+  EdgeRoute,
   GroupChildRef,
   RootItemRef,
   ASTTableRow,
@@ -60,10 +62,12 @@ export interface SceneEdge {
   labelDy?: number;
   fromAnchor?: string;
   toAnchor?: string;
+  route?: EdgeRoute;
+  via?: EdgePoint[];
   dashed: boolean;
   bidirectional: boolean;
   style: StyleProps;
-  points?: [number, number][];
+  points?: EdgePoint[];
 }
 
 export interface SceneGroup {
@@ -294,6 +298,8 @@ export function buildSceneGraph(ast: DiagramAST): SceneGraph {
     labelDy: e.labelDy,
     fromAnchor: e.fromAnchor,
     toAnchor: e.toAnchor,
+    route: e.route,
+    via: e.via,
     dashed: e.dashed ?? false,
     bidirectional: e.bidirectional ?? false,
     style: e.style ?? {},

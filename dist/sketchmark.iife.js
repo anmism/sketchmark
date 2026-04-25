@@ -360,6 +360,39 @@ var AIDiagram = (function (exports) {
     function isPropKeyToken(t) {
         return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
     }
+    const NUMBER_RE = /[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+    function parseEdgeWaypoints(value, token) {
+        if (!value)
+            return undefined;
+        const numbers = (value.match(NUMBER_RE) ?? []).map((part) => Number(part));
+        if (!numbers.length)
+            return undefined;
+        if (numbers.length % 2 !== 0) {
+            throw new ParseError(`Edge via must contain x,y coordinate pairs`, token.line, token.col);
+        }
+        const points = [];
+        for (let index = 0; index < numbers.length; index += 2) {
+            const x = numbers[index];
+            const y = numbers[index + 1];
+            if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                throw new ParseError(`Edge via contains a non-numeric coordinate`, token.line, token.col);
+            }
+            points.push([x, y]);
+        }
+        return points.length ? points : undefined;
+    }
+    function normalizeEdgeRoute(value, token) {
+        if (!value)
+            return undefined;
+        const normalized = value.toLowerCase();
+        if (normalized === "straight" || normalized === "polyline" || normalized === "orthogonal") {
+            return normalized;
+        }
+        if (normalized === "ortho" || normalized === "elbow") {
+            return "orthogonal";
+        }
+        throw new ParseError(`Unsupported edge route "${value}"; use straight, orthogonal, or polyline`, token.line, token.col);
+    }
     function parse(src, options = {}) {
         resetUid();
         const preparedSource = applyPluginPreprocessors(src, options.plugins);
@@ -718,28 +751,63 @@ var AIDiagram = (function (exports) {
                 height: props.height !== undefined ? parseFloat(props.height) : undefined,
             };
         }
+        function parseEdgeProps(toks) {
+            const props = {};
+            let j = 0;
+            while (j < toks.length) {
+                const key = toks[j];
+                const eq = toks[j + 1];
+                if (!isPropKeyToken(key) || eq?.type !== "EQUALS") {
+                    j++;
+                    continue;
+                }
+                const value = toks[j + 2];
+                if (!value) {
+                    j++;
+                    continue;
+                }
+                if (value.type === "LBRACKET") {
+                    const parts = [];
+                    let depth = 1;
+                    j += 3;
+                    while (j < toks.length && depth > 0) {
+                        const tok = toks[j];
+                        if (tok.type === "LBRACKET") {
+                            depth++;
+                        }
+                        else if (tok.type === "RBRACKET") {
+                            depth--;
+                            if (depth === 0) {
+                                j++;
+                                break;
+                            }
+                        }
+                        if (depth > 0)
+                            parts.push(tok.value);
+                        j++;
+                    }
+                    if (depth > 0) {
+                        throw new ParseError(`Unterminated edge property list; expected ']'`, key.line, key.col);
+                    }
+                    props[key.value] = parts.join(" ");
+                    continue;
+                }
+                props[key.value] = value.value;
+                j += 3;
+            }
+            return props;
+        }
         function parseEdge(fromId, connector, rest) {
             const toTok = rest.shift();
             if (!toTok)
                 throw new ParseError("Expected edge target", 0, 0);
-            const props = {};
-            let j = 0;
-            while (j < rest.length) {
-                const t = rest[j];
-                if ((t.type === "IDENT" || t.type === "KEYWORD") &&
-                    j + 1 < rest.length &&
-                    rest[j + 1].type === "EQUALS") {
-                    props[t.value] = rest[j + 2]?.value ?? "";
-                    j += 3;
-                }
-                else {
-                    j++;
-                }
-            }
+            const props = parseEdgeProps(rest);
             const dashed = connector.includes("--") ||
                 connector.includes(".-") ||
                 connector.includes("-.");
             const bidirectional = connector.includes("<") && connector.includes(">");
+            const via = parseEdgeWaypoints(props.via, toTok);
+            const route = normalizeEdgeRoute(props.route, toTok) ?? (via?.length ? "polyline" : undefined);
             return {
                 kind: "edge",
                 id: uid("edge"),
@@ -751,6 +819,8 @@ var AIDiagram = (function (exports) {
                 labelDy: props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
                 fromAnchor: props["anchor-from"],
                 toAnchor: props["anchor-to"],
+                route,
+                via,
                 dashed,
                 bidirectional,
                 style: propsToStyle(props),
@@ -3684,6 +3754,8 @@ var AIDiagram = (function (exports) {
             labelDy: e.labelDy,
             fromAnchor: e.fromAnchor,
             toAnchor: e.toAnchor,
+            route: e.route,
+            via: e.via,
             dashed: e.dashed ?? false,
             bidirectional: e.bidirectional ?? false,
             style: e.style ?? {},
@@ -4285,6 +4357,151 @@ var AIDiagram = (function (exports) {
         return anchoredConnPoint(src, anchor, dstCX, dstCY);
     }
     // ── Group depth (for paint order) ────────────────────────────────────────
+    function segmentLength(a, b) {
+        return Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    function compactPolylinePoints(points) {
+        const compacted = [];
+        for (const point of points) {
+            const previous = compacted[compacted.length - 1];
+            if (!previous || segmentLength(previous, point) > 0.01) {
+                compacted.push(point);
+            }
+        }
+        return compacted;
+    }
+    function polylinePathData(points) {
+        return points
+            .map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x} ${y}`)
+            .join(" ");
+    }
+    function polylineEndpointDirection(points, end) {
+        const step = end === "start" ? 1 : -1;
+        let index = end === "start" ? 0 : points.length - 1;
+        while (index + step >= 0 && index + step < points.length) {
+            const from = points[index];
+            const to = points[index + step];
+            const dx = to[0] - from[0];
+            const dy = to[1] - from[1];
+            const len = Math.hypot(dx, dy);
+            if (len > 0.01) {
+                return end === "start" ? [dx / len, dy / len] : [-dx / len, -dy / len];
+            }
+            index += step;
+        }
+        return [1, 0];
+    }
+    function insetPolylineEndpoints(points, arrowAt, inset) {
+        const next = points.map((point) => [point[0], point[1]]);
+        if (next.length < 2)
+            return next;
+        if (arrowAt === "start" || arrowAt === "both") {
+            const [dx, dy] = polylineEndpointDirection(next, "start");
+            next[0] = [next[0][0] + dx * inset, next[0][1] + dy * inset];
+        }
+        if (arrowAt === "end" || arrowAt === "both") {
+            const [dx, dy] = polylineEndpointDirection(next, "end");
+            const last = next.length - 1;
+            next[last] = [next[last][0] - dx * inset, next[last][1] - dy * inset];
+        }
+        return compactPolylinePoints(next);
+    }
+    function polylineLabelPosition(points, offset, dx = 0, dy = 0) {
+        if (points.length < 2) {
+            const [x, y] = points[0] ?? [0, 0];
+            return { x: x + dx, y: y + dy };
+        }
+        const lengths = points.slice(1).map((point, index) => segmentLength(points[index], point));
+        const total = lengths.reduce((sum, value) => sum + value, 0);
+        if (total <= 0.01) {
+            const [x, y] = points[0];
+            return { x: x + dx, y: y + dy };
+        }
+        let travelled = 0;
+        const target = total / 2;
+        for (let index = 0; index < lengths.length; index += 1) {
+            const length = lengths[index];
+            if (travelled + length >= target) {
+                const from = points[index];
+                const to = points[index + 1];
+                const t = length > 0 ? (target - travelled) / length : 0;
+                const ux = (to[0] - from[0]) / length;
+                const uy = (to[1] - from[1]) / length;
+                return {
+                    x: from[0] + (to[0] - from[0]) * t - uy * offset + dx,
+                    y: from[1] + (to[1] - from[1]) * t + ux * offset + dy,
+                };
+            }
+            travelled += length;
+        }
+        const [x, y] = points[points.length - 1];
+        return { x: x + dx, y: y + dy };
+    }
+    function rectBoundaryPoint(entity, point, direction) {
+        const [px, py] = point;
+        const [dx, dy] = direction;
+        const candidates = [];
+        const minX = entity.x;
+        const maxX = entity.x + entity.w;
+        const minY = entity.y;
+        const maxY = entity.y + entity.h;
+        const epsilon = 0.01;
+        if (Math.abs(dx) > epsilon) {
+            candidates.push((minX - px) / dx, (maxX - px) / dx);
+        }
+        if (Math.abs(dy) > epsilon) {
+            candidates.push((minY - py) / dy, (maxY - py) / dy);
+        }
+        const valid = candidates
+            .filter((t) => t >= -epsilon)
+            .map((t) => ({
+            t: Math.max(0, t),
+            x: px + dx * t,
+            y: py + dy * t,
+        }))
+            .filter(({ x, y }) => x >= minX - epsilon &&
+            x <= maxX + epsilon &&
+            y >= minY - epsilon &&
+            y <= maxY + epsilon)
+            .sort((a, b) => a.t - b.t);
+        const hit = valid[0];
+        return hit ? [hit.x, hit.y] : point;
+    }
+    function ellipseBoundaryPoint(entity, point, direction) {
+        const [px, py] = point;
+        const [dx, dy] = direction;
+        const cx = entity.x + entity.w / 2;
+        const cy = entity.y + entity.h / 2;
+        const rx = Math.max(1, entity.w * 0.44);
+        const ry = Math.max(1, entity.h * 0.44);
+        const x0 = px - cx;
+        const y0 = py - cy;
+        const a = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+        const b = 2 * ((x0 * dx) / (rx * rx) + (y0 * dy) / (ry * ry));
+        const c = (x0 * x0) / (rx * rx) + (y0 * y0) / (ry * ry) - 1;
+        const disc = b * b - 4 * a * c;
+        if (a <= 0 || disc < 0)
+            return point;
+        const sqrt = Math.sqrt(disc);
+        const hits = [(-b - sqrt) / (2 * a), (-b + sqrt) / (2 * a)]
+            .filter((t) => t >= -0.01)
+            .sort((left, right) => left - right);
+        const t = Math.max(0, hits[0] ?? 0);
+        return [px + dx * t, py + dy * t];
+    }
+    function polylineArrowTipPoint(entity, points, end) {
+        const point = end === "start" ? points[0] : points[points.length - 1];
+        if (!point)
+            return [0, 0];
+        const [dx, dy] = polylineEndpointDirection(points, end);
+        const outward = end === "start" ? [dx, dy] : [-dx, -dy];
+        if (Math.hypot(outward[0], outward[1]) <= 0.01)
+            return point;
+        if (entity.shape === "circle") {
+            return ellipseBoundaryPoint(entity, point, outward);
+        }
+        return rectBoundaryPoint(entity, point, outward);
+    }
     function groupDepth(g, gm) {
         let d = 0;
         let cur = g;
@@ -5245,6 +5462,31 @@ var AIDiagram = (function (exports) {
         const t = Math.min(tx, ty);
         return [cx + t * dx, cy + t * dy];
     }
+    function distance$1(a, b) {
+        return Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    function compactEdgePoints(points) {
+        const compacted = [];
+        for (const point of points) {
+            const previous = compacted[compacted.length - 1];
+            if (!previous || distance$1(previous, point) > 0.01) {
+                compacted.push(point);
+            }
+        }
+        return compacted;
+    }
+    function orthogonalEdgePoints(start, end) {
+        if (Math.abs(start[0] - end[0]) < 0.01 || Math.abs(start[1] - end[1]) < 0.01) {
+            return [start, end];
+        }
+        const midX = (start[0] + end[0]) / 2;
+        return compactEdgePoints([
+            start,
+            [midX, start[1]],
+            [midX, end[1]],
+            end,
+        ]);
+    }
     function routeEdges(sg) {
         const nm = nodeMap(sg);
         const tm = tableMap(sg);
@@ -5274,10 +5516,17 @@ var AIDiagram = (function (exports) {
             }
             const dstCX = dst.x + dst.w / 2, dstCY = dst.y + dst.h / 2;
             const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
-            e.points = [
-                anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY),
-                anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY),
-            ];
+            const start = anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY);
+            const end = anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY);
+            if (e.via?.length) {
+                e.points = compactEdgePoints([start, ...e.via, end]);
+            }
+            else if (e.route === "orthogonal") {
+                e.points = orthogonalEdgePoints(start, end);
+            }
+            else {
+                e.points = [start, end];
+            }
         }
     }
     function computeBounds(sg, margin) {
@@ -5287,6 +5536,7 @@ var AIDiagram = (function (exports) {
             ...sg.tables.map((t) => t.x + t.w),
             ...sg.charts.map((c) => c.x + c.w),
             ...sg.markdowns.map((m) => m.x + m.w),
+            ...sg.edges.flatMap((e) => (e.points ?? []).map(([x]) => x)),
         ];
         const allY = [
             ...sg.nodes.map((n) => n.y + n.h),
@@ -5294,6 +5544,7 @@ var AIDiagram = (function (exports) {
             ...sg.tables.map((t) => t.y + t.h),
             ...sg.charts.map((c) => c.y + c.h),
             ...sg.markdowns.map((m) => m.y + m.h),
+            ...sg.edges.flatMap((e) => (e.points ?? []).map(([, y]) => y)),
         ];
         const autoWidth = (allX.length ? Math.max(...allX) : 400) + margin;
         const autoHeight = (allY.length ? Math.max(...allY) : 300) + margin;
@@ -8467,20 +8718,16 @@ var AIDiagram = (function (exports) {
             const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
             const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
             const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
+            const points = compactPolylinePoints(e.points?.length && e.points.length >= 2 ? e.points : [[x1, y1], [x2, y2]]);
             const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
             setParentGroupData(eg, resolveEdgeParentGroupId(e.from, e.to, nm, tm, gmMap, cm, parentGroups));
             if (e.style?.opacity != null)
                 eg.setAttribute("opacity", String(e.style.opacity));
-            const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
-            const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
             const ecol = String(e.style?.stroke ?? palette.edgeStroke);
             const { arrowAt, dashed } = connMeta(e.connector);
             const HEAD = EDGE.headInset;
-            const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
-            const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
-            const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
-            const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
-            const shaft = rc.line(sx1, sy1, sx2, sy2, {
+            const shaftPoints = insetPolylineEndpoints(points, arrowAt, HEAD);
+            const shaft = rc.path(polylinePathData(shaftPoints), {
                 ...BASE_ROUGH,
                 roughness: 0.9,
                 seed: hashStr$3(e.from + e.to),
@@ -8491,18 +8738,21 @@ var AIDiagram = (function (exports) {
             shaft.setAttribute("data-edge-role", "shaft");
             eg.appendChild(shaft);
             if (arrowAt === "end" || arrowAt === "both") {
-                const endHead = arrowHead(rc, x2, y2, Math.atan2(y2 - y1, x2 - x1), ecol, hashStr$3(e.to));
+                const [endDx, endDy] = polylineEndpointDirection(points, "end");
+                const [endX, endY] = polylineArrowTipPoint(dst, points, "end");
+                const endHead = arrowHead(rc, endX, endY, Math.atan2(endDy, endDx), ecol, hashStr$3(e.to));
                 endHead.setAttribute("data-edge-role", "head");
                 eg.appendChild(endHead);
             }
             if (arrowAt === "start" || arrowAt === "both") {
-                const startHead = arrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + "back"));
+                const [startDx, startDy] = polylineEndpointDirection(points, "start");
+                const [startX, startY] = polylineArrowTipPoint(src, points, "start");
+                const startHead = arrowHead(rc, startX, startY, Math.atan2(-startDy, -startDx), ecol, hashStr$3(e.from + "back"));
                 startHead.setAttribute("data-edge-role", "head");
                 eg.appendChild(startHead);
             }
             if (e.label) {
-                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
-                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
+                const { x: mx, y: my } = polylineLabelPosition(points, EDGE.labelOffset, e.labelDx ?? 0, e.labelDy ?? 0);
                 const tw = Math.max(e.label.length * 7 + 12, 36);
                 const bg = se("rect");
                 bg.setAttribute("x", String(mx - tw / 2));
@@ -9214,31 +9464,31 @@ var AIDiagram = (function (exports) {
             const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
             const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
             const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
+            const points = compactPolylinePoints(e.points?.length && e.points.length >= 2 ? e.points : [[x1, y1], [x2, y2]]);
             if (e.style?.opacity != null)
                 ctx.globalAlpha = Number(e.style.opacity);
             const ecol = String(e.style?.stroke ?? palette.edgeStroke);
             const { arrowAt, dashed } = connMeta(e.connector);
-            const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
-            const nx = (x2 - x1) / len, ny = (y2 - y1) / len;
             const HEAD = EDGE.headInset;
-            const sx1 = arrowAt === 'start' || arrowAt === 'both' ? x1 + nx * HEAD : x1;
-            const sy1 = arrowAt === 'start' || arrowAt === 'both' ? y1 + ny * HEAD : y1;
-            const sx2 = arrowAt === 'end' || arrowAt === 'both' ? x2 - nx * HEAD : x2;
-            const sy2 = arrowAt === 'end' || arrowAt === 'both' ? y2 - ny * HEAD : y2;
-            rc.line(sx1, sy1, sx2, sy2, {
+            const shaftPoints = insetPolylineEndpoints(points, arrowAt, HEAD);
+            rc.path(polylinePathData(shaftPoints), {
                 ...R, roughness: 0.9, seed: hashStr$3(e.from + e.to),
                 stroke: ecol,
                 strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
                 ...(dashed ? { strokeLineDash: EDGE.dashPattern } : {}),
             });
-            const ang = Math.atan2(y2 - y1, x2 - x1);
-            if (arrowAt === 'end' || arrowAt === 'both')
-                drawArrowHead(rc, x2, y2, ang, ecol, hashStr$3(e.to));
-            if (arrowAt === 'start' || arrowAt === 'both')
-                drawArrowHead(rc, x1, y1, Math.atan2(y1 - y2, x1 - x2), ecol, hashStr$3(e.from + 'back'));
+            if (arrowAt === 'end' || arrowAt === 'both') {
+                const [endDx, endDy] = polylineEndpointDirection(points, 'end');
+                const [endX, endY] = polylineArrowTipPoint(dst, points, 'end');
+                drawArrowHead(rc, endX, endY, Math.atan2(endDy, endDx), ecol, hashStr$3(e.to));
+            }
+            if (arrowAt === 'start' || arrowAt === 'both') {
+                const [startDx, startDy] = polylineEndpointDirection(points, 'start');
+                const [startX, startY] = polylineArrowTipPoint(src, points, 'start');
+                drawArrowHead(rc, startX, startY, Math.atan2(-startDy, -startDx), ecol, hashStr$3(e.from + 'back'));
+            }
             if (e.label) {
-                const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
-                const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
+                const { x: mx, y: my } = polylineLabelPosition(points, EDGE.labelOffset, e.labelDx ?? 0, e.labelDy ?? 0);
                 // ── Edge label: font, font-size, letter-spacing ──
                 // always center-anchored (single line)
                 const eFontSize = Number(e.style?.fontSize ?? EDGE.labelFontSize);
@@ -9935,7 +10185,7 @@ var AIDiagram = (function (exports) {
         }));
     }
     // ── Edge draw helpers ─────────────────────────────────────
-    const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path';
+    const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path, path[data-edge-role="shaft"]';
     const EDGE_DECOR_SELECTOR = '[data-edge-role="head"], [data-edge-role="label"], [data-edge-role="label-bg"]';
     function edgeShaftPaths(el) {
         return Array.from(el.querySelectorAll(EDGE_SHAFT_SELECTOR));

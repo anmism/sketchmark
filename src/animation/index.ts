@@ -563,7 +563,7 @@ function animateShapeDraw(el: SVGGElement, strokeDur: number = ANIMATION.nodeStr
 }
 
 // ── Edge draw helpers ─────────────────────────────────────
-const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path';
+const EDGE_SHAFT_SELECTOR = '[data-edge-role="shaft"] path, path[data-edge-role="shaft"]';
 const EDGE_DECOR_SELECTOR =
   '[data-edge-role="head"], [data-edge-role="label"], [data-edge-role="label-bg"]';
 

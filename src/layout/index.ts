@@ -20,7 +20,7 @@ import type {
   SceneTable,
   SceneChart,
 } from "../scene";
-import type { EdgeAnchor, GroupChildRef } from "../ast/types";
+import type { EdgeAnchor, EdgePoint, GroupChildRef } from "../ast/types";
 import { nodeMap, groupMap, tableMap, chartMap } from "../scene";
 
 import { markdownMap } from "../scene";
@@ -424,6 +424,35 @@ function rectConnPoint(
   return [cx + t * dx, cy + t * dy];
 }
 
+function distance(a: EdgePoint, b: EdgePoint): number {
+  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+}
+
+function compactEdgePoints(points: EdgePoint[]): EdgePoint[] {
+  const compacted: EdgePoint[] = [];
+  for (const point of points) {
+    const previous = compacted[compacted.length - 1];
+    if (!previous || distance(previous, point) > 0.01) {
+      compacted.push(point);
+    }
+  }
+  return compacted;
+}
+
+function orthogonalEdgePoints(start: EdgePoint, end: EdgePoint): EdgePoint[] {
+  if (Math.abs(start[0] - end[0]) < 0.01 || Math.abs(start[1] - end[1]) < 0.01) {
+    return [start, end];
+  }
+
+  const midX = (start[0] + end[0]) / 2;
+  return compactEdgePoints([
+    start,
+    [midX, start[1]],
+    [midX, end[1]],
+    end,
+  ]);
+}
+
 function routeEdges(sg: SceneGraph): void {
   const nm = nodeMap(sg);
   const tm = tableMap(sg);
@@ -464,10 +493,16 @@ function routeEdges(sg: SceneGraph): void {
     const srcCX = src.x + src.w / 2,
       srcCY = src.y + src.h / 2;
 
-    e.points = [
-      anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY),
-      anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY),
-    ];
+    const start = anchoredConnPoint(src, e.fromAnchor, dstCX, dstCY);
+    const end = anchoredConnPoint(dst, e.toAnchor, srcCX, srcCY);
+
+    if (e.via?.length) {
+      e.points = compactEdgePoints([start, ...e.via, end]);
+    } else if (e.route === "orthogonal") {
+      e.points = orthogonalEdgePoints(start, end);
+    } else {
+      e.points = [start, end];
+    }
   }
 }
 
@@ -478,6 +513,7 @@ function computeBounds(sg: SceneGraph, margin: number): void {
     ...sg.tables.map((t) => t.x + t.w),
     ...sg.charts.map((c) => c.x + c.w),
     ...sg.markdowns.map((m) => m.x + m.w),
+    ...sg.edges.flatMap((e) => (e.points ?? []).map(([x]) => x)),
   ];
 
   const allY = [
@@ -486,6 +522,7 @@ function computeBounds(sg: SceneGraph, margin: number): void {
     ...sg.tables.map((t) => t.y + t.h),
     ...sg.charts.map((c) => c.y + c.h),
     ...sg.markdowns.map((m) => m.y + m.h),
+    ...sg.edges.flatMap((e) => (e.points ?? []).map(([, y]) => y)),
   ];
   const autoWidth = (allX.length ? Math.max(...allX) : 400) + margin;
   const autoHeight = (allY.length ? Math.max(...allY) : 300) + margin;

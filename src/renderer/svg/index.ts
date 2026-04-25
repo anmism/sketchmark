@@ -23,7 +23,9 @@ import {
 
 import {
   hashStr, darkenHex, resolveStyleFont, wrapText, buildFontStr, shapeInnerTextWidth,
-  connMeta, resolveEndpoint, getConnPoint, groupDepth,
+  connMeta, resolveEndpoint, getConnPoint, groupDepth, compactPolylinePoints,
+  insetPolylineEndpoints, polylineEndpointDirection, polylineLabelPosition,
+  polylinePathData, polylineArrowTipPoint,
 } from '../shared';
 import { getShape } from '../shapes';
 import { getBottomLabelCenterY, usesBottomLabelStrip } from "../shapes/label-strip";
@@ -494,6 +496,9 @@ export function renderToSVG(
       srcCY = src.y + src.h / 2;
     const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
     const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
+    const points = compactPolylinePoints(
+      e.points?.length && e.points.length >= 2 ? e.points : [[x1, y1], [x2, y2]],
+    );
 
     const eg = mkGroup(`edge-${e.from}-${e.to}`, "eg");
     setParentGroupData(
@@ -501,19 +506,13 @@ export function renderToSVG(
       resolveEdgeParentGroupId(e.from, e.to, nm, tm, gmMap, cm, parentGroups),
     );
     if (e.style?.opacity != null) eg.setAttribute("opacity", String(e.style.opacity));
-    const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2) || 1;
-    const nx = (x2 - x1) / len,
-      ny = (y2 - y1) / len;
     const ecol = String(e.style?.stroke ?? palette.edgeStroke);
     const { arrowAt, dashed } = connMeta(e.connector);
 
     const HEAD = EDGE.headInset;
-    const sx1 = arrowAt === "start" || arrowAt === "both" ? x1 + nx * HEAD : x1;
-    const sy1 = arrowAt === "start" || arrowAt === "both" ? y1 + ny * HEAD : y1;
-    const sx2 = arrowAt === "end" || arrowAt === "both" ? x2 - nx * HEAD : x2;
-    const sy2 = arrowAt === "end" || arrowAt === "both" ? y2 - ny * HEAD : y2;
+    const shaftPoints = insetPolylineEndpoints(points, arrowAt, HEAD);
 
-    const shaft = rc.line(sx1, sy1, sx2, sy2, {
+    const shaft = rc.path(polylinePathData(shaftPoints), {
       ...BASE_ROUGH,
       roughness: 0.9,
       seed: hashStr(e.from + e.to),
@@ -525,11 +524,13 @@ export function renderToSVG(
     eg.appendChild(shaft);
 
     if (arrowAt === "end" || arrowAt === "both") {
+      const [endDx, endDy] = polylineEndpointDirection(points, "end");
+      const [endX, endY] = polylineArrowTipPoint(dst, points, "end");
       const endHead = arrowHead(
         rc,
-        x2,
-        y2,
-        Math.atan2(y2 - y1, x2 - x1),
+        endX,
+        endY,
+        Math.atan2(endDy, endDx),
         ecol,
         hashStr(e.to),
       );
@@ -537,11 +538,13 @@ export function renderToSVG(
       eg.appendChild(endHead);
     }
     if (arrowAt === "start" || arrowAt === "both") {
+      const [startDx, startDy] = polylineEndpointDirection(points, "start");
+      const [startX, startY] = polylineArrowTipPoint(src, points, "start");
       const startHead = arrowHead(
         rc,
-        x1,
-        y1,
-        Math.atan2(y1 - y2, x1 - x2),
+        startX,
+        startY,
+        Math.atan2(-startDy, -startDx),
         ecol,
         hashStr(e.from + "back"),
       );
@@ -550,8 +553,12 @@ export function renderToSVG(
     }
 
     if (e.label) {
-      const mx = (x1 + x2) / 2 - ny * EDGE.labelOffset + (e.labelDx ?? 0);
-      const my = (y1 + y2) / 2 + nx * EDGE.labelOffset + (e.labelDy ?? 0);
+      const { x: mx, y: my } = polylineLabelPosition(
+        points,
+        EDGE.labelOffset,
+        e.labelDx ?? 0,
+        e.labelDy ?? 0,
+      );
       const tw = Math.max(e.label.length * 7 + 12, 36);
 
       const bg = se("rect") as SVGRectElement;

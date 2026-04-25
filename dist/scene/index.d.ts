@@ -1,4 +1,4 @@
-import type { DiagramAST, ASTNode, ASTStepItem, StyleProps, GroupChildRef, RootItemRef, ASTTableRow } from "../ast/types";
+import type { DiagramAST, ASTNode, ASTStepItem, StyleProps, EdgePoint, EdgeRoute, GroupChildRef, RootItemRef, ASTTableRow } from "../ast/types";
 import type { MarkdownLine } from '../markdown/parser';
 export type { GroupChildRef, RootItemRef };
 export interface SceneRect {
@@ -42,10 +42,12 @@ export interface SceneEdge {
     labelDy?: number;
     fromAnchor?: string;
     toAnchor?: string;
+    route?: EdgeRoute;
+    via?: EdgePoint[];
     dashed: boolean;
     bidirectional: boolean;
     style: StyleProps;
-    points?: [number, number][];
+    points?: EdgePoint[];
 }
 export interface SceneGroup {
     id: string;

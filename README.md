@@ -438,7 +438,18 @@ a --- b                      # dashed line, no arrow
 
 # With style overrides
 a --> b label="HTTPS" stroke="#cc0000" stroke-width=2 color="#aa0000" font-size=10
+
+# Orthogonal / polyline routing
+a --> b route=orthogonal
+a --> b via=[160,40,160,180]
+a --> b via="160,40 160,180" label="manual route"
 ```
+
+`route=orthogonal` creates a right-angle elbow route between the edge endpoints.
+`via` supplies manual waypoint coordinates as x,y pairs; it can use bracket
+syntax or a quoted string. Waypoint coordinates are canvas-space coordinates
+after layout, so `layout=absolute margin=0` is the easiest mode for precise
+manual routing.
 
 ### Edge Style Properties
 
@@ -447,6 +458,8 @@ a --> b label="HTTPS" stroke="#cc0000" stroke-width=2 color="#aa0000" font-size=
 | `label` | Text label floating on the edge |
 | `label-dx` | Horizontal edge-label nudge to avoid crowded midpoints or crossings |
 | `label-dy` | Vertical edge-label nudge to avoid crowded midpoints or crossings |
+| `route` | `straight`, `orthogonal`, or `polyline`; `orthogonal` auto-generates elbow points |
+| `via` | Manual polyline waypoints as x,y pairs, e.g. `via=[120,40,120,160]` |
 | `stroke` | Line color |
 | `stroke-width` | Line thickness |
 | `color` | Label text color |
@@ -1069,8 +1082,8 @@ Nodes can also opt into authored absolute `x`/`y` positioning when their parent 
 | Edge labels | ✅ | |
 | Edge color/stroke override | ✅ | |
 | Self-loops | ❌ | |
-| Curved/bezier edges | ❌ | Straight lines only |
-| Waypoints / routing control | ❌ | Auto-routed |
+| Curved/bezier edges | ❌ | Straight and polyline segments only |
+| Waypoints / routing control | ✅ | Use `via=[x1,y1,x2,y2]` or `route=orthogonal` |
 | Multiple edges between same nodes | ✅ | Stack visually |
 | Edge from/to groups | ✅ | Uses group center |
 

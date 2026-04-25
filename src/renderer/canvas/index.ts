@@ -21,7 +21,9 @@ import rough from 'roughjs/bin/rough';
 
 import {
   hashStr, darkenHex, resolveStyleFont, wrapText, buildFontStr, shapeInnerTextWidth,
-  connMeta, resolveEndpoint, getConnPoint, groupDepth,
+  connMeta, resolveEndpoint, getConnPoint, groupDepth, compactPolylinePoints,
+  insetPolylineEndpoints, polylineEndpointDirection, polylineLabelPosition,
+  polylinePathData, polylineArrowTipPoint,
 } from '../shared';
 import { getShape } from '../shapes';
 import { getBottomLabelCenterY, usesBottomLabelStrip } from "../shapes/label-strip";
@@ -256,35 +258,42 @@ export function renderToCanvas(
     const srcCX = src.x + src.w / 2, srcCY = src.y + src.h / 2;
     const [x1, y1] = getConnPoint(src, dstCX, dstCY, e.fromAnchor);
     const [x2, y2] = getConnPoint(dst, srcCX, srcCY, e.toAnchor);
+    const points = compactPolylinePoints(
+      e.points?.length && e.points.length >= 2 ? e.points : [[x1, y1], [x2, y2]],
+    );
 
     if (e.style?.opacity != null) ctx.globalAlpha = Number(e.style.opacity);
     const ecol   = String(e.style?.stroke ?? palette.edgeStroke);
     const { arrowAt, dashed } = connMeta(e.connector);
-    const len    = Math.sqrt((x2-x1)**2 + (y2-y1)**2) || 1;
-    const nx     = (x2-x1)/len, ny = (y2-y1)/len;
 
     const HEAD = EDGE.headInset;
-    const sx1 = arrowAt === 'start' || arrowAt === 'both' ? x1 + nx*HEAD : x1;
-    const sy1 = arrowAt === 'start' || arrowAt === 'both' ? y1 + ny*HEAD : y1;
-    const sx2 = arrowAt === 'end'   || arrowAt === 'both' ? x2 - nx*HEAD : x2;
-    const sy2 = arrowAt === 'end'   || arrowAt === 'both' ? y2 - ny*HEAD : y2;
+    const shaftPoints = insetPolylineEndpoints(points, arrowAt, HEAD);
 
-    rc.line(sx1, sy1, sx2, sy2, {
+    rc.path(polylinePathData(shaftPoints), {
       ...R, roughness: 0.9, seed: hashStr(e.from + e.to),
       stroke:      ecol,
       strokeWidth: Number(e.style?.strokeWidth ?? 1.6),
       ...(dashed ? { strokeLineDash: EDGE.dashPattern as number[] } : {}),
     });
 
-    const ang = Math.atan2(y2-y1, x2-x1);
-    if (arrowAt === 'end'   || arrowAt === 'both')
-      drawArrowHead(rc, x2, y2, ang, ecol, hashStr(e.to), R);
-    if (arrowAt === 'start' || arrowAt === 'both')
-      drawArrowHead(rc, x1, y1, Math.atan2(y1-y2, x1-x2), ecol, hashStr(e.from+'back'), R);
+    if (arrowAt === 'end'   || arrowAt === 'both') {
+      const [endDx, endDy] = polylineEndpointDirection(points, 'end');
+      const [endX, endY] = polylineArrowTipPoint(dst, points, 'end');
+      drawArrowHead(rc, endX, endY, Math.atan2(endDy, endDx), ecol, hashStr(e.to), R);
+    }
+    if (arrowAt === 'start' || arrowAt === 'both') {
+      const [startDx, startDy] = polylineEndpointDirection(points, 'start');
+      const [startX, startY] = polylineArrowTipPoint(src, points, 'start');
+      drawArrowHead(rc, startX, startY, Math.atan2(-startDy, -startDx), ecol, hashStr(e.from+'back'), R);
+    }
 
     if (e.label) {
-      const mx = (x1+x2)/2 - ny*EDGE.labelOffset + (e.labelDx ?? 0);
-      const my = (y1+y2)/2 + nx*EDGE.labelOffset + (e.labelDy ?? 0);
+      const { x: mx, y: my } = polylineLabelPosition(
+        points,
+        EDGE.labelOffset,
+        e.labelDx ?? 0,
+        e.labelDy ?? 0,
+      );
 
       // ── Edge label: font, font-size, letter-spacing ──
       // always center-anchored (single line)

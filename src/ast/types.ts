@@ -10,6 +10,10 @@ export type NodeShape =
 export type EdgeConnector =
   | '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
 
+export type EdgeRoute = 'straight' | 'orthogonal' | 'polyline';
+
+export type EdgePoint = [number, number];
+
 export type EdgeAnchor =
   | 'top'
   | 'right'
@@ -78,6 +82,8 @@ export interface ASTEdge {
   labelDx?: number; labelDy?: number;
   fromAnchor?: EdgeAnchor;
   toAnchor?: EdgeAnchor;
+  route?: EdgeRoute;
+  via?: EdgePoint[];
   dashed?: boolean; bidirectional?: boolean;
   theme?: string;
   style?: StyleProps;

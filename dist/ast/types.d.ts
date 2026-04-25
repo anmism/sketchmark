@@ -1,5 +1,7 @@
 export type NodeShape = 'box' | 'circle' | 'diamond' | 'hexagon' | 'triangle' | 'cylinder' | 'parallelogram' | 'text' | 'image' | 'icon' | 'note' | 'line' | 'path';
 export type EdgeConnector = '->' | '<-' | '<->' | '-->' | '<-->' | '---' | '--';
+export type EdgeRoute = 'straight' | 'orthogonal' | 'polyline';
+export type EdgePoint = [number, number];
 export type EdgeAnchor = 'top' | 'right' | 'bottom' | 'left' | 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type LayoutType = 'row' | 'column' | 'grid' | 'absolute';
 export type AlignItems = 'start' | 'center' | 'end';
@@ -89,6 +91,8 @@ export interface ASTEdge {
     labelDy?: number;
     fromAnchor?: EdgeAnchor;
     toAnchor?: EdgeAnchor;
+    route?: EdgeRoute;
+    via?: EdgePoint[];
     dashed?: boolean;
     bidirectional?: boolean;
     theme?: string;

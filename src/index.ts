@@ -48,6 +48,8 @@ export type {
   NodeShape,
   EdgeConnector,
   EdgeAnchor,
+  EdgeRoute,
+  EdgePoint,
   LayoutType,
   AlignItems,
   JustifyContent,

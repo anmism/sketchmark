@@ -19,6 +19,8 @@ import type {
   NodeShape,
   EdgeConnector,
   EdgeAnchor,
+  EdgeRoute,
+  EdgePoint,
   LayoutType,
   StyleProps,
   AnimationAction,
@@ -115,6 +117,56 @@ function isValueToken(t?: Token): t is Token {
 
 function isPropKeyToken(t?: Token): t is Token {
   return !!t && (t.type === "IDENT" || t.type === "KEYWORD");
+}
+
+const NUMBER_RE = /[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+
+function parseEdgeWaypoints(value: string | undefined, token: Token): EdgePoint[] | undefined {
+  if (!value) return undefined;
+
+  const numbers = (value.match(NUMBER_RE) ?? []).map((part) => Number(part));
+  if (!numbers.length) return undefined;
+  if (numbers.length % 2 !== 0) {
+    throw new ParseError(
+      `Edge via must contain x,y coordinate pairs`,
+      token.line,
+      token.col,
+    );
+  }
+
+  const points: EdgePoint[] = [];
+  for (let index = 0; index < numbers.length; index += 2) {
+    const x = numbers[index]!;
+    const y = numbers[index + 1]!;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new ParseError(
+        `Edge via contains a non-numeric coordinate`,
+        token.line,
+        token.col,
+      );
+    }
+    points.push([x, y]);
+  }
+
+  return points.length ? points : undefined;
+}
+
+function normalizeEdgeRoute(value: string | undefined, token: Token): EdgeRoute | undefined {
+  if (!value) return undefined;
+
+  const normalized = value.toLowerCase();
+  if (normalized === "straight" || normalized === "polyline" || normalized === "orthogonal") {
+    return normalized;
+  }
+  if (normalized === "ortho" || normalized === "elbow") {
+    return "orthogonal";
+  }
+
+  throw new ParseError(
+    `Unsupported edge route "${value}"; use straight, orthogonal, or polyline`,
+    token.line,
+    token.col,
+  );
 }
 
 export function parse(src: string, options: ParseOptions = {}): DiagramAST {
@@ -549,6 +601,64 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
     };
   }
 
+  function parseEdgeProps(toks: Token[]): Record<string, string> {
+    const props: Record<string, string> = {};
+    let j = 0;
+
+    while (j < toks.length) {
+      const key = toks[j];
+      const eq = toks[j + 1];
+      if (!isPropKeyToken(key) || eq?.type !== "EQUALS") {
+        j++;
+        continue;
+      }
+
+      const value = toks[j + 2];
+      if (!value) {
+        j++;
+        continue;
+      }
+
+      if (value.type === "LBRACKET") {
+        const parts: string[] = [];
+        let depth = 1;
+        j += 3;
+
+        while (j < toks.length && depth > 0) {
+          const tok = toks[j]!;
+          if (tok.type === "LBRACKET") {
+            depth++;
+          } else if (tok.type === "RBRACKET") {
+            depth--;
+            if (depth === 0) {
+              j++;
+              break;
+            }
+          }
+
+          if (depth > 0) parts.push(tok.value);
+          j++;
+        }
+
+        if (depth > 0) {
+          throw new ParseError(
+            `Unterminated edge property list; expected ']'`,
+            key.line,
+            key.col,
+          );
+        }
+
+        props[key.value] = parts.join(" ");
+        continue;
+      }
+
+      props[key.value] = value.value;
+      j += 3;
+    }
+
+    return props;
+  }
+
   function parseEdge(
     fromId: string,
     connector: string,
@@ -557,27 +667,15 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
     const toTok = rest.shift();
     if (!toTok) throw new ParseError("Expected edge target", 0, 0);
 
-    const props: Record<string, string> = {};
-    let j = 0;
-    while (j < rest.length) {
-      const t = rest[j];
-      if (
-        (t.type === "IDENT" || t.type === "KEYWORD") &&
-        j + 1 < rest.length &&
-        rest[j + 1].type === "EQUALS"
-      ) {
-        props[t.value] = rest[j + 2]?.value ?? "";
-        j += 3;
-      } else {
-        j++;
-      }
-    }
+    const props = parseEdgeProps(rest);
 
     const dashed =
       connector.includes("--") ||
       connector.includes(".-") ||
       connector.includes("-.");
     const bidirectional = connector.includes("<") && connector.includes(">");
+    const via = parseEdgeWaypoints(props.via, toTok);
+    const route = normalizeEdgeRoute(props.route, toTok) ?? (via?.length ? "polyline" : undefined);
 
     return {
       kind: "edge",
@@ -592,6 +690,8 @@ export function parse(src: string, options: ParseOptions = {}): DiagramAST {
         props["label-dy"] !== undefined ? parseFloat(props["label-dy"]) : undefined,
       fromAnchor: props["anchor-from"] as EdgeAnchor | undefined,
       toAnchor: props["anchor-to"] as EdgeAnchor | undefined,
+      route,
+      via,
       dashed,
       bidirectional,
       style: propsToStyle(props),
