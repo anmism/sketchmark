@@ -347,14 +347,5 @@ beat {
 - Are `x` and `y` only used inside absolute layout?
 - If animation is present, is the example using SVG?
 - Diagram should only start with `diagram` end with `end`, even if different plugins used.
-
-## CRITICAL
-- Do not overload shape labels.
-- Do not put more than one core idea in one node.
-- Do not use shapes for paragraph text.
-- Do not shrink text to solve crowding.
-- Do not use `absolute` layout to hide poor structure.
-- Do not mix title, formula, and definitions in one box.
-- Do not place supporting text so close that it looks attached to the wrong node.
-- Do not fix dense layouts with offsets alone; restructure first.
+- Use one node for the concept title, one node for the formula, and separate text/note blocks for explanations.
 
