@@ -8,6 +8,7 @@ import { renderToCanvas } from "./renderer/canvas";
 import type { SVGRendererOptions } from "./renderer/svg";
 import type { CanvasRendererOptions } from "./renderer/canvas";
 import type { SketchmarkPlugin } from "./plugins";
+import { bindExportAnimationState } from "./export/state";
 
 export interface RenderOptions {
   container: string | HTMLElement | SVGSVGElement;
@@ -99,6 +100,7 @@ export function render(options: RenderOptions): DiagramInstance {
 
     const containerEl = el instanceof SVGSVGElement ? undefined : (el as HTMLElement);
     anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
+    bindExportAnimationState(svg, { steps: ast.steps, config: ast.config });
   }
 
   if (typeof tts === "boolean") {

@@ -11402,8 +11402,11 @@ var AIDiagram = (function (exports) {
          * 4. After guide finishes → fade in rough.js element, remove guide
          */
         _animateAnnotation(roughEl, guideD, silent) {
-            if (silent)
+            if (silent) {
+                roughEl.style.opacity = "1";
+                roughEl.style.transition = "none";
                 return;
+            }
             // Hide rough.js element — will be revealed after guide draws
             roughEl.style.opacity = "0";
             roughEl.style.transition = "none";
@@ -11693,10 +11696,74 @@ var AIDiagram = (function (exports) {
 .skm-caption { pointer-events: none; user-select: none; }
 `;
 
+    const exportAnimationState = new WeakMap();
+    function bindExportAnimationState(svg, state) {
+        exportAnimationState.set(svg, state);
+    }
+    function getExportAnimationState(svg) {
+        return exportAnimationState.get(svg);
+    }
+
     // ============================================================
     // sketchmark — Export System
     // SVG, PNG, Canvas, GIF (stub), MP4 (stub)
     // ============================================================
+    const EXPORT_SVG_STYLE_ID = "sketchmark-export-state";
+    const EXPORT_SVG_STATE_CSS = `
+.ng, .gg, .tg, .ntg, .cg, .eg, .mdg {
+  animation: none !important;
+  transition: none !important;
+}
+
+.ng.hidden { opacity: 0 !important; pointer-events: none !important; }
+.gg.gg-hidden,
+.tg.gg-hidden,
+.ntg.gg-hidden,
+.cg.gg-hidden,
+.eg.gg-hidden,
+.mdg.gg-hidden { opacity: 0 !important; }
+
+.ng.faded,
+.gg.faded,
+.tg.faded,
+.ntg.faded,
+.cg.faded,
+.eg.faded,
+.mdg.faded { opacity: 0.22 !important; }
+
+.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon,
+.tg.hl path, .tg.hl rect,
+.ntg.hl path, .ntg.hl polygon,
+.cg.hl path, .cg.hl rect,
+.mdg.hl text,
+.eg.hl path, .eg.hl line, .eg.hl polygon { stroke-width: 2.8 !important; }
+`;
+    function buildExportSnapshot(svg) {
+        const snapshot = svg.cloneNode(true);
+        const animationState = getExportAnimationState(svg);
+        if (animationState?.steps.length) {
+            snapshot.querySelector("#annotation-layer")?.remove();
+            let rc = null;
+            try {
+                rc = rough.svg(snapshot);
+            }
+            catch {
+                rc = null;
+            }
+            const anim = new AnimationController(snapshot, animationState.steps, undefined, rc, animationState.config);
+            anim.goTo(animationState.steps.length - 1);
+        }
+        injectExportStyles(snapshot);
+        return snapshot;
+    }
+    function injectExportStyles(svg) {
+        if (svg.querySelector(`#${EXPORT_SVG_STYLE_ID}`))
+            return;
+        const style = document.createElementNS(SVG_NS$1, "style");
+        style.setAttribute("id", EXPORT_SVG_STYLE_ID);
+        style.textContent = EXPORT_SVG_STATE_CSS;
+        svg.insertBefore(style, svg.firstChild);
+    }
     // ── Trigger browser download ──────────────────────────────
     function download(blob, filename) {
         const url = URL.createObjectURL(blob);
@@ -11710,15 +11777,15 @@ var AIDiagram = (function (exports) {
     }
     // ── SVG export ────────────────────────────────────────────
     function exportSVG(svg, opts = {}) {
-        const str = svgToString(svg);
+        const str = svgToString(buildExportSnapshot(svg));
         const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
         download(blob, opts.filename ?? 'diagram.svg');
     }
     function getSVGString(svg) {
-        return svgToString(svg);
+        return svgToString(buildExportSnapshot(svg));
     }
     function getSVGBlob(svg) {
-        return new Blob([svgToString(svg)], { type: 'image/svg+xml;charset=utf-8' });
+        return new Blob([svgToString(buildExportSnapshot(svg))], { type: 'image/svg+xml;charset=utf-8' });
     }
     // ── PNG export (from SVG via Canvas) ─────────────────────
     async function exportPNG(svg, opts = {}) {
@@ -11744,7 +11811,7 @@ var AIDiagram = (function (exports) {
             ctx.fillStyle = EXPORT.fallbackBg;
             ctx.fillRect(0, 0, w, h);
         }
-        const svgStr = svgToString(svg);
+        const svgStr = svgToString(buildExportSnapshot(svg));
         const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         await new Promise((resolve, reject) => {
@@ -11762,7 +11829,7 @@ var AIDiagram = (function (exports) {
     }
     // ── HTML export (self-contained) ──────────────────────────
     function exportHTML(svg, dslSource, opts = {}) {
-        const svgStr = svgToString(svg);
+        const svgStr = svgToString(buildExportSnapshot(svg));
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11943,6 +12010,7 @@ var AIDiagram = (function (exports) {
             }
             const containerEl = el instanceof SVGSVGElement ? undefined : el;
             anim = new AnimationController(svg, ast.steps, containerEl, rc, ast.config);
+            bindExportAnimationState(svg, { steps: ast.steps, config: ast.config });
         }
         if (typeof tts === "boolean") {
             anim.tts = tts;

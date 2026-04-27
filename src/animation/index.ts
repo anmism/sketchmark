@@ -1902,7 +1902,11 @@ export class AnimationController {
    * 4. After guide finishes → fade in rough.js element, remove guide
    */
   private _animateAnnotation(roughEl: SVGElement, guideD: string, silent: boolean): void {
-    if (silent) return;
+    if (silent) {
+      roughEl.style.opacity = "1";
+      roughEl.style.transition = "none";
+      return;
+    }
 
     // Hide rough.js element — will be revealed after guide draws
     roughEl.style.opacity = "0";

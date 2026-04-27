@@ -3,9 +3,12 @@
 // SVG, PNG, Canvas, GIF (stub), MP4 (stub)
 // ============================================================
 
-import { svgToString } from '../renderer/svg';
-import { canvasToPNGBlob } from '../renderer/canvas';
-import { EXPORT } from '../config';
+import rough from "roughjs/bin/rough";
+import { AnimationController } from "../animation";
+import { EXPORT, SVG_NS } from "../config";
+import { canvasToPNGBlob } from "../renderer/canvas";
+import { svgToString } from "../renderer/svg";
+import { getExportAnimationState } from "./state";
 
 export type ExportFormat = 'svg' | 'png' | 'html' | 'canvas' | 'gif' | 'mp4';
 
@@ -14,6 +17,73 @@ export interface ExportOptions {
   scale?: number;       // PNG pixel density (default: 2)
   background?: string;  // PNG background colour
   quality?: number;     // JPEG quality 0-1 (if applicable)
+}
+
+const EXPORT_SVG_STYLE_ID = "sketchmark-export-state";
+const EXPORT_SVG_STATE_CSS = `
+.ng, .gg, .tg, .ntg, .cg, .eg, .mdg {
+  animation: none !important;
+  transition: none !important;
+}
+
+.ng.hidden { opacity: 0 !important; pointer-events: none !important; }
+.gg.gg-hidden,
+.tg.gg-hidden,
+.ntg.gg-hidden,
+.cg.gg-hidden,
+.eg.gg-hidden,
+.mdg.gg-hidden { opacity: 0 !important; }
+
+.ng.faded,
+.gg.faded,
+.tg.faded,
+.ntg.faded,
+.cg.faded,
+.eg.faded,
+.mdg.faded { opacity: 0.22 !important; }
+
+.ng.hl path, .ng.hl rect, .ng.hl ellipse, .ng.hl polygon,
+.tg.hl path, .tg.hl rect,
+.ntg.hl path, .ntg.hl polygon,
+.cg.hl path, .cg.hl rect,
+.mdg.hl text,
+.eg.hl path, .eg.hl line, .eg.hl polygon { stroke-width: 2.8 !important; }
+`;
+
+function buildExportSnapshot(svg: SVGSVGElement): SVGSVGElement {
+  const snapshot = svg.cloneNode(true) as SVGSVGElement;
+  const animationState = getExportAnimationState(svg);
+
+  if (animationState?.steps.length) {
+    snapshot.querySelector("#annotation-layer")?.remove();
+
+    let rc: unknown = null;
+    try {
+      rc = rough.svg(snapshot);
+    } catch {
+      rc = null;
+    }
+
+    const anim = new AnimationController(
+      snapshot,
+      animationState.steps,
+      undefined,
+      rc,
+      animationState.config,
+    );
+    anim.goTo(animationState.steps.length - 1);
+  }
+
+  injectExportStyles(snapshot);
+  return snapshot;
+}
+
+function injectExportStyles(svg: SVGSVGElement): void {
+  if (svg.querySelector(`#${EXPORT_SVG_STYLE_ID}`)) return;
+  const style = document.createElementNS(SVG_NS, "style");
+  style.setAttribute("id", EXPORT_SVG_STYLE_ID);
+  style.textContent = EXPORT_SVG_STATE_CSS;
+  svg.insertBefore(style, svg.firstChild);
 }
 
 // ── Trigger browser download ──────────────────────────────
@@ -29,17 +99,17 @@ function download(blob: Blob, filename: string): void {
 
 // ── SVG export ────────────────────────────────────────────
 export function exportSVG(svg: SVGSVGElement, opts: ExportOptions = {}): void {
-  const str  = svgToString(svg);
+  const str  = svgToString(buildExportSnapshot(svg));
   const blob = new Blob([str], { type: 'image/svg+xml;charset=utf-8' });
   download(blob, opts.filename ?? 'diagram.svg');
 }
 
 export function getSVGString(svg: SVGSVGElement): string {
-  return svgToString(svg);
+  return svgToString(buildExportSnapshot(svg));
 }
 
 export function getSVGBlob(svg: SVGSVGElement): Blob {
-  return new Blob([svgToString(svg)], { type: 'image/svg+xml;charset=utf-8' });
+  return new Blob([svgToString(buildExportSnapshot(svg))], { type: 'image/svg+xml;charset=utf-8' });
 }
 
 // ── PNG export (from SVG via Canvas) ─────────────────────
@@ -72,7 +142,7 @@ export async function svgToPNGDataURL(
     ctx.fillRect(0, 0, w, h);
   }
 
-  const svgStr  = svgToString(svg);
+  const svgStr  = svgToString(buildExportSnapshot(svg));
   const blob    = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
   const url     = URL.createObjectURL(blob);
 
@@ -101,7 +171,7 @@ export function exportHTML(
   dslSource: string,
   opts: ExportOptions = {}
 ): void {
-  const svgStr = svgToString(svg);
+  const svgStr = svgToString(buildExportSnapshot(svg));
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
