@@ -1,9 +1,9 @@
 {
-  "name": "@sketchmark/plugin-chem-molecule",
-  "version": "0.1.2",
+  "name": "@sketchmark/diagram-molecule",
+  "version": "0.0.2",
   "description": "Primitive molecule diagrams for Sketchmark. Compiles lightweight chem.* commands into standard Sketchmark groups and nodes.",
   "keywords": [
-    "sketchmark",
+    "@sketchmark/diagram",
     "plugin",
     "chemistry",
     "molecule",
@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "sketchmark": "^1.1.6"
+    "@sketchmark/diagram": "^0.0.1"
   },
   "sideEffects": false,
   "repository": {

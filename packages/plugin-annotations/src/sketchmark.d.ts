@@ -1,4 +1,4 @@
-declare module "sketchmark" {
+declare module "@sketchmark/diagram" {
   export interface StyleProps {
     fill?: string;
     stroke?: string;

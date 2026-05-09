@@ -40,7 +40,7 @@ src/
 ### 2. Import sketchmark at the top of the client component
 
 ```tsx
-import { SketchmarkEmbed } from "sketchmark";
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 ```
 
 Because the component is already marked with `'use client'`, a normal import is fine here. The embed should still be created inside `useEffect`, but the module itself does not need dynamic import gymnastics.

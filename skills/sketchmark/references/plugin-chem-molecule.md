@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-chem-molecule/README.md`.
 
-Use `@sketchmark/plugin-chem-molecule` for lightweight molecule diagrams.
+Use `@sketchmark/diagram-molecule` for lightweight molecule diagrams.
 
 ## Layout Rule
 

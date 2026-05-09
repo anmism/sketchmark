@@ -40,7 +40,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-circuit", () => {
+describe("@sketchmark/diagram-circuit", () => {
   it("compiles ckt.* commands into ordinary absolute-layout groups and nodes", () => {
     const compiled = compileCircuit(`diagram
 ckt.port vin x=80 y=140 label="Vin"

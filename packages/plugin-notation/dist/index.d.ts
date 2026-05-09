@@ -1,4 +1,4 @@
-import type { SketchmarkPlugin } from "sketchmark";
+import type { SketchmarkPlugin } from "@sketchmark/diagram";
 export interface NotationPluginOptions {
     delimiters?: ReadonlyArray<readonly [string, string]>;
     transformNarration?: boolean;

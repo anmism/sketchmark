@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "sketchmark": "latest"
+    "@sketchmark/diagram": "latest"
   },
   "devDependencies": {
     "vite": "^5.0.0"

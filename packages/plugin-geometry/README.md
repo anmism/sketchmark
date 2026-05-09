@@ -1,4 +1,4 @@
-# @sketchmark/plugin-geometry
+# @sketchmark/diagram-geometry
 
 Lightweight textbook-style geometry for Sketchmark.
 
@@ -7,14 +7,14 @@ This first version keeps the core renderer small by compiling `geo.*` commands i
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-geometry
+npm install @sketchmark/diagram @sketchmark/diagram-geometry
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { geometry } from "@sketchmark/plugin-geometry";
+import { render } from "@sketchmark/diagram";
+import { geometry } from "@sketchmark/diagram-geometry";
 
 render({
   container: document.getElementById("diagram")!,

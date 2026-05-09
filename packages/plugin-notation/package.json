@@ -1,9 +1,9 @@
 {
-  "name": "@sketchmark/plugin-notation",
-  "version": "0.1.1",
+  "name": "@sketchmark/diagram-notation",
+  "version": "0.0.2",
   "description": "Notation plugin for Sketchmark. Converts lightweight TeX-style math into Unicode text labels and narration.",
   "keywords": [
-    "sketchmark",
+    "@sketchmark/diagram",
     "plugin",
     "notation",
     "latex",
@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "sketchmark": "^1.1.6"
+    "@sketchmark/diagram": "^0.0.1"
   },
   "sideEffects": false,
   "repository": {

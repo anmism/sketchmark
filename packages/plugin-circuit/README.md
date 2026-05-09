@@ -1,4 +1,4 @@
-# @sketchmark/plugin-circuit
+# @sketchmark/diagram-circuit
 
 Primitive circuit diagrams for Sketchmark.
 
@@ -7,14 +7,14 @@ This first release stays draw-focused. It compiles `ckt.*` commands into ordinar
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-circuit
+npm install @sketchmark/diagram @sketchmark/diagram-circuit
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { circuit } from "@sketchmark/plugin-circuit";
+import { render } from "@sketchmark/diagram";
+import { circuit } from "@sketchmark/diagram-circuit";
 
 render({
   container: document.getElementById("diagram")!,

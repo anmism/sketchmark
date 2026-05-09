@@ -1,4 +1,4 @@
-# @sketchmark/plugin-wireframe
+# @sketchmark/diagram-wireframe
 
 Primitive UI wireframes for Sketchmark.
 
@@ -7,14 +7,14 @@ This plugin keeps the mental model small by compiling a handful of `wf.*` comman
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-wireframe
+npm install @sketchmark/diagram @sketchmark/diagram-wireframe
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { wireframe } from "@sketchmark/plugin-wireframe";
+import { render } from "@sketchmark/diagram";
+import { wireframe } from "@sketchmark/diagram-wireframe";
 
 render({
   container: document.getElementById("diagram")!,

@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-graph/README.md`.
 
-Use `@sketchmark/plugin-graph` for coordinate-plane graphs and calculus-style teaching visuals.
+Use `@sketchmark/diagram-graph` for coordinate-plane graphs and calculus-style teaching visuals.
 
 ## Layout Rule
 

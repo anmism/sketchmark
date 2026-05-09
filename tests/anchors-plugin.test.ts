@@ -14,7 +14,7 @@ function ensureCanvasMeasureStub(): void {
   }
 }
 
-describe("@sketchmark/plugin-anchors", () => {
+describe("@sketchmark/diagram-anchors", () => {
   it("rewrites anchored edge refs into ordinary edge props", () => {
     const compiled = compileAnchors(`diagram
 box a label="A"

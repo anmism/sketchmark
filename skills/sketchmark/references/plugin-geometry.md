@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-geometry/README.md`.
 
-Use `@sketchmark/plugin-geometry` for textbook-style geometry diagrams.
+Use `@sketchmark/diagram-geometry` for textbook-style geometry diagrams.
 
 ## Layout Rule
 
@@ -30,5 +30,5 @@ Use `@sketchmark/plugin-geometry` for textbook-style geometry diagrams.
 
 ## Good Pairings
 
-- Use with `@sketchmark/plugin-annotations` for angle arcs, right-angle marks, equal ticks, midpoint marks, and dimension lines
-- Use with `@sketchmark/plugin-anchors` when edge attachment clarity matters
+- Use with `@sketchmark/diagram-annotations` for angle arcs, right-angle marks, equal ticks, midpoint marks, and dimension lines
+- Use with `@sketchmark/diagram-anchors` when edge attachment clarity matters

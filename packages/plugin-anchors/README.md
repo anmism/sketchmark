@@ -1,4 +1,4 @@
-# @sketchmark/plugin-anchors
+# @sketchmark/diagram-anchors
 
 Named edge anchors for Sketchmark.
 
@@ -7,14 +7,14 @@ This plugin keeps the syntax friendly by rewriting endpoint refs like `a@right -
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-anchors
+npm install @sketchmark/diagram @sketchmark/diagram-anchors
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { anchors } from "@sketchmark/plugin-anchors";
+import { render } from "@sketchmark/diagram";
+import { anchors } from "@sketchmark/diagram-anchors";
 
 render({
   container: document.getElementById("diagram")!,

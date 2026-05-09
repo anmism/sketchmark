@@ -1,9 +1,9 @@
 {
-  "name": "@sketchmark/plugin-wireframe",
-  "version": "0.1.2",
+  "name": "@sketchmark/diagram-wireframe",
+  "version": "0.0.2",
   "description": "Wireframe primitives for Sketchmark. Compiles lightweight wf.* commands into standard Sketchmark nodes and groups.",
   "keywords": [
-    "sketchmark",
+    "@sketchmark/diagram",
     "plugin",
     "wireframe",
     "ui",
@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "sketchmark": "^1.1.6"
+    "@sketchmark/diagram": "^0.0.1"
   },
   "sideEffects": false,
   "repository": {

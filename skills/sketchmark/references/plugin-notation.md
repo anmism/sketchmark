@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-notation/package.json` and the main Sketchmark README.
 
-Use `@sketchmark/plugin-notation` when labels or narration contain lightweight TeX-style math and should be converted into nicer Unicode text.
+Use `@sketchmark/diagram-notation` when labels or narration contain lightweight TeX-style math and should be converted into nicer Unicode text.
 
 ## Best Uses
 
@@ -13,8 +13,8 @@ Use `@sketchmark/plugin-notation` when labels or narration contain lightweight T
 ## Typical Pattern
 
 ```ts
-import { render } from "sketchmark";
-import { notation } from "@sketchmark/plugin-notation";
+import { render } from "@sketchmark/diagram";
+import { notation } from "@sketchmark/diagram-notation";
 
 render({
   container,

@@ -1,4 +1,4 @@
-# @sketchmark/plugin-notation
+# @sketchmark/diagram-notation
 
 Lightweight notation support for Sketchmark.
 
@@ -7,14 +7,14 @@ This first version keeps the core renderer lightweight by converting common TeX-
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-notation
+npm install @sketchmark/diagram @sketchmark/diagram-notation
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { notation } from "@sketchmark/plugin-notation";
+import { render } from "@sketchmark/diagram";
+import { notation } from "@sketchmark/diagram-notation";
 
 render({
   container: document.getElementById("diagram")!,

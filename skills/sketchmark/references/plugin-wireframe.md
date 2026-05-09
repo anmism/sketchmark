@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-wireframe/README.md`.
 
-Use `@sketchmark/plugin-wireframe` for low-fidelity UI wireframes built from a small reusable primitive set.
+Use `@sketchmark/diagram-wireframe` for low-fidelity UI wireframes built from a small reusable primitive set.
 
 ## Supported Commands
 

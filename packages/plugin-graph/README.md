@@ -1,4 +1,4 @@
-# @sketchmark/plugin-graph
+# @sketchmark/diagram-graph
 
 Lightweight coordinate-plane graphing for Sketchmark.
 
@@ -7,15 +7,15 @@ This package keeps the core renderer small by compiling `graph.*` commands into 
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-graph
+npm install @sketchmark/diagram @sketchmark/diagram-graph
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { graph } from "@sketchmark/plugin-graph";
-import { annotations } from "@sketchmark/plugin-annotations";
+import { render } from "@sketchmark/diagram";
+import { graph } from "@sketchmark/diagram-graph";
+import { annotations } from "@sketchmark/diagram-annotations";
 
 render({
   container: document.getElementById("diagram")!,

@@ -1,4 +1,4 @@
-import type { SketchmarkPlugin } from "sketchmark";
+import type { SketchmarkPlugin } from "@sketchmark/diagram";
 export interface AnchorsPluginOptions {
 }
 export declare function anchors(_options?: AnchorsPluginOptions): SketchmarkPlugin;

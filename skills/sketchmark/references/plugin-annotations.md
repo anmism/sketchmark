@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-annotations/src/index.ts` and `packages/plugin-annotations/package.json`.
 
-Use `@sketchmark/plugin-annotations` for geometry-style marks that sit on top of authored absolute-position nodes, geometry points, or graph points.
+Use `@sketchmark/diagram-annotations` for geometry-style marks that sit on top of authored absolute-position nodes, geometry points, or graph points.
 
 ## Layout Rule
 
@@ -25,5 +25,5 @@ Use `@sketchmark/plugin-annotations` for geometry-style marks that sit on top of
 
 ## Notes
 
-- Great companion for `@sketchmark/plugin-geometry`
-- Also works well with `@sketchmark/plugin-graph` because graph points compile to authored nodes
+- Great companion for `@sketchmark/diagram-geometry`
+- Also works well with `@sketchmark/diagram-graph` because graph points compile to authored nodes

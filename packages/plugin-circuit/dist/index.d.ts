@@ -1,4 +1,4 @@
-import type { SketchmarkPlugin } from "sketchmark";
+import type { SketchmarkPlugin } from "@sketchmark/diagram";
 export interface CircuitPluginOptions {
     autoAbsoluteLayout?: boolean;
     stroke?: string;

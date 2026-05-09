@@ -1,4 +1,4 @@
-import { SketchmarkEmbed } from "sketchmark";
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 
 const dsl = `
 diagram

@@ -1,21 +1,21 @@
-# @sketchmark/plugin-annotations
+# @sketchmark/diagram-annotations
 
 Lightweight textbook-style marks for Sketchmark.
 
-This first version focuses on geometry-friendly annotations that compile into ordinary Sketchmark nodes after parsing. It complements `@sketchmark/plugin-geometry` without adding new renderer logic to the core bundle.
+This first version focuses on geometry-friendly annotations that compile into ordinary Sketchmark nodes after parsing. It complements `@sketchmark/diagram-geometry` without adding new renderer logic to the core bundle.
 
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-annotations
+npm install @sketchmark/diagram @sketchmark/diagram-annotations
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { annotations } from "@sketchmark/plugin-annotations";
-import { geometry } from "@sketchmark/plugin-geometry";
+import { render } from "@sketchmark/diagram";
+import { annotations } from "@sketchmark/diagram-annotations";
+import { geometry } from "@sketchmark/diagram-geometry";
 
 render({
   container: document.getElementById("diagram")!,
@@ -58,4 +58,4 @@ end
 - For `annot.right-angle`, `invert=true` keeps the square on the same corner and flips the label inward vs outward.
 - For `annot.equal` and `annot.dimension`, `invert=true` flips the mark to the opposite side of the segment.
 - For explicit angle modes, prefer `label-distance=<n>` when you want finer label placement control.
-- `@sketchmark/plugin-notation` can still run afterward to transform annotation labels too.
+- `@sketchmark/diagram-notation` can still run afterward to transform annotation labels too.

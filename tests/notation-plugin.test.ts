@@ -40,7 +40,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-notation", () => {
+describe("@sketchmark/diagram-notation", () => {
   it("converts common TeX-style math in labels and narration", () => {
     const ast = parse(`diagram
 title label="Angle $\\theta$"

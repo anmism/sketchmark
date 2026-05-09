@@ -4,7 +4,7 @@ import type {
   RootItemRef,
   SketchmarkPlugin,
   StyleProps,
-} from "sketchmark";
+} from "@sketchmark/diagram";
 
 export interface AnnotationPluginOptions {
   color?: string;

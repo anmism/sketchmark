@@ -3,7 +3,7 @@ import type {
   ASTStepItem,
   DiagramAST,
   SketchmarkPlugin,
-} from "sketchmark";
+} from "@sketchmark/diagram";
 
 export interface NotationPluginOptions {
   delimiters?: ReadonlyArray<readonly [string, string]>;

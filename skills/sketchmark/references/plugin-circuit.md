@@ -2,13 +2,13 @@
 
 Source of truth: `packages/plugin-circuit/README.md` and `packages/plugin-circuit/src/index.ts`.
 
-Use `@sketchmark/plugin-circuit` for circuit and electronics diagrams instead of approximating them with plain boxes and arrows.
+Use `@sketchmark/diagram-circuit` for circuit and electronics diagrams instead of approximating them with plain boxes and arrows.
 
 ## Install And Import
 
 ```ts
-import { render } from "sketchmark";
-import { circuit } from "@sketchmark/plugin-circuit";
+import { render } from "@sketchmark/diagram";
+import { circuit } from "@sketchmark/diagram-circuit";
 ```
 
 ## Layout Rule
@@ -87,7 +87,7 @@ ckt.wire w5 from=src.bottom to=gnd.pin mode=straight
 end
 ```
 
-For formula-heavy teaching diagrams, combine with `@sketchmark/plugin-notation`.
+For formula-heavy teaching diagrams, combine with `@sketchmark/diagram-notation`.
 
 ## Limits
 

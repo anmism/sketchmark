@@ -10,7 +10,7 @@ export default defineConfig([
       format: "esm",
       sourcemap: true,
     },
-    external: ["sketchmark"],
+    external: ["@sketchmark/diagram"],
     plugins: [
       nodeResolve(),
       typescript({
@@ -28,7 +28,7 @@ export default defineConfig([
       sourcemap: true,
       exports: "named",
     },
-    external: ["sketchmark"],
+    external: ["@sketchmark/diagram"],
     plugins: [
       nodeResolve(),
       typescript({

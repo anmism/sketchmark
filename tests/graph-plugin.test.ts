@@ -41,7 +41,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-graph", () => {
+describe("@sketchmark/diagram-graph", () => {
   it("compiles graph commands into ordinary absolute-layout nodes", () => {
     const compiled = compileGraph(`diagram
 graph.axes plane x=80 y=60 width=320 height=180 xmin=-3 xmax=3 ymin=-1 ymax=1 grid=true xlabel="x" ylabel="y"

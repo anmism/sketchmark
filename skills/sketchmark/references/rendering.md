@@ -9,11 +9,11 @@ Use `SketchmarkEmbed` as the single default way to show a Sketchmark diagram to 
 ### npm Example
 
 ```bash
-npm install sketchmark
+npm install @sketchmark/diagram
 ```
 
 ```ts
-import { SketchmarkEmbed } from 'sketchmark';
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 
 const dsl = `
 diagram

@@ -43,7 +43,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-chem-molecule", () => {
+describe("@sketchmark/diagram-molecule", () => {
   it("compiles chem.* commands into ordinary absolute-layout groups and nodes", () => {
     const compiled = compileChemMolecule(`diagram
 chem.atom O x=120 y=150 element=O

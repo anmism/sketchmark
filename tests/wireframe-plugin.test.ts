@@ -40,7 +40,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-wireframe", () => {
+describe("@sketchmark/diagram-wireframe", () => {
   it("compiles wf.* primitives into ordinary Sketchmark groups and nodes", () => {
     const compiled = compileWireframe(`diagram
 wf.screen mobile frame=phone items=[hero]

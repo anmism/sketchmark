@@ -42,7 +42,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-annotations", () => {
+describe("@sketchmark/diagram-annotations", () => {
   it("adds annotation nodes for geometry-based commands", () => {
     const ast = parse(`diagram
 geo.point A x=90 y=230

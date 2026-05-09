@@ -1,9 +1,9 @@
 {
-  "name": "@sketchmark/plugin-geometry",
-  "version": "0.1.1",
+  "name": "@sketchmark/diagram-geometry",
+  "version": "0.0.2",
   "description": "Geometry plugin for Sketchmark. Compiles lightweight geo.* commands into standard Sketchmark nodes.",
   "keywords": [
-    "sketchmark",
+    "@sketchmark/diagram",
     "plugin",
     "geometry",
     "math",
@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "sketchmark": "^1.1.6"
+    "@sketchmark/diagram": "^0.0.1"
   },
   "sideEffects": false,
   "repository": {

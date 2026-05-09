@@ -2,7 +2,7 @@
 const nextConfig = {
   // sketchmark + rough.js both access `document` and `window` —
   // they must never be server-rendered or pre-bundled by Next.js
-  transpilePackages: ['sketchmark', 'roughjs'],
+  transpilePackages: ["@sketchmark/diagram", 'roughjs'],
 };
 
 module.exports = nextConfig;

@@ -42,7 +42,7 @@
 ## Installation
 
 ```bash
-npm install sketchmark
+npm install @sketchmark/diagram
 ```
 
 ---
@@ -50,7 +50,7 @@ npm install sketchmark
 ## Quick Start
 
 ```javascript
-import { render } from 'sketchmark';
+import { render } from "@sketchmark/diagram";
 
 const dsl = `
 diagram
@@ -70,11 +70,11 @@ const instance = render({
 
 ### Plugins
 
-Sketchmark supports lightweight parse plugins. A plugin can preprocess the DSL source before parsing, transform the parsed AST after parsing, or do both. This keeps domain features like official packages such as `@sketchmark/plugin-notation` outside the core bundle.
+Sketchmark supports lightweight parse plugins. A plugin can preprocess the DSL source before parsing, transform the parsed AST after parsing, or do both. This keeps domain features like official packages such as `@sketchmark/diagram-notation` outside the core bundle.
 
 ```typescript
-import { render } from 'sketchmark';
-import { notation } from '@sketchmark/plugin-notation';
+import { render } from "@sketchmark/diagram";
+import { notation } from '@sketchmark/diagram-notation';
 
 render({
   container: document.getElementById('diagram'),
@@ -88,21 +88,21 @@ end
 });
 ```
 
-The first `@sketchmark/plugin-notation` release focuses on lightweight TeX-style math to Unicode conversion for labels and `step narrate`, which keeps the core renderer small while still making math-heavy diagrams nicer to author.
+The first `@sketchmark/diagram-notation` release focuses on lightweight TeX-style math to Unicode conversion for labels and `step narrate`, which keeps the core renderer small while still making math-heavy diagrams nicer to author.
 
-Another official package, `@sketchmark/plugin-geometry`, follows the same model by compiling `geo.*` commands into ordinary `circle`, `path`, and `text` nodes for textbook-style diagrams without adding geometry-specific renderer logic to the core bundle.
+Another official package, `@sketchmark/diagram-geometry`, follows the same model by compiling `geo.*` commands into ordinary `circle`, `path`, and `text` nodes for textbook-style diagrams without adding geometry-specific renderer logic to the core bundle.
 
-`@sketchmark/plugin-anchors` keeps edge syntax readable by rewriting endpoint refs like `a@right --> b@left` into ordinary edges with anchor metadata, which lets named attachment points stay outside the core parser surface.
+`@sketchmark/diagram-anchors` keeps edge syntax readable by rewriting endpoint refs like `a@right --> b@left` into ordinary edges with anchor metadata, which lets named attachment points stay outside the core parser surface.
 
-`@sketchmark/plugin-annotations` builds on that idea for geometry-style marks such as angle arcs, right-angle squares, equal ticks, midpoint marks, and dimension lines, again by compiling into ordinary Sketchmark nodes.
+`@sketchmark/diagram-annotations` builds on that idea for geometry-style marks such as angle arcs, right-angle squares, equal ticks, midpoint marks, and dimension lines, again by compiling into ordinary Sketchmark nodes.
 
-`@sketchmark/plugin-wireframe` applies the same pattern to primitive UI mockups, compiling `wf.screen`, `wf.panel`, `wf.text`, `wf.media`, `wf.control`, and `wf.divider` into regular Sketchmark groups and nodes so wireframe support stays outside the core bundle too.
+`@sketchmark/diagram-wireframe` applies the same pattern to primitive UI mockups, compiling `wf.screen`, `wf.panel`, `wf.text`, `wf.media`, `wf.control`, and `wf.divider` into regular Sketchmark groups and nodes so wireframe support stays outside the core bundle too.
 
-`@sketchmark/plugin-circuit` does the same for draw-focused circuit notation, compiling `ckt.comp`, `ckt.port`, `ckt.junction`, and `ckt.wire` into regular groups plus `path`, `circle`, and `text` nodes.
+`@sketchmark/diagram-circuit` does the same for draw-focused circuit notation, compiling `ckt.comp`, `ckt.port`, `ckt.junction`, and `ckt.wire` into regular groups plus `path`, `circle`, and `text` nodes.
 
-`@sketchmark/plugin-chem-molecule` extends the same pattern to lightweight molecule diagrams, compiling `chem.atom`, `chem.bond`, `chem.ring`, and `chem.label` into ordinary groups plus `path` and `text` nodes.
+`@sketchmark/diagram-molecule` extends the same pattern to lightweight molecule diagrams, compiling `chem.atom`, `chem.bond`, `chem.ring`, and `chem.label` into ordinary groups plus `path` and `text` nodes.
 
-`@sketchmark/plugin-graph` applies the same approach to coordinate-plane graphing, compiling `graph.axes`, `graph.plot`, `graph.point`, `graph.line`, `graph.arrow`, `graph.region`, `graph.tangent`, and `graph.area` into ordinary nodes so sampled math graphs stay outside the core bundle too.
+`@sketchmark/diagram-graph` applies the same approach to coordinate-plane graphing, compiling `graph.axes`, `graph.plot`, `graph.point`, `graph.line`, `graph.arrow`, `graph.region`, `graph.tangent`, and `graph.area` into ordinary nodes so sampled math graphs stay outside the core bundle too.
 
 
 
@@ -110,7 +110,7 @@ Another official package, `@sketchmark/plugin-geometry`, follows the same model 
 ### Reusable UI Widgets
 
 ```javascript
-import { SketchmarkCanvas, SketchmarkEditor } from 'sketchmark';
+import { SketchmarkCanvas, SketchmarkEditor } from "@sketchmark/diagram";
 
 const editor = new SketchmarkEditor({
   container: document.getElementById('editor'),
@@ -133,7 +133,7 @@ canvas.bindEditor(editor);
 ```
 
 ```javascript
-import { SketchmarkEmbed } from 'sketchmark';
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 
 const embed = new SketchmarkEmbed({
   container: document.getElementById('article-embed'),
@@ -197,7 +197,7 @@ end
 **`src/main.ts`**:
 
 ```typescript
-import { render } from 'sketchmark';
+import { render } from "@sketchmark/diagram";
 
 
 const dsl = `
@@ -245,7 +245,7 @@ Three rules that **must** all be followed:
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { render } from 'sketchmark';
+import { render } from "@sketchmark/diagram";
 
 interface Props {
   dsl: string;
@@ -1005,15 +1005,15 @@ instance.exportSVG('my-diagram.svg');
 await instance.exportPNG('my-diagram.png');
 
 // Advanced: get SVG string
-import { getSVGString } from 'sketchmark';
+import { getSVGString } from "@sketchmark/diagram";
 const svgString = getSVGString(instance.svg);
 
 // Advanced: get PNG data URL
-import { svgToPNGDataURL } from 'sketchmark';
+import { svgToPNGDataURL } from "@sketchmark/diagram";
 const dataUrl = await svgToPNGDataURL(instance.svg, { scale: 2, background: '#ffffff' });
 
 // Self-contained HTML file
-import { exportHTML } from 'sketchmark';
+import { exportHTML } from "@sketchmark/diagram";
 exportHTML(instance.svg, dslSource, { filename: 'diagram.html' });
 ```
 

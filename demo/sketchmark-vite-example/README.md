@@ -16,7 +16,7 @@ Open http://localhost:5173
 ### 1. Import the reusable widget from sketchmark
 
 ```ts
-import { SketchmarkEmbed } from "sketchmark";
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 
 const embed = new SketchmarkEmbed({
   container: document.getElementById("embed-root") as HTMLElement,

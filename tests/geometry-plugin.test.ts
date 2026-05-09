@@ -40,7 +40,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("@sketchmark/plugin-geometry", () => {
+describe("@sketchmark/diagram-geometry", () => {
   it("compiles geo.* commands into ordinary absolute-layout nodes", () => {
     const compiled = compileGeometry(`diagram
 geo.point A x=60 y=140

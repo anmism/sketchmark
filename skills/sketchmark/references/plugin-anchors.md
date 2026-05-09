@@ -2,7 +2,7 @@
 
 Source of truth: `packages/plugin-anchors/README.md`.
 
-Use `@sketchmark/plugin-anchors` when normal edges are correct but you need explicit attachment points.
+Use `@sketchmark/diagram-anchors` when normal edges are correct but you need explicit attachment points.
 
 ## Syntax
 

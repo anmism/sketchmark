@@ -1,9 +1,9 @@
 {
-  "name": "@sketchmark/plugin-graph",
-  "version": "0.1.1",
+  "name": "@sketchmark/diagram-graph",
+  "version": "0.0.2",
   "description": "Graph plotting plugin for Sketchmark. Compiles graph.* commands into standard Sketchmark nodes.",
   "keywords": [
-    "sketchmark",
+    "@sketchmark/diagram",
     "plugin",
     "graph",
     "math",
@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "sketchmark": "^1.1.6"
+    "@sketchmark/diagram": "^0.0.1"
   },
   "sideEffects": false,
   "repository": {

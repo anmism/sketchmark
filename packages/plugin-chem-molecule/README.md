@@ -1,4 +1,4 @@
-# @sketchmark/plugin-chem-molecule
+# @sketchmark/diagram-molecule
 
 Primitive molecule diagrams for Sketchmark.
 
@@ -7,14 +7,14 @@ This first release stays draw-focused. It compiles `chem.*` commands into ordina
 ## Install
 
 ```bash
-npm install sketchmark @sketchmark/plugin-chem-molecule
+npm install @sketchmark/diagram @sketchmark/diagram-molecule
 ```
 
 ## Usage
 
 ```ts
-import { render } from "sketchmark";
-import { chemMolecule } from "@sketchmark/plugin-chem-molecule";
+import { render } from "@sketchmark/diagram";
+import { chemMolecule } from "@sketchmark/diagram-molecule";
 
 render({
   container: document.getElementById("diagram")!,

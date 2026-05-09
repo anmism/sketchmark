@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from "react";
-import { SketchmarkEmbed } from "sketchmark";
+import { SketchmarkEmbed } from "@sketchmark/diagram";
 
 type EmbedTheme = "light" | "dark" | "auto";
 
