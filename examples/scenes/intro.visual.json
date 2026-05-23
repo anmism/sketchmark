@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#f8fafc",
+    "duration": 2,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "intro_title",
+      "type": "text",
+      "text": "Primitive JSON Visuals",
+      "x": 640,
+      "y": 320,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 48,
+      "weight": 800,
+      "fill": "#0f172a"
+    }
+  ]
+}

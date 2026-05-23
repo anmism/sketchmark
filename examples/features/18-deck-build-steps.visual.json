@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#ffffff"
+  },
+  "scenes": {
+    "slide": {
+      "elements": [
+        {
+          "id": "title",
+          "type": "text",
+          "text": "Three Reasons",
+          "x": 100,
+          "y": 90,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 42,
+          "weight": 800,
+          "fill": "#111827"
+        },
+        {
+          "id": "reason_1",
+          "type": "text",
+          "text": "1. Primitive-only documents",
+          "x": 140,
+          "y": 190,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 26,
+          "fill": "#2563eb",
+          "opacity": 0
+        },
+        {
+          "id": "reason_2",
+          "type": "text",
+          "text": "2. Deterministic validation",
+          "x": 140,
+          "y": 250,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 26,
+          "fill": "#16a34a",
+          "opacity": 0
+        },
+        {
+          "id": "reason_3",
+          "type": "text",
+          "text": "3. Inspectable exports",
+          "x": 140,
+          "y": 310,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 26,
+          "fill": "#f59e0b",
+          "opacity": 0
+        }
+      ],
+      "steps": [
+        {"id": "show_reason_1", "show": ["reason_1"], "duration": 0.4},
+        {"id": "show_reason_2", "show": ["reason_2"], "duration": 0.4},
+        {"id": "show_reason_3", "show": ["reason_3"], "duration": 0.4}
+      ]
+    }
+  }
+}

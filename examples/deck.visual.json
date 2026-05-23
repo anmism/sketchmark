@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#ffffff"
+  },
+  "scenes": {
+    "slide": {
+      "elements": [
+        {
+          "id": "title",
+          "type": "text",
+          "text": "Deck Step Example",
+          "x": 120,
+          "y": 120,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 40,
+          "weight": 800,
+          "fill": "#111827"
+        },
+        {
+          "id": "detail",
+          "type": "text",
+          "text": "This appears on an explicit step.",
+          "x": 120,
+          "y": 210,
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 24,
+          "fill": "#2563eb",
+          "opacity": 0
+        }
+      ],
+      "steps": [
+        {
+          "id": "show_detail",
+          "show": ["detail"],
+          "duration": 0.6
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#f8fafc",
+    "duration": 6,
+    "fps": 30
+  },
+  "scenes": {
+    "problem": {
+      "elements": [
+        {
+          "id": "problem_title",
+          "type": "text",
+          "text": "Problem",
+          "x": 480,
+          "y": 150,
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 48,
+          "weight": 800,
+          "fill": "#dc2626"
+        },
+        {
+          "id": "problem_text",
+          "type": "text",
+          "text": "Slow manual handoff",
+          "x": 480,
+          "y": 250,
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 28,
+          "fill": "#334155"
+        }
+      ]
+    },
+    "solution": {
+      "elements": [
+        {
+          "id": "solution_title",
+          "type": "text",
+          "text": "Solution",
+          "x": 480,
+          "y": 150,
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 48,
+          "weight": 800,
+          "fill": "#16a34a"
+        },
+        {
+          "id": "solution_text",
+          "type": "text",
+          "text": "Automated workflow",
+          "x": 480,
+          "y": 250,
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 28,
+          "fill": "#334155"
+        }
+      ]
+    }
+  },
+  "sequences": {
+    "main": {
+      "id": "main",
+      "clips": [
+        {"scene": "problem", "duration": 3},
+        {"scene": "solution", "duration": 3, "transition": {"type": "fade", "duration": 0.6}}
+      ],
+      "export": {
+        "format": "mp4",
+        "fps": 30
+      }
+    }
+  }
+}

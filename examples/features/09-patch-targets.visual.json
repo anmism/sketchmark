@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 900,
+    "height": 520,
+    "background": "#f8fafc"
+  },
+  "elements": [
+    {
+      "id": "headline",
+      "type": "text",
+      "text": "Patch-Friendly Document",
+      "x": 450,
+      "y": 58,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 32,
+      "weight": 800,
+      "fill": "#111827"
+    },
+    {
+      "id": "metric_card",
+      "type": "rect",
+      "x": 120,
+      "y": 150,
+      "width": 220,
+      "height": 140,
+      "radius": 14,
+      "fill": "#ffffff",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 2
+    },
+    {
+      "id": "metric_value",
+      "type": "text",
+      "text": "72%",
+      "x": 230,
+      "y": 205,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 42,
+      "weight": 800,
+      "fill": "#2563eb"
+    },
+    {
+      "id": "metric_label",
+      "type": "text",
+      "text": "completion",
+      "x": 230,
+      "y": 252,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 17,
+      "fill": "#64748b"
+    },
+    {
+      "id": "next_card",
+      "type": "rect",
+      "x": 560,
+      "y": 150,
+      "width": 220,
+      "height": 140,
+      "radius": 14,
+      "fill": "#ffffff",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 2
+    },
+    {
+      "id": "dependency_arrow",
+      "type": "arrow",
+      "from": "metric_card.right",
+      "to": "next_card.left",
+      "stroke": "#22c55e",
+      "strokeWidth": 4
+    },
+    {
+      "id": "instruction",
+      "type": "text",
+      "text": "Every visible object has a stable id for update, move, replace, or remove patches.",
+      "x": 450,
+      "y": 390,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fill": "#475569",
+      "maxWidth": 720
+    }
+  ]
+}

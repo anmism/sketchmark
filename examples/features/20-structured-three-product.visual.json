@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#eef2ff",
+    "space": "3d",
+    "renderer": "three",
+    "duration": 3,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "base",
+      "type": "cuboid",
+      "position": [0, -0.4, 0],
+      "size": [3.2, 0.35, 2.2],
+      "fill": "#334155"
+    },
+    {
+      "id": "screen",
+      "type": "cuboid",
+      "position": [0, 0.8, -0.35],
+      "size": [2.8, 1.7, 0.18],
+      "fill": "#2563eb"
+    },
+    {
+      "id": "camera",
+      "type": "sphere",
+      "position": [0, 1.35, -0.48],
+      "radius": 0.08,
+      "fill": "#111827"
+    },
+    {
+      "id": "stand",
+      "type": "cuboid",
+      "position": [0, 0.05, 0.25],
+      "size": [0.35, 0.9, 0.35],
+      "fill": "#64748b"
+    },
+    {
+      "id": "caption",
+      "type": "text3d",
+      "text": "structured 3D product",
+      "position": [0, -1.25, 0],
+      "fontSize": 0.34,
+      "fill": "#111827"
+    },
+    {
+      "id": "fill_light",
+      "type": "light",
+      "kind": "ambient",
+      "intensity": 0.65
+    },
+    {
+      "id": "key_light",
+      "type": "light",
+      "kind": "directional",
+      "position": [4, 6, 5],
+      "intensity": 1.3
+    }
+  ]
+}

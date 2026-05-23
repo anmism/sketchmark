@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 800,
+    "height": 440,
+    "background": "#f8fafc",
+    "duration": 4,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "client_box",
+      "type": "rect",
+      "x": 110,
+      "y": 170,
+      "width": 160,
+      "height": 80,
+      "radius": 12,
+      "fill": "#ffffff",
+      "stroke": "#2563eb",
+      "strokeWidth": 3
+    },
+    {
+      "id": "client_label",
+      "type": "text",
+      "text": "Client",
+      "x": 190,
+      "y": 210,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "weight": 700,
+      "fill": "#111827"
+    },
+    {
+      "id": "api_box",
+      "type": "rect",
+      "x": 530,
+      "y": 170,
+      "width": 160,
+      "height": 80,
+      "radius": 12,
+      "fill": "#ffffff",
+      "stroke": "#16a34a",
+      "strokeWidth": 3
+    },
+    {
+      "id": "api_label",
+      "type": "text",
+      "text": "API",
+      "x": 610,
+      "y": 210,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "weight": 700,
+      "fill": "#111827"
+    },
+    {
+      "id": "request_arrow",
+      "type": "arrow",
+      "from": "client_box.right",
+      "to": "api_box.left",
+      "stroke": "#2563eb",
+      "strokeWidth": 4
+    },
+    {
+      "id": "packet",
+      "type": "circle",
+      "radius": 10,
+      "fill": "#ef4444",
+      "follow": "request_arrow",
+      "progress": {
+        "from": 0,
+        "to": 1,
+        "duration": 2.8,
+        "delay": 0.5,
+        "ease": "ease-in-out"
+      }
+    }
+  ]
+}

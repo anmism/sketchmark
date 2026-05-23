@@ -1,0 +1,52 @@
+{
+  "name": "sketchmark",
+  "version": "2.0.0",
+  "description": "Create and render visual content with a simple JSON language.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "bin": {
+    "sketchmark": "./bin/sketchmark.cjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "require": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    },
+    "./builders": {
+      "types": "./dist/src/builders/index.d.ts",
+      "require": "./dist/src/builders/index.js",
+      "default": "./dist/src/builders/index.js"
+    },
+    "./player": {
+      "types": "./dist/src/player/index.d.ts",
+      "require": "./dist/src/player/index.js",
+      "default": "./dist/src/player/index.js"
+    },
+    "./schema": {
+      "default": "./schema/visual.schema.json"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "preview": "node bin/sketchmark.cjs preview",
+    "render": "node bin/sketchmark.cjs render",
+    "test": "npm run build && node dist/tests/run.js",
+    "prepublishOnly": "npm test"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "schema",
+    "README.md"
+  ],
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false
+}

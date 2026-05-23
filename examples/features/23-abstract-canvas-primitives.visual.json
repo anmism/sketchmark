@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#f8fafc",
+    "duration": 4,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "hero_panel",
+      "type": "rect",
+      "x": 72,
+      "y": 72,
+      "width": 320,
+      "height": 190,
+      "radius": 20,
+      "fill": {
+        "type": "linearGradient",
+        "from": [72, 72],
+        "to": [392, 262],
+        "stops": [
+          [0, "#dbeafe"],
+          [0.55, "#ffffff"],
+          [1, "#bbf7d0"]
+        ]
+      },
+      "stroke": "#2563eb",
+      "strokeWidth": 3,
+      "effects": {
+        "shadow": {
+          "dx": 0,
+          "dy": 16,
+          "blur": 22,
+          "color": "#64748b",
+          "opacity": 0.22
+        }
+      },
+      "rotation": -3,
+      "origin": "center"
+    },
+    {
+      "id": "panel_text",
+      "type": "text",
+      "lines": ["Primitive canvas", "gradient + shadow"],
+      "x": 232,
+      "y": 154,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 28,
+      "weight": 800,
+      "lineHeight": 1.18,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "signal",
+      "type": "point",
+      "x": 502,
+      "y": 160,
+      "animate": {
+        "x": { "from": 502, "to": 760, "duration": 4, "ease": "ease-in-out" },
+        "y": { "from": 160, "to": 238, "duration": 4, "ease": "ease-in-out" }
+      }
+    },
+    {
+      "id": "signal_dot",
+      "type": "circle",
+      "cx": 502,
+      "cy": 160,
+      "radius": 13,
+      "fill": "#ef4444",
+      "animate": {
+        "cx": { "from": 502, "to": 760, "duration": 4, "ease": "ease-in-out" },
+        "cy": { "from": 160, "to": 238, "duration": 4, "ease": "ease-in-out" },
+        "fill": { "from": "#ef4444", "to": "#16a34a", "duration": 4 }
+      }
+    },
+    {
+      "id": "connector",
+      "type": "arrow",
+      "from": "hero_panel.right",
+      "to": "signal",
+      "stroke": "#16a34a",
+      "strokeWidth": 4,
+      "strokeCap": "round",
+      "drawEnd": 1
+    },
+    {
+      "id": "wave",
+      "type": "polyline",
+      "points": [[120, 380], [210, 330], [300, 390], [390, 320], [480, 374], [570, 300], [660, 365], [750, 282], [840, 340]],
+      "stroke": "#2563eb",
+      "strokeWidth": 5,
+      "strokeCap": "round",
+      "strokeJoin": "round",
+      "fill": "none",
+      "drawEnd": 0.72
+    },
+    {
+      "id": "badge",
+      "type": "polygon",
+      "points": [[676, 92], [846, 92], [888, 148], [846, 204], [676, 204], [634, 148]],
+      "fill": {
+        "type": "radialGradient",
+        "center": [760, 148],
+        "radius": 120,
+        "stops": [
+          [0, "#fef3c7"],
+          [1, "#fb923c"]
+        ]
+      },
+      "stroke": "#f97316",
+      "strokeWidth": 3,
+      "strokeJoin": "round",
+      "blendMode": "multiply"
+    },
+    {
+      "id": "badge_text",
+      "type": "text",
+      "text": "SVG-like primitives",
+      "x": 760,
+      "y": 148,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 20,
+      "weight": 800,
+      "fill": "#7c2d12"
+    },
+    {
+      "id": "clipped_group",
+      "type": "group",
+      "x": 604,
+      "y": 300,
+      "width": 240,
+      "height": 120,
+      "clip": {
+        "type": "rect",
+        "x": 604,
+        "y": 300,
+        "width": 240,
+        "height": 120,
+        "radius": 16
+      },
+      "children": [
+        {
+          "id": "clip_bg",
+          "type": "rect",
+          "x": 0,
+          "y": 0,
+          "width": 240,
+          "height": 120,
+          "radius": 16,
+          "fill": "#e0f2fe"
+        },
+        {
+          "id": "clip_circle",
+          "type": "circle",
+          "cx": 194,
+          "cy": 50,
+          "radius": 74,
+          "fill": "#38bdf8",
+          "effects": {
+            "blur": 1.2,
+            "saturate": 1.3
+          }
+        }
+      ]
+    }
+  ]
+}

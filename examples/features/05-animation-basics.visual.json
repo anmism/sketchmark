@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 720,
+    "height": 420,
+    "background": "#ffffff",
+    "duration": 4,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "Explicit Property Animation",
+      "x": 360,
+      "y": 44,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 28,
+      "weight": 800,
+      "fill": "#111827"
+    },
+    {
+      "id": "track",
+      "type": "line",
+      "from": [120, 210],
+      "to": [600, 210],
+      "stroke": "#cbd5e1",
+      "strokeWidth": 6
+    },
+    {
+      "id": "moving_dot",
+      "type": "circle",
+      "cx": 120,
+      "cy": 210,
+      "radius": 16,
+      "fill": "#2563eb",
+      "animate": {
+        "cx": {
+          "from": 120,
+          "to": 600,
+          "duration": 3,
+          "delay": 0.4,
+          "ease": "ease-in-out"
+        },
+        "radius": {
+          "from": 10,
+          "to": 24,
+          "duration": 3,
+          "delay": 0.4,
+          "ease": "ease-in-out"
+        }
+      }
+    },
+    {
+      "id": "fade_label",
+      "type": "text",
+      "text": "Animated properties still keep static starting values.",
+      "x": 360,
+      "y": 310,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fill": "#475569",
+      "maxWidth": 560,
+      "animate": {
+        "opacity": {
+          "from": 0,
+          "to": 1,
+          "duration": 1,
+          "delay": 1
+        }
+      }
+    }
+  ]
+}

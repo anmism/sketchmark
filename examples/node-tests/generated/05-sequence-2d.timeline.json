@@ -1,0 +1,88 @@
+[
+  {
+    "index": 0,
+    "time": 0,
+    "scene": "problem",
+    "localTime": 0
+  },
+  {
+    "index": 1,
+    "time": 0.5,
+    "scene": "problem",
+    "localTime": 0.5
+  },
+  {
+    "index": 2,
+    "time": 1,
+    "scene": "problem",
+    "localTime": 1
+  },
+  {
+    "index": 3,
+    "time": 1.5,
+    "scene": "problem",
+    "localTime": 1.5
+  },
+  {
+    "index": 4,
+    "time": 2,
+    "scene": "lookup",
+    "localTime": 0,
+    "transition": {
+      "type": "fade",
+      "fromScene": "problem",
+      "toScene": "lookup",
+      "progress": 0,
+      "duration": 0.5
+    }
+  },
+  {
+    "index": 5,
+    "time": 2.5,
+    "scene": "lookup",
+    "localTime": 0.5
+  },
+  {
+    "index": 6,
+    "time": 3,
+    "scene": "lookup",
+    "localTime": 1
+  },
+  {
+    "index": 7,
+    "time": 3.5,
+    "scene": "lookup",
+    "localTime": 1.5
+  },
+  {
+    "index": 8,
+    "time": 4,
+    "scene": "result",
+    "localTime": 0,
+    "transition": {
+      "type": "fade",
+      "fromScene": "lookup",
+      "toScene": "result",
+      "progress": 0,
+      "duration": 0.5
+    }
+  },
+  {
+    "index": 9,
+    "time": 4.5,
+    "scene": "result",
+    "localTime": 0.5
+  },
+  {
+    "index": 10,
+    "time": 5,
+    "scene": "result",
+    "localTime": 1
+  },
+  {
+    "index": 11,
+    "time": 5.5,
+    "scene": "result",
+    "localTime": 1.5
+  }
+]

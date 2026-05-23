@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Generated output files
+*.mp4
+*.svg
+*.png
+*.jpg
+*.jpeg
+
+.tmp
+skills

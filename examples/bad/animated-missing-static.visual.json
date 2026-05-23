@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 640,
+    "height": 360,
+    "background": "#ffffff",
+    "duration": 2,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "moving_label",
+      "type": "text",
+      "text": "Missing static x",
+      "y": 120,
+      "animate": {
+        "x": { "from": 80, "to": 360, "duration": 2 }
+      }
+    }
+  ]
+}

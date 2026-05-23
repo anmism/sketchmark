@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "background": "#eff6ff",
+    "duration": 5,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "title",
+      "type": "text",
+      "text": "Water Cycle",
+      "x": 480,
+      "y": 48,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 36,
+      "weight": 800,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "sun",
+      "type": "circle",
+      "cx": 135,
+      "cy": 120,
+      "radius": 44,
+      "fill": "#facc15",
+      "stroke": "#ca8a04",
+      "strokeWidth": 3
+    },
+    {
+      "id": "lake",
+      "type": "ellipse",
+      "cx": 480,
+      "cy": 410,
+      "rx": 280,
+      "ry": 48,
+      "fill": "#93c5fd"
+    },
+    {
+      "id": "cloud_a",
+      "type": "ellipse",
+      "cx": 610,
+      "cy": 140,
+      "rx": 92,
+      "ry": 38,
+      "fill": "#ffffff",
+      "stroke": "#cbd5e1",
+      "strokeWidth": 2
+    },
+    {
+      "id": "cloud_b",
+      "type": "ellipse",
+      "cx": 540,
+      "cy": 145,
+      "rx": 65,
+      "ry": 32,
+      "fill": "#ffffff",
+      "stroke": "#cbd5e1",
+      "strokeWidth": 2
+    },
+    {
+      "id": "evaporation",
+      "type": "arrow",
+      "from": [360, 380],
+      "to": [470, 215],
+      "stroke": "#2563eb",
+      "strokeWidth": 4,
+      "dashArray": [8, 8]
+    },
+    {
+      "id": "precipitation",
+      "type": "arrow",
+      "from": [650, 180],
+      "to": [720, 355],
+      "stroke": "#0ea5e9",
+      "strokeWidth": 4,
+      "dashArray": [6, 8]
+    },
+    {
+      "id": "flow",
+      "type": "arrow",
+      "from": [720, 405],
+      "to": [560, 430],
+      "stroke": "#2563eb",
+      "strokeWidth": 4
+    },
+    {
+      "id": "label",
+      "type": "text",
+      "text": "Evaporation, condensation, precipitation, collection",
+      "x": 480,
+      "y": 492,
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fill": "#334155",
+      "maxWidth": 760
+    }
+  ]
+}
