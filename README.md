@@ -1,99 +1,143 @@
 # Sketchmark
 
-JSON visual language for AI-generated explanations.
+Sketchmark is currently a **pure 2D render kernel**.
 
-The canonical document format is a predictable scene graph of primitives. Higher-level helpers such as `node()`, `flow()`, `packet()`, and `callout()` are builder-time conveniences only: they expand into primitives before validation and rendering.
+The canonical JSON contains only renderable atoms:
 
-## Core Principles
+- `path`
+- `text`
+- `image`
+- `point`
+- `group`
 
-- JSON is the source of truth.
-- The canonical document contains primitives only.
-- Box primitives use top-left `x`, `y`, `width`, and `height`.
-- Circles use `cx`, `cy`, and `radius`.
-- Lines and arrows use `from` and `to`.
-- Missing geometry is an error, not an auto-layout hint.
-- No collision avoidance, auto-routing, auto-resize, or hidden object synthesis.
-- All computed values come from explicit builders, references, or `follow`.
+Everything else, including rectangles, circles, arrows, diagrams, charts, scenes, decks, 3D, and walking cycles, belongs in a future compound layer that compiles down to this kernel.
 
-## Example
+## Kernel Document
 
 ```json
 {
   "version": 1,
   "canvas": {
-    "width": 1280,
-    "height": 720,
+    "width": 640,
+    "height": 360,
     "background": "#f8fafc",
-    "duration": 8,
+    "duration": 2,
     "fps": 30
   },
   "elements": [
     {
-      "id": "browser_box",
-      "type": "rect",
-      "x": 120,
-      "y": 160,
-      "width": 180,
-      "height": 80,
-      "radius": 12,
-      "fill": "#ffffff",
-      "stroke": "#2563eb"
+      "id": "line",
+      "type": "path",
+      "d": "M 80 240 C 180 80 320 280 520 120",
+      "fill": "none",
+      "stroke": "#111827",
+      "strokeWidth": 5,
+      "strokeCap": "round"
     },
     {
-      "id": "browser_label",
+      "id": "title",
       "type": "text",
-      "text": "Browser",
-      "x": 210,
-      "y": 200,
+      "text": "Render kernel",
+      "x": 320,
+      "y": 70,
       "align": "center",
       "valign": "middle",
-      "fontSize": 18
+      "fontSize": 28,
+      "weight": 800,
+      "fill": "#0f172a"
     }
   ]
 }
 ```
 
-## Builders
+Only `version`, `canvas`, and `elements` are canonical top-level fields.
 
-```ts
-import { scene } from "sketchmark";
-import { node, arrow } from "sketchmark/builders";
+## Timeline
 
-const browser = node({
-  id: "browser",
-  label: "Browser",
-  x: 120,
-  y: 160,
-  width: 180,
-  height: 80
-});
+Animation is element-local. Tuple keyframes are still valid, but editor-facing tools should prefer object keyframes because curves live on the outgoing segment:
 
-const resolver = node({
-  id: "resolver",
-  label: "DNS Resolver",
-  x: 380,
-  y: 160,
-  width: 180,
-  height: 80
-});
-
-export default scene({
-  canvas: { width: 1280, height: 720, background: "#f8fafc", duration: 8 },
-  elements: [
-    ...browser,
-    ...resolver,
-    arrow({
-      id: "query_arrow",
-      from: "browser_box.right",
-      to: "resolver_box.left",
-      stroke: "#2563eb",
-      strokeWidth: 3
-    })
-  ]
-});
+```json
+{
+  "id": "label",
+  "type": "text",
+  "text": "Move",
+  "x": 40,
+  "y": 80,
+  "timeline": {
+    "start": 0.5,
+    "end": 2,
+    "tracks": {
+      "position": {
+        "keyframes": [
+          {
+            "time": 0,
+            "value": [40, 80],
+            "out": {
+              "type": "cubicBezier",
+              "x1": 0.42,
+              "y1": 0,
+              "x2": 0.58,
+              "y2": 1
+            }
+          },
+          { "time": 1.5, "value": [260, 80] }
+        ]
+      },
+      "opacity": {
+        "keyframes": [[0, 0], [0.4, 1]]
+      }
+    }
+  }
+}
 ```
 
-## Exports
+Track values may be numbers, strings, or `[x,y]` points. `position` maps to `x/y` for `point`, `text`, `image`, and `group`. Tracks can also define a fallback interpolation graph:
+
+```json
+{
+  "keyframes": [[0, [0, 0]], [1, [100, 0]]],
+  "curve": {
+    "type": "graph",
+    "points": [[0, 0], [0.35, 0.08], [0.65, 0.92], [1, 1]]
+  }
+}
+```
+
+The graph maps normalized time progress `x` to normalized value progress `y`. Kernel curves can be `graph`, `cubicBezier`, or `hold`. Segment resolution is: previous keyframe `out`, previous keyframe `interpolation`, next keyframe `in`, track `curve`, legacy `ease`, then linear. Named easing strings are still accepted as compatibility shorthands, but helpers/compounds should prefer emitting explicit curves. There are no expressions, path followers, pose drivers, scenes, or 3D in this kernel pass.
+
+## Keyframe Authoring
+
+For AI or editor-style authoring, use visual snapshots and compile them down to kernel timelines:
+
+```ts
+import { compileKeyframeStates, timelineCurvePreset } from "sketchmark";
+
+const animated = compileKeyframeStates(document, [
+  {
+    time: 0,
+    set: {
+      card: { position: [80, 160], scale: 0.85, opacity: 0 }
+    }
+  },
+  {
+    time: 1,
+    set: {
+      card: {
+        position: {
+          value: [220, 120],
+          curve: timelineCurvePreset("ease-out")
+        },
+        scale: 1,
+        opacity: 1
+      }
+    }
+  }
+]);
+```
+
+This is an authoring adapter, not a new JSON schema feature. The compiled output is still only kernel elements with local timelines.
+
+## CLI
 
 Build first:
 
@@ -101,88 +145,54 @@ Build first:
 npm run build
 ```
 
-Open a browser preview:
+Render:
 
 ```bash
-node bin/sketchmark.cjs preview examples/dns.visual.json
+node bin/sketchmark.cjs render examples/basic.visual.json out.svg
+node bin/sketchmark.cjs render examples/timeline.visual.json out.html --time 1
+node bin/sketchmark.cjs render examples/timeline.visual.json out.mp4
+node bin/sketchmark.cjs render examples/timeline.visual.json out.webm --fps 30
 ```
 
-The preview opens an inline editor with live render, play/scrub controls, scene/sequence selectors, and a save button for the source JSON.
-
-Render files:
+Generate the key-pose walking example:
 
 ```bash
-node bin/sketchmark.cjs render examples/dns.visual.json out.svg
-node bin/sketchmark.cjs render examples/dns.visual.json out.html
-node bin/sketchmark.cjs render examples/dns.visual.json out.png --time 1.5
-node bin/sketchmark.cjs render examples/dns.visual.json transparent.png --transparent
-node bin/sketchmark.cjs render examples/dns.visual.json out.pdf
-node bin/sketchmark.cjs render examples/dns.visual.json out.mp4 --fps 30 --duration 4
-node bin/sketchmark.cjs render examples/dns.visual.json transparent.webm --transparent --fps 30 --duration 4
-node bin/sketchmark.cjs lint examples/dns.visual.json
-node bin/sketchmark.cjs screenshot-lint examples/dns.visual.json
+node examples/make-keypose-walk.cjs
+node bin/sketchmark.cjs preview examples/keypose-walk.visual.json
 ```
 
-SVG and HTML are built in. PNG/JPG/PDF/MP4/WebM use `sharp`; video also requires `ffmpeg`. Use WebM for transparent video; MP4 is intentionally opaque. Structured Three image/video export uses a deterministic isometric SVG preview adapter, while HTML uses the live Three renderer.
+Preview animated timelines in the browser:
 
-## Browser Player
+```bash
+node bin/sketchmark.cjs preview examples/timeline.visual.json
+```
+
+Open the tiny editor:
+
+```bash
+node bin/sketchmark.cjs edit examples/keypose-walk.visual.json
+```
+
+Lint:
+
+```bash
+node bin/sketchmark.cjs lint examples/basic.visual.json
+```
+
+Video export is an adapter, not a kernel feature. It samples the document timeline into SVG frames, rasterizes those frames, and hands them to `ffmpeg`. It requires `sharp` and `ffmpeg` to be available in the local environment.
+
+## Public API
 
 ```ts
-import { SketchmarkPlayer, createSketchmarkPlayer } from "sketchmark/player";
-
-const player = new SketchmarkPlayer(document.getElementById("preview")!, {
-  document: visualDocument,
-  autoplay: true,
-  loop: true
-});
-
-player.seek(2);
-player.pause();
-player.setDocument(nextVisualDocument);
-await player.download("svg", { title: "visual" });
-await player.download("png", { title: "visual" });
-await player.download("mp4", { title: "visual" });
-player.destroy();
+import {
+  validateVisualDocument,
+  compileKeyframeStates,
+  timelineCurvePreset,
+  resolveVisualFrame,
+  renderToSvg,
+  renderToHtml,
+  lintVisualDocument
+} from "sketchmark";
 ```
 
-The player is UI-free. It renders the primitive JSON document into the supplied element, and its browser export provider can download SVG, PNG, JPG, HTML, JSON, and MP4. MP4 uses WebCodecs/H.264 when available and falls back to WebM if the browser cannot encode MP4.
-
-Project and sequence examples:
-
-```bash
-node bin/sketchmark.cjs preview examples/project.visual.json --sequence main
-node bin/sketchmark.cjs render examples/project.visual.json out.mp4 --sequence main
-node bin/sketchmark.cjs timeline examples/project.visual.json --sequence main --fps 12
-node bin/sketchmark.cjs render examples/deck.visual.json deck.html --deck --scene slide
-node bin/sketchmark.cjs render examples/deck.visual.json deck.pptx --deck --scene slide
-```
-
-Feature catalog:
-
-The `examples/features/` folder contains 21 primitive-first examples covering the main language surface: primitives, references, groups, animation, keyframes, packet follow, path follow, patch-friendly ids, diagrams, charts, scenes, sequences, deck steps, images, structured 3D, and mixed 2D/3D sequences.
-
-Structured Three HTML example:
-
-```bash
-node bin/sketchmark.cjs render examples/three-cube.visual.json cube.html
-node bin/sketchmark.cjs render examples/three-cube.visual.json cube.png
-node bin/sketchmark.cjs render examples/three-cube.visual.json cube.mp4 --duration 2 --fps 24
-```
-
-Raw Three escape hatch:
-
-```ts
-import { renderRawThreeModuleHtml } from "sketchmark";
-
-const html = renderRawThreeModuleHtml({
-  width: 1280,
-  height: 720,
-  moduleUrl: "./scene.js"
-});
-```
-
-The module must export `createSketchmarkThreeScene({ canvas, width, height, background })`.
-
-## AI Reference
-
-Use [AI.md](./AI.md) as the compact model-facing reference. It teaches only the primitive JSON surface and points to advanced features without making them default.
+The package intentionally exports no builders, player, project loader, deck/sequence helpers, 3D renderer, or compound compiler for now.

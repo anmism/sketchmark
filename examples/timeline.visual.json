@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 640,
+    "height": 360,
+    "background": "#f8fafc",
+    "duration": 2,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "card",
+      "type": "group",
+      "x": 80,
+      "y": 140,
+      "width": 180,
+      "height": 80,
+      "children": [
+        {
+          "id": "card_bg",
+          "type": "path",
+          "d": "M 0 0 H 180 V 80 H 0 Z",
+          "fill": "#ffffff",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 2
+        },
+        {
+          "id": "card_label",
+          "type": "text",
+          "text": "Keyframes",
+          "x": 90,
+          "y": 40,
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 20,
+          "weight": 800,
+          "fill": "#0f172a"
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  80,
+                  140
+                ],
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0,
+                  "y1": 0,
+                  "x2": 0.58,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 1,
+                "value": [
+                  380,
+                  140
+                ]
+              }
+            ]
+          },
+          "opacity": {
+            "keyframes": [
+              [
+                0,
+                0
+              ],
+              [
+                0.35,
+                1
+              ]
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
