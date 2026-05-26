@@ -2,7 +2,10 @@
 
 function previewHtml(title) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sketchmark Preview - ${escapeHtml(title)}</title><style>
-html,body{margin:0;width:100%;height:100%;background:#0f172a;color:#e2e8f0;font:14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Light.ttf') format('truetype');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+html,body{margin:0;width:100%;height:100%;background:#0f172a;color:#e2e8f0;font:14px/1.4 Roboto,Arial,sans-serif}
 body{display:grid;grid-template-rows:1fr auto}
 #stage{display:grid;place-items:center;min-height:0;padding:24px}
 #stage svg{max-width:100%;max-height:100%;box-shadow:0 24px 80px rgba(0,0,0,.35)}

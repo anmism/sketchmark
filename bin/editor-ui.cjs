@@ -2,11 +2,15 @@
 
 function editorHtml(title) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sketchmark Editor - ${escapeHtml(title)}</title><style>
-html,body{margin:0;width:100%;height:100%;font:13px Arial,sans-serif;background:#c0c0c0;color:#000;overflow:hidden}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Light.ttf') format('truetype');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Roboto';src:url('/fonts/Roboto-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+html,body{margin:0;width:100%;height:100%;font:13px Roboto,Arial,sans-serif;background:#c0c0c0;color:#000;overflow:hidden}
 body{display:grid;grid-template-columns:240px 1fr 300px;grid-template-rows:1fr 165px;min-width:900px;overflow:hidden}
-button,input,select{font:13px Arial,sans-serif}
+button,input,select,textarea{font:13px Roboto,Arial,sans-serif}
 button{padding:3px 8px}
-input,select{box-sizing:border-box;width:100%}
+input,select,textarea{box-sizing:border-box;width:100%}
+textarea{min-height:88px;padding:4px;resize:vertical}
 #tree,#inspector,#timeline{background:#f3f4f6;border:1px solid #c6ccd6;overflow:auto;padding:6px;scrollbar-width:none;-ms-overflow-style:none}
 #tree{grid-row:1/3}
 #stageWrap{position:relative;display:grid;place-items:center;min-width:0;min-height:0;padding:0;background:#fff;overflow:hidden;cursor:default}
@@ -95,6 +99,9 @@ let drawInFlight = false;
 let drawQueued = false;
 let drag = null;
 let suppressClick = false;
+const FONT_FAMILY_OPTIONS = [
+  { label: "Roboto (Local)", value: "Roboto, Arial, sans-serif" }
+];
 let collapsedGroups = new Set();
 let hiddenIds = new Set();
 let lockedIds = new Set();
@@ -696,8 +703,10 @@ function renderInspector() {
     ? "<div class='row'><label>Draw Start<input id='propDrawStart' type='number' min='0' max='1' step='0.01' value='" + valueOr(displayElement.drawStart, 0) + "' " + lockDisabled + "></label><label>Draw End<input id='propDrawEnd' type='number' min='0' max='1' step='0.01' value='" + valueOr(displayElement.drawEnd, 1) + "' " + lockDisabled + "></label></div>" +
       "<div class='row'><label>Dash Array<input id='propDashArray' type='text' value='" + escapeAttr(formatArrayValue(displayElement.dashArray)) + "' " + lockDisabled + "></label><div></div></div>"
     : "";
+  const textTrackProperty = isTextElement ? textEditorProperty(displayElement) : "text";
   const textRows = isTextElement
-    ? "<div class='row'><label>Text<input id='propText' type='text' " + lockDisabled + "></label><div></div></div>"
+    ? "<div class='stack'><label>Text<textarea id='propText' rows='4' " + lockDisabled + "></textarea></label><div class='tiny'>Use new lines for multiline text. Elements already using lines[] keep that format.</div></div>" +
+      "<div class='row'><label>Font<select id='propFontFamily' " + lockDisabled + ">" + fontFamilyOptionsHtml(displayElement.fontFamily) + "</select></label><div></div></div>"
     : "";
   const effectsRows = supportsEffects ? renderEffectsRows(displayElement, lockDisabled) : "";
   const sourceRows = element.type === "image" ? renderImageSourceRows(displayElement, lockDisabled) : "";
@@ -736,7 +745,7 @@ function renderInspector() {
     setInput("propFill", typeof displayElement.fill === "string" ? displayElement.fill : "");
     setInput("propStroke", typeof displayElement.stroke === "string" ? displayElement.stroke : "");
   }
-  if (isTextElement) setInput("propText", displayElement.text === undefined ? "" : String(displayElement.text));
+  if (isTextElement) setInput("propText", textEditorValue(displayElement));
   const kfTimeInput = document.getElementById("kfTime");
   if (kfTimeInput) {
     kfTimeInput.oninput = (event) => {
@@ -775,11 +784,30 @@ function renderInspector() {
       bindAutoKeyframe("propDashArray", () => scheduleSidebarNumberArrayKeyframe("dashArray", "propDashArray"));
     }
     if (isTextElement) {
-      bindAutoKeyframe("propText", () => scheduleSidebarTextKeyframe("text", "propText"));
+      bindAutoKeyframe("propText", () => scheduleSidebarTextContentKeyframe(textTrackProperty, "propText"));
+      bindAutoKeyframe("propFontFamily", () => scheduleSidebarTextKeyframe("fontFamily", "propFontFamily"));
     }
     bindDynamicInspectorInputs(bindAutoKeyframe);
   }
   bindColorPickersInScope(inspector);
+}
+
+function fontFamilyOptionsHtml(currentValue) {
+  const current = String(valueOr(currentValue, "")).trim();
+  const seen = new Set();
+  const options = [];
+  for (const option of FONT_FAMILY_OPTIONS) {
+    if (!option || !option.value || seen.has(option.value)) continue;
+    seen.add(option.value);
+    options.push("<option value='" + escapeAttr(option.value) + "'" + (current === option.value ? " selected" : "") + ">" + escapeText(option.label) + "</option>");
+  }
+  if (current && !seen.has(current)) {
+    options.unshift("<option value='" + escapeAttr(current) + "' selected>" + escapeText(current) + "</option>");
+  }
+  if (!current && options.length) {
+    options[0] = options[0].replace("<option ", "<option selected ");
+  }
+  return options.join("");
 }
 
 function renderEffectsRows(element, disabled) {
@@ -1504,8 +1532,24 @@ function scheduleSidebarPaintKeyframe(property, inputId) {
   });
 }
 
+function scheduleSidebarTextContentKeyframe(property, inputId) {
+  if (property === "lines") {
+    scheduleSidebarStringArrayKeyframe(property, inputId);
+    return;
+  }
+  scheduleSidebarTextKeyframe(property, inputId);
+}
+
 function scheduleSidebarTextKeyframe(property, inputId) {
   scheduleSidebarKeyframe(property, () => readTextInput(inputId));
+}
+
+function scheduleSidebarStringArrayKeyframe(property, inputId) {
+  scheduleSidebarKeyframe(property, () => {
+    const value = readTextInput(inputId);
+    if (!value) return [];
+    return value.split(/\\r?\\n/);
+  });
 }
 
 function scheduleSidebarDynamicKeyframe(input) {
@@ -2002,9 +2046,20 @@ function syncInspectorValues() {
   setInput("propDrawEnd", valueOr(element.drawEnd, 1));
   if (typeof element.fill === "string") setInput("propFill", element.fill);
   if (typeof element.stroke === "string") setInput("propStroke", element.stroke);
-  if (element.type === "text") setInput("propText", element.text === undefined ? "" : String(element.text));
+  if (element.type === "text") setInput("propText", textEditorValue(element));
   syncDynamicInspectorValues(element);
   syncColorPickersInScope(inspector);
+}
+
+function textEditorProperty(element) {
+  return Array.isArray(element && element.lines) && element.lines.length ? "lines" : "text";
+}
+
+function textEditorValue(element) {
+  if (Array.isArray(element && element.lines) && element.lines.length) {
+    return element.lines.map((line) => String(line)).join("\\n");
+  }
+  return String(valueOr(element && element.text, ""));
 }
 
 function syncDynamicInspectorValues(element) {

@@ -9,6 +9,10 @@ const core = require("../dist/src");
 const { editorHtml } = require("./editor-ui.cjs");
 const { previewHtml } = require("./preview-ui.cjs");
 
+const LOCAL_FONTS_DIR = path.resolve(__dirname, "..", "fonts");
+const FONT_EXTENSIONS = new Set([".ttf", ".otf", ".woff", ".woff2"]);
+let rasterFontConfigPrepared = false;
+
 main().catch((error) => {
   console.error(error?.message || String(error));
   process.exit(1);
@@ -96,6 +100,10 @@ async function edit(args, options = {}) {
       if (request.method === "GET" && url.pathname === "/") {
         const pageHtml = options.readOnly ? previewHtml : editorHtml;
         send(response, 200, "text/html; charset=utf-8", pageHtml(path.basename(inputPath)));
+        return;
+      }
+      if (request.method === "GET" && url.pathname.startsWith("/fonts/")) {
+        if (!sendFontAsset(response, url.pathname)) send(response, 404, "text/plain; charset=utf-8", "Font not found");
         return;
       }
       if (request.method === "GET" && url.pathname === "/api/document") {
@@ -293,6 +301,7 @@ async function renderVideo(document, outputPath, format, options) {
 }
 
 function loadSharp() {
+  ensureRasterFontConfig();
   try {
     return require("sharp");
   } catch {
@@ -305,6 +314,78 @@ function loadSharp() {
     }
   }
   throw new Error("Video export requires the optional 'sharp' package to rasterize SVG frames.");
+}
+
+function ensureRasterFontConfig() {
+  if (rasterFontConfigPrepared) return;
+  rasterFontConfigPrepared = true;
+  if (process.env.SKETCHMARK_DISABLE_FONTCONFIG === "1") return;
+  if (process.env.FONTCONFIG_FILE) return;
+
+  const fontDirs = localFontDirs();
+
+  if (!fontDirs.length) return;
+
+  const configDir = path.join(os.tmpdir(), "sketchmark-fontconfig");
+  const cacheDir = path.join(configDir, "cache");
+  const configFile = path.join(configDir, "fonts.conf");
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  const dirsXml = fontDirs.map((dir) => `  <dir>${escapeXml(fontconfigPath(dir))}</dir>`).join("\n");
+  const xml = [
+    "<?xml version=\"1.0\"?>",
+    "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">",
+    "<fontconfig>",
+    dirsXml,
+    `  <cachedir>${escapeXml(fontconfigPath(cacheDir))}</cachedir>`,
+    "  <alias>",
+    "    <family>Inter</family>",
+    "    <prefer>",
+    "      <family>Roboto</family>",
+    "      <family>sans-serif</family>",
+    "    </prefer>",
+    "  </alias>",
+    "  <alias>",
+    "    <family>Arial</family>",
+    "    <prefer>",
+    "      <family>Roboto</family>",
+    "      <family>sans-serif</family>",
+    "    </prefer>",
+    "  </alias>",
+    "  <alias>",
+    "    <family>Helvetica</family>",
+    "    <prefer>",
+    "      <family>Roboto</family>",
+    "      <family>sans-serif</family>",
+    "    </prefer>",
+    "  </alias>",
+    "  <alias>",
+    "    <family>system-ui</family>",
+    "    <prefer>",
+    "      <family>Roboto</family>",
+    "      <family>sans-serif</family>",
+    "    </prefer>",
+    "  </alias>",
+    "</fontconfig>",
+    ""
+  ].join("\n");
+
+  fs.writeFileSync(configFile, xml, "utf8");
+  process.env.FONTCONFIG_FILE = configFile;
+  process.env.FONTCONFIG_PATH = configDir;
+}
+
+function fontconfigPath(value) {
+  return String(value || "").replace(/\\/g, "/");
+}
+
+function escapeXml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function findExecutable(name) {
@@ -354,6 +435,62 @@ function sendDownload(response, status, type, filename, body) {
 
 function sendJson(response, status, payload) {
   send(response, status, "application/json; charset=utf-8", JSON.stringify(payload));
+}
+
+function sendFontAsset(response, pathname) {
+  const fontPath = resolveFontAsset(pathname);
+  if (!fontPath) return false;
+  send(response, 200, fontMimeType(path.extname(fontPath)), fs.readFileSync(fontPath));
+  return true;
+}
+
+function resolveFontAsset(pathname) {
+  if (typeof pathname !== "string" || !pathname.startsWith("/fonts/")) return "";
+  let relativePath = pathname.slice("/fonts/".length);
+  try {
+    relativePath = decodeURIComponent(relativePath);
+  } catch {
+    return "";
+  }
+  if (!relativePath || relativePath.includes("\0")) return "";
+  const normalized = path.normalize(relativePath).replace(/^([\\/])+/, "");
+  const root = path.resolve(LOCAL_FONTS_DIR);
+  const resolved = path.resolve(root, normalized);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) return "";
+  const extension = path.extname(resolved).toLowerCase();
+  if (!FONT_EXTENSIONS.has(extension)) return "";
+  if (!fs.existsSync(resolved)) return "";
+  const stats = fs.statSync(resolved);
+  if (!stats.isFile()) return "";
+  return resolved;
+}
+
+function fontMimeType(extension) {
+  const ext = String(extension || "").toLowerCase();
+  if (ext === ".otf") return "font/otf";
+  if (ext === ".woff") return "font/woff";
+  if (ext === ".woff2") return "font/woff2";
+  return "font/ttf";
+}
+
+function localFontDirs() {
+  const root = path.resolve(LOCAL_FONTS_DIR);
+  if (!fs.existsSync(root)) return [];
+  const dirs = new Set();
+  const pending = [root];
+  while (pending.length) {
+    const current = pending.pop();
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const target = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(target);
+      } else if (entry.isFile() && FONT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+        dirs.add(current);
+      }
+    }
+  }
+  return Array.from(dirs);
 }
 
 function editorDocumentPayload(document) {

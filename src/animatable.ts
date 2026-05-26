@@ -42,6 +42,7 @@ const BASE_SPECS: AnimatablePropertySpec[] = [
   { property: "drawEnd", valueKind: "number", interpolation: "number", elementTypes: PATH_TYPES, defaultValue: 1 },
   { property: "text", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
   { property: "lines", valueKind: "stringArray", interpolation: "discrete", elementTypes: TEXT_TYPES },
+  { property: "fontFamily", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
   { property: "fontSize", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 16 },
   { property: "lineHeight", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 1.2 },
   { property: "letterSpacing", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 0 },

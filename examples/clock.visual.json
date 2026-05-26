@@ -51,7 +51,56 @@
       "fontSize": 30,
       "weight": 800,
       "fill": "#0f172a",
-      "fontFamily": "Inter, system-ui, sans-serif"
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 1.5764999999999982,
+                "value": [
+                  451,
+                  105
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          },
+          "fontFamily": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": "Roboto, Arial, sans-serif",
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "dial_outer",

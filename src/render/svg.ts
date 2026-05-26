@@ -7,6 +7,13 @@ interface SvgContext {
   nextId: number;
 }
 
+const DEFAULT_FONT_FAMILY = "Roboto, Arial, sans-serif";
+const LEGACY_DEFAULT_FONT_STACKS = new Set([
+  "inter,system-ui,sans-serif",
+  "system-ui,sans-serif",
+  "arial,helvetica,sans-serif"
+]);
+
 export function renderToSvg(document: VisualDocument, options: RenderOptions = {}): string {
   return renderResolvedSvg(resolveVisualFrame(document, options.time ?? 0), options);
 }
@@ -66,12 +73,28 @@ function renderText(element: TextElement, attrs: string, fill: string): string {
   const lineHeight = fontSize * Number(element.lineHeight ?? 1.2);
   const lines = textLines(element);
   const weight = escapeAttr(String(element.weight ?? 400));
-  const fontFamily = escapeAttr(String(element.fontFamily ?? "Inter, Arial, sans-serif"));
+  const fontFamily = escapeAttr(resolveFontFamily(element.fontFamily));
   const fontStyle = element.fontStyle ? ` font-style="${escapeAttr(String(element.fontStyle))}"` : "";
   const letterSpacing = isFiniteNumber(element.letterSpacing) ? ` letter-spacing="${element.letterSpacing}"` : "";
   const firstY = textFirstLineY(element, lines.length, fontSize, lineHeight);
   const content = lines.map((line, index) => `<tspan x="${element.x}" y="${firstY + index * lineHeight}">${escapeText(line)}</tspan>`).join("");
   return `<text${attrs} text-anchor="${anchor}" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${weight}"${fontStyle}${letterSpacing} fill="${fill}">${content}</text>`;
+}
+
+function resolveFontFamily(value: unknown): string {
+  const text = String(value ?? "").trim();
+  if (!text) return DEFAULT_FONT_FAMILY;
+  const normalized = normalizeFontStack(text);
+  if (LEGACY_DEFAULT_FONT_STACKS.has(normalized)) return DEFAULT_FONT_FAMILY;
+  return text;
+}
+
+function normalizeFontStack(value: string): string {
+  return value
+    .split(",")
+    .map((item) => item.trim().replace(/^['"]|['"]$/g, "").toLowerCase())
+    .filter(Boolean)
+    .join(",");
 }
 
 function textFirstLineY(element: TextElement, lineCount: number, fontSize: number, lineHeight: number): number {

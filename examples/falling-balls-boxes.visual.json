@@ -80,7 +80,66 @@
       "fontSize": 44,
       "weight": 800,
       "fill": "#0f172a",
-      "fontFamily": "Inter, system-ui, sans-serif"
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "timeline": {
+        "tracks": {
+          "fontFamily": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": "system-ui, sans-serif",
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 0.6654420000000004,
+                "value": "Arial, Helvetica, sans-serif",
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 0.9028000000000013,
+                "value": "Helvetica, Arial, sans-serif",
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "hint",
