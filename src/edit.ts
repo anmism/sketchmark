@@ -1,5 +1,6 @@
 import type { MotionValue, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
-import { clone, isFiniteNumber, isPoint2 } from "./utils";
+import { applyPropertyValue } from "./animatable";
+import { clone, isFiniteNumber } from "./utils";
 import { validateVisualDocument } from "./validate";
 
 export interface ElementReference {
@@ -98,17 +99,7 @@ function requireElement(document: VisualDocument, id: string): VisualElement {
 }
 
 function applyProperty(element: VisualElement, property: string, value: MotionValue): void {
-  const record = element as unknown as Record<string, unknown>;
-  if (property === "position") {
-    if (!isPoint2(value)) throw new Error("position value must be [x,y].");
-    if (element.type !== "path" && element.type !== "point" && element.type !== "text" && element.type !== "image" && element.type !== "group") {
-      throw new Error("position can only be applied to path, point, text, image, or group elements.");
-    }
-    record.x = value[0];
-    record.y = value[1];
-    return;
-  }
-  record[property] = clone(value);
+  applyPropertyValue(element, property, value);
 }
 
 function makeKeyframe(time: number, value: MotionValue, options: SetKeyframeOptions): Extract<TimelineKeyframe, { time: number }> {

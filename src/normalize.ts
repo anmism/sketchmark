@@ -1,4 +1,5 @@
 import type { MotionValue, Point2, ResolvedVisualDocument, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
+import { applyPropertyValue, isTimelineValue } from "./animatable";
 import { clamp, clone, easing, isFiniteNumber, isPoint2 } from "./utils";
 import { validateVisualDocument } from "./validate";
 
@@ -37,7 +38,7 @@ function resolveElements(elements: VisualElement[], time: number): VisualElement
     const localTime = time - Number(timeline?.start ?? 0);
     for (const [property, track] of Object.entries(timeline?.tracks ?? {})) {
       const value = resolveTrack(track, localTime);
-      if (value !== undefined) applyTrackValue(next, property, value);
+      if (value !== undefined) applyPropertyValue(next, property, value);
     }
     delete next.timeline;
     return [next];
@@ -74,10 +75,10 @@ interface ResolvedKeyframe {
 
 function normalizeKeyframe(frame: TimelineKeyframe): ResolvedKeyframe | undefined {
   if (Array.isArray(frame)) {
-    if (!isFiniteNumber(frame[0]) || !isMotionValue(frame[1])) return undefined;
+    if (!isFiniteNumber(frame[0]) || !isTimelineValue(frame[1])) return undefined;
     return { time: frame[0], value: clone(frame[1]) };
   }
-  if (!frame || typeof frame !== "object" || !isFiniteNumber(frame.time) || !isMotionValue(frame.value)) return undefined;
+  if (!frame || typeof frame !== "object" || !isFiniteNumber(frame.time) || !isTimelineValue(frame.value)) return undefined;
   return {
     time: frame.time,
     value: clone(frame.value),
@@ -133,6 +134,7 @@ function cubicBezier(a: number, b: number, c: number, d: number, t: number): num
 function interpolateValue(from: MotionValue, to: MotionValue, t: number): MotionValue {
   if (typeof from === "number" && typeof to === "number") return from + (to - from) * t;
   if (isPoint2(from) && isPoint2(to)) return [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+  if (isNumberArray(from) && isNumberArray(to) && from.length === to.length) return from.map((value, index) => value + (to[index]! - value) * t);
   if (typeof from === "string" && typeof to === "string") {
     const a = parseHexColor(from);
     const b = parseHexColor(to);
@@ -143,20 +145,8 @@ function interpolateValue(from: MotionValue, to: MotionValue, t: number): Motion
   return t < 1 ? clone(from) : clone(to);
 }
 
-function applyTrackValue(element: VisualElement, property: string, value: MotionValue): void {
-  const record = element as unknown as Record<string, unknown>;
-  if (property === "position" && isPoint2(value)) {
-    if (element.type === "path" || element.type === "point" || element.type === "text" || element.type === "image" || element.type === "group") {
-      record.x = value[0];
-      record.y = value[1];
-    }
-    return;
-  }
-  record[property] = clone(value);
-}
-
-function isMotionValue(value: unknown): value is MotionValue {
-  return isFiniteNumber(value) || typeof value === "string" || isPoint2(value);
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => isFiniteNumber(item));
 }
 
 function parseHexColor(value: string): [number, number, number] | undefined {

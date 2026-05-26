@@ -16,35 +16,7 @@
       "stroke": "#d7e1ee",
       "strokeWidth": 8,
       "strokeCap": "round",
-      "strokeJoin": "round",
-      "timeline": {
-        "tracks": {
-          "position": {
-            "keyframes": [
-              {
-                "time": 2.740999999999993,
-                "value": [
-                  -15,
-                  9
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      }
+      "strokeJoin": "round"
     },
     {
       "id": "walker",
@@ -74,8 +46,8 @@
                       {
                         "time": 0,
                         "value": [
-                          71,
-                          67
+                          0,
+                          0
                         ],
                         "out": {
                           "type": "graph",
@@ -110,35 +82,7 @@
                   "stroke": "#64748b",
                   "strokeWidth": 7,
                   "strokeCap": "round",
-                  "strokeJoin": "round",
-                  "timeline": {
-                    "tracks": {
-                      "position": {
-                        "keyframes": [
-                          {
-                            "time": 0,
-                            "value": [
-                              169,
-                              31
-                            ],
-                            "out": {
-                              "type": "graph",
-                              "points": [
-                                [
-                                  0,
-                                  0
-                                ],
-                                [
-                                  1,
-                                  1
-                                ]
-                              ]
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
+                  "strokeJoin": "round"
                 }
               ],
               "origin": [
@@ -1792,155 +1736,7 @@
         }
       ],
       "width": 160,
-      "height": 460,
-      "timeline": {
-        "tracks": {
-          "position": {
-            "keyframes": [
-              {
-                "time": 0,
-                "value": [
-                  110,
-                  0
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 0.5,
-                "value": [
-                  195,
-                  -6
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 1,
-                "value": [
-                  280,
-                  0
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 1.5,
-                "value": [
-                  365,
-                  -6
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 2,
-                "value": [
-                  450,
-                  0
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 2.5,
-                "value": [
-                  535,
-                  -6
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              },
-              {
-                "time": 3,
-                "value": [
-                  620,
-                  0
-                ],
-                "out": {
-                  "type": "graph",
-                  "points": [
-                    [
-                      0,
-                      0
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      }
+      "height": 460
     }
   ]
 }

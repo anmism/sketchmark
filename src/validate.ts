@@ -15,6 +15,7 @@ import type {
   VisualEffects,
   VisualElement
 } from "./types";
+import { animatablePropertySpec, conflictWarningsForTracks, isTimelineValue, knownAnimatableProperty, validateMotionValueForProperty } from "./animatable";
 import { flattenElements, isFiniteNumber, isPoint2 } from "./utils";
 
 const ELEMENT_TYPES = new Set(["path", "text", "image", "point", "group"]);
@@ -168,7 +169,7 @@ function validateElement(element: VisualElement, path: string, issues: Validatio
   }
 
   validateStyle(element, path, issues);
-  validateTimeline(element.timeline, `${path}/timeline`, issues);
+  validateTimeline(element, element.timeline, `${path}/timeline`, issues, warnings);
 }
 
 function validateElementFields(element: VisualElement, type: string, path: string, issues: ValidationIssue[]): void {
@@ -296,7 +297,7 @@ function validateMask(value: MaskShape | undefined, path: string, issues: Valida
   if (value && value.opacity !== undefined && (!isFiniteNumber(value.opacity) || value.opacity < 0 || value.opacity > 1)) issues.push(issue(`${path}/opacity`, "invalid_mask_opacity", "mask opacity must be between 0 and 1."));
 }
 
-function validateTimeline(value: ElementTimeline | undefined, path: string, issues: ValidationIssue[]): void {
+function validateTimeline(element: VisualElement, value: ElementTimeline | undefined, path: string, issues: ValidationIssue[], warnings: ValidationWarning[]): void {
   if (value === undefined) return;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     issues.push(issue(path, "invalid_timeline", "timeline must be an object."));
@@ -310,10 +311,13 @@ function validateTimeline(value: ElementTimeline | undefined, path: string, issu
     issues.push(issue(`${path}/tracks`, "invalid_timeline_tracks", "timeline.tracks must be an object."));
     return;
   }
-  for (const [property, track] of Object.entries(value.tracks)) validateTrack(track, `${path}/tracks/${property}`, issues);
+  for (const [property, track] of Object.entries(value.tracks)) validateTrack(element, property, track, `${path}/tracks/${property}`, issues, warnings);
+  for (const message of conflictWarningsForTracks(Object.keys(value.tracks))) {
+    warnings.push(warning(`${path}/tracks`, "conflicting_timeline_tracks", message));
+  }
 }
 
-function validateTrack(track: TimelineTrack, path: string, issues: ValidationIssue[]): void {
+function validateTrack(element: VisualElement, property: string, track: TimelineTrack, path: string, issues: ValidationIssue[], warnings: ValidationWarning[]): void {
   if (!track || typeof track !== "object" || Array.isArray(track)) {
     issues.push(issue(path, "invalid_timeline_track", "Timeline track must be an object."));
     return;
@@ -323,20 +327,25 @@ function validateTrack(track: TimelineTrack, path: string, issues: ValidationIss
   }
   validateTimelineCurve(track.curve, `${path}/curve`, issues);
   if (track.ease !== undefined && typeof track.ease !== "string") issues.push(issue(`${path}/ease`, "invalid_timeline_ease", "Timeline ease must be a string."));
+  const propertySpec = animatablePropertySpec(element, property);
+  if (!propertySpec) {
+    const code = knownAnimatableProperty(property) ? "unsupported_timeline_track_for_element" : "unknown_timeline_track";
+    warnings.push(warning(path, code, `Timeline track '${property}' is not a supported animatable property for ${element.type} elements yet. It is kept as compatibility data.`));
+  }
   if (!Array.isArray(track.keyframes) || !track.keyframes.length) {
     issues.push(issue(`${path}/keyframes`, "invalid_timeline_keyframes", "Track keyframes must be a non-empty array."));
     return;
   }
   let previous = Number.NEGATIVE_INFINITY;
   for (const [index, frame] of track.keyframes.entries()) {
-    const time = validateKeyframe(frame, `${path}/keyframes/${index}`, issues);
+    const time = validateKeyframe(frame, `${path}/keyframes/${index}`, issues, propertySpec);
     if (time === undefined) continue;
     if (time < previous) issues.push(issue(`${path}/keyframes/${index}/time`, "unsorted_timeline_keyframes", "Keyframe times must be sorted."));
     previous = time;
   }
 }
 
-function validateKeyframe(frame: TimelineKeyframe, path: string, issues: ValidationIssue[]): number | undefined {
+function validateKeyframe(frame: TimelineKeyframe, path: string, issues: ValidationIssue[], propertySpec: ReturnType<typeof animatablePropertySpec>): number | undefined {
   if (Array.isArray(frame)) {
     if (frame.length !== 2) {
       issues.push(issue(path, "invalid_timeline_keyframe", "Keyframe tuple must be [time,value]."));
@@ -346,7 +355,7 @@ function validateKeyframe(frame: TimelineKeyframe, path: string, issues: Validat
       issues.push(issue(`${path}/0`, "invalid_timeline_keyframe_time", "Keyframe time must be finite seconds."));
       return undefined;
     }
-    if (!isTimelineValue(frame[1])) issues.push(issue(`${path}/1`, "invalid_timeline_value", "Track value must be a number, string, or [x,y]."));
+    validateTimelineValue(frame[1], `${path}/1`, issues, propertySpec);
     return frame[0];
   }
   if (!frame || typeof frame !== "object") {
@@ -360,11 +369,21 @@ function validateKeyframe(frame: TimelineKeyframe, path: string, issues: Validat
     issues.push(issue(`${path}/time`, "invalid_timeline_keyframe_time", "Keyframe time must be finite seconds."));
     return undefined;
   }
-  if (!isTimelineValue(frame.value)) issues.push(issue(`${path}/value`, "invalid_timeline_value", "Track value must be a number, string, or [x,y]."));
+  validateTimelineValue(frame.value, `${path}/value`, issues, propertySpec);
   validateTimelineCurve(frame.in, `${path}/in`, issues);
   validateTimelineCurve(frame.out, `${path}/out`, issues);
   validateTimelineCurve(frame.interpolation, `${path}/interpolation`, issues);
   return frame.time;
+}
+
+function validateTimelineValue(value: unknown, path: string, issues: ValidationIssue[], propertySpec: ReturnType<typeof animatablePropertySpec>): void {
+  if (!isTimelineValue(value)) {
+    issues.push(issue(path, "invalid_timeline_value", "Track value must be a JSON-safe timeline value."));
+    return;
+  }
+  if (propertySpec && !validateMotionValueForProperty(propertySpec, value)) {
+    issues.push(issue(path, "invalid_timeline_value_for_property", `Track value is not valid for '${propertySpec.property}'.`));
+  }
 }
 
 function validateTimelineCurve(curve: TimelineCurve | undefined, path: string, issues: ValidationIssue[]): void {
@@ -414,10 +433,6 @@ function validateAllowedKeys(value: object, path: string, allowed: Set<string>, 
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) issues.push(issue(`${path}/${key}`, "non_kernel_timeline_curve_field", `Timeline curve field '${key}' is not part of this curve type.`));
   }
-}
-
-function isTimelineValue(value: unknown): boolean {
-  return isFiniteNumber(value) || typeof value === "string" || isPoint2(value);
 }
 
 function validateImageFit(value: ImageFit | undefined, path: string, issues: ValidationIssue[]): void {

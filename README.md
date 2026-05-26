@@ -91,7 +91,7 @@ Animation is element-local. Tuple keyframes are still valid, but editor-facing t
 }
 ```
 
-Track values may be numbers, strings, or `[x,y]` points. `position` maps to `x/y` for `point`, `text`, `image`, and `group`. Tracks can also define a fallback interpolation graph:
+Track values may be numbers, strings, `[x,y]` points, same-length number arrays, string arrays, or JSON objects. Known kernel properties are type-checked more strictly than the broad schema shape. `position` maps to `x/y` for `path`, `point`, `text`, `image`, and `group`. Tracks can also define a fallback interpolation graph:
 
 ```json
 {
@@ -104,6 +104,8 @@ Track values may be numbers, strings, or `[x,y]` points. `position` maps to `x/y
 ```
 
 The graph maps normalized time progress `x` to normalized value progress `y`. Kernel curves can be `graph`, `cubicBezier`, or `hold`. Segment resolution is: previous keyframe `out`, previous keyframe `interpolation`, next keyframe `in`, track `curve`, legacy `ease`, then linear. Named easing strings are still accepted as compatibility shorthands, but helpers/compounds should prefer emitting explicit curves. There are no expressions, path followers, pose drivers, scenes, or 3D in this kernel pass.
+
+Current known animatable properties include transform/layout (`position`, `x`, `y`, `rotation`, `scale`, `scaleX`, `scaleY`, `origin`, `width`, `height`, `opacity`), path drawing/style (`fill`, `stroke`, `strokeWidth`, caps/joins, `dashArray`, `dashOffset`, `drawStart`, `drawEnd`), text content/layout, image `src`/`fit`/`source.*`, clip/mask paths and opacity, filter effects (`effects.*`), and structured paint internals such as `fill.to` or `fill.stops.0.color`.
 
 ## Keyframe Authoring
 
@@ -160,6 +162,27 @@ Generate the key-pose walking example:
 node examples/make-keypose-walk.cjs
 node bin/sketchmark.cjs preview examples/keypose-walk.visual.json
 ```
+
+Generate the key-pose cyclist example:
+
+```bash
+node examples/make-keypose-cycle.cjs
+node bin/sketchmark.cjs preview examples/keypose-cycle.visual.json
+```
+
+Generate heavier real-world stress scenes:
+
+```bash
+node examples/make-stress-city-traffic.cjs
+node examples/make-stress-ops-dashboard.cjs
+node examples/make-stress-airport-radar.cjs
+
+node bin/sketchmark.cjs preview examples/stress-city-traffic.visual.json
+node bin/sketchmark.cjs preview examples/stress-ops-dashboard.visual.json
+node bin/sketchmark.cjs preview examples/stress-airport-radar.visual.json
+```
+
+These are intentionally dense (many elements/keyframes) to pressure test preview responsiveness.
 
 Preview animated timelines in the browser:
 

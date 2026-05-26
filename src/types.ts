@@ -4,7 +4,9 @@ export type Align = "left" | "center" | "right";
 export type VAlign = "top" | "middle" | "bottom";
 
 export type Point2 = [number, number];
-export type MotionValue = number | string | Point2;
+export type JsonMotionObject = { [key: string]: JsonMotionValue };
+export type JsonMotionValue = number | string | boolean | null | JsonMotionValue[] | JsonMotionObject;
+export type MotionValue = number | string | Point2 | number[] | string[] | JsonMotionObject;
 export type TimelineTrackValue = MotionValue;
 export type TimelineCurve =
   | { type: "graph"; points: Point2[] }

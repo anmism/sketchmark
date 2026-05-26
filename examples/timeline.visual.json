@@ -22,7 +22,35 @@
           "d": "M 0 0 H 180 V 80 H 0 Z",
           "fill": "#ffffff",
           "stroke": "#cbd5e1",
-          "strokeWidth": 2
+          "strokeWidth": 2,
+          "timeline": {
+            "tracks": {
+              "position": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": [
+                      -68,
+                      -121
+                    ],
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
         },
         {
           "id": "card_label",
@@ -34,7 +62,35 @@
           "valign": "middle",
           "fontSize": 20,
           "weight": 800,
-          "fill": "#0f172a"
+          "fill": "#0f172a",
+          "timeline": {
+            "tracks": {
+              "position": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": [
+                      19,
+                      -81
+                    ],
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       ],
       "timeline": {
@@ -42,38 +98,65 @@
           "position": {
             "keyframes": [
               {
-                "time": 0,
+                "time": 0.235,
                 "value": [
-                  80,
-                  140
+                  402,
+                  227
                 ],
                 "out": {
-                  "type": "cubicBezier",
-                  "x1": 0,
-                  "y1": 0,
-                  "x2": 0.58,
-                  "y2": 1
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
                 }
               },
               {
-                "time": 1,
+                "time": 0.9152419999999986,
                 "value": [
-                  380,
-                  140
-                ]
+                  116,
+                  339
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 1.325,
+                "value": [
+                  102,
+                  161
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
               }
-            ]
-          },
-          "opacity": {
-            "keyframes": [
-              [
-                0,
-                0
-              ],
-              [
-                0.35,
-                1
-              ]
             ]
           }
         }

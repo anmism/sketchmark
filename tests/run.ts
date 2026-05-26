@@ -222,6 +222,118 @@ test("resolves object keyframes and per-segment curves", () => {
   assert(near(linear.x, 150), `track curve should apply when segment has no keyframe curve, got ${linear.x}`);
 });
 
+test("resolves nested animatable property tracks", () => {
+  const imageSrc = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23fff'/%3E%3C/svg%3E";
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180, duration: 2 },
+    elements: [
+      {
+        id: "shape",
+        type: "path",
+        d: "M 0 0 H 100 V 100 H 0 Z",
+        fill: { type: "linearGradient", from: [0, 0], to: [100, 0], stops: [[0, "#000000"], [1, "#ffffff"]] },
+        stroke: "#000000",
+        dashArray: [0, 10],
+        timeline: {
+          tracks: {
+            "fill.to": { keyframes: [[0, [100, 0]], [2, [100, 100]]], ease: "linear" },
+            "fill.stops.0.color": { keyframes: [[0, "#000000"], [2, "#ffffff"]], ease: "linear" },
+            "effects.blur": { keyframes: [[0, 0], [2, 10]], ease: "linear" },
+            "effects.shadow.opacity": { keyframes: [[0, 1], [2, 0]], ease: "linear" },
+            "mask.opacity": { keyframes: [[0, 1], [2, 0]], ease: "linear" },
+            dashArray: { keyframes: [[0, [0, 10]], [2, [10, 20]]], ease: "linear" }
+          }
+        }
+      },
+      {
+        id: "photo",
+        type: "image",
+        src: imageSrc,
+        x: 120,
+        y: 20,
+        width: 100,
+        height: 100,
+        timeline: {
+          tracks: {
+            "source.width": { keyframes: [[0, 100], [2, 50]], ease: "linear" }
+          }
+        }
+      }
+    ]
+  };
+  const result = validateVisualDocument(doc);
+  assert(result.ok, `nested animatable tracks should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  const mid = resolveVisualFrame(doc, 1);
+  const shape = mid.elements.find((item) => item.id === "shape") as any;
+  const photo = mid.elements.find((item) => item.id === "photo") as any;
+  assert(shape.fill.to[1] === 50, `linear gradient endpoint should interpolate, got ${shape.fill.to}`);
+  assert(shape.fill.stops[0][1] === "#808080", `gradient color stop should interpolate, got ${shape.fill.stops[0][1]}`);
+  assert(shape.effects.blur === 5, `effects.blur should interpolate, got ${shape.effects.blur}`);
+  assert(shape.effects.shadow.opacity === 0.5, `shadow opacity should interpolate, got ${shape.effects.shadow.opacity}`);
+  assert(shape.mask.opacity === 0.5, `mask opacity should interpolate, got ${shape.mask.opacity}`);
+  assert(shape.dashArray[0] === 5 && shape.dashArray[1] === 15, `dash arrays should interpolate, got ${shape.dashArray}`);
+  assert(photo.source.width === 75, `image source crop should interpolate, got ${photo.source.width}`);
+});
+
+test("warns for compatibility tracks but rejects invalid known track values", () => {
+  const unknownDoc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [
+      {
+        id: "dot",
+        type: "point",
+        x: 0,
+        y: 0,
+        timeline: { tracks: { "future.magic": { keyframes: [{ time: 0, value: { enabled: true, amount: 1 } }] } } }
+      }
+    ]
+  };
+  const unknown = validateVisualDocument(unknownDoc);
+  assert(unknown.ok, "unknown compatibility track should stay valid");
+  assert(unknown.warnings.some((item) => item.code === "unknown_timeline_track"), "unknown compatibility track should warn");
+
+  const invalidKnown = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [
+      {
+        id: "shape",
+        type: "path",
+        d: "M 0 0 L 100 0",
+        timeline: { tracks: { "effects.blur": { keyframes: [[0, "#fff"]] } } }
+      }
+    ]
+  } as unknown as VisualDocument;
+  const invalid = validateVisualDocument(invalidKnown);
+  assert(!invalid.ok, "invalid value for a known supported property should fail");
+  assert(invalid.issues.some((item) => item.code === "invalid_timeline_value_for_property"), "known property value mismatch should be reported");
+});
+
+test("warns about overlapping timeline representations", () => {
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [
+      {
+        id: "shape",
+        type: "path",
+        d: "M 0 0 L 100 0",
+        timeline: {
+          tracks: {
+            position: { keyframes: [[0, [0, 0]]] },
+            x: { keyframes: [[0, 10]] }
+          }
+        }
+      }
+    ]
+  };
+  const result = validateVisualDocument(doc);
+  assert(result.ok, "overlapping tracks should remain valid");
+  assert(result.warnings.some((item) => item.code === "conflicting_timeline_tracks"), "overlapping tracks should warn");
+});
+
 test("compiles visual keyframe states to kernel timelines", () => {
   const doc: VisualDocument = {
     version: 1,

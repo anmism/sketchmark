@@ -1,4 +1,5 @@
 import type { MotionValue, Point2, TimelineCurve, TimelineTrack, VisualDocument, VisualElement } from "./types";
+import { baseValueForProperty, isTimelineValue } from "./animatable";
 import { clone, flattenElements, isFiniteNumber, isPoint2 } from "./utils";
 import { validateVisualDocument } from "./validate";
 
@@ -142,7 +143,7 @@ function normalizedStateEntries(element: VisualElement, state: KeyframeElementSt
 
 function parsePropertyState(element: VisualElement, property: string, state: KeyframePropertyState): Omit<NormalizedStateEntry, "property"> {
   if (isPropertySpec(state)) {
-    if (!isMotionValue(state.value)) throw new Error(`Element '${element.id ?? "(unnamed)"}' property '${property}' must be a number, string, or [x,y].`);
+    if (!isTimelineValue(state.value)) throw new Error(`Element '${element.id ?? "(unnamed)"}' property '${property}' must be a timeline value.`);
     return {
       value: clone(state.value),
       ...(state.curve ? { curve: clone(state.curve) } : {}),
@@ -153,7 +154,7 @@ function parsePropertyState(element: VisualElement, property: string, state: Key
       ...(state.interpolation ? { interpolation: clone(state.interpolation) } : {})
     };
   }
-  if (!isMotionValue(state)) throw new Error(`Element '${element.id ?? "(unnamed)"}' property '${property}' must be a number, string, or [x,y].`);
+  if (!isTimelineValue(state)) throw new Error(`Element '${element.id ?? "(unnamed)"}' property '${property}' must be a timeline value.`);
   return { value: clone(state) };
 }
 
@@ -180,13 +181,7 @@ function addTrackKeyframe(
 }
 
 function baseValue(element: VisualElement, property: string): MotionValue | undefined {
-  if (property === "position" && canUsePosition(element)) return [Number(element.x ?? 0), Number(element.y ?? 0)];
-  const value = (element as unknown as Record<string, unknown>)[property];
-  if (isMotionValue(value)) return clone(value);
-  if (property === "opacity" || property === "scale" || property === "scaleX" || property === "scaleY") return 1;
-  if (property === "rotation" || property === "drawStart" || property === "dashOffset") return 0;
-  if (property === "drawEnd") return 1;
-  return undefined;
+  return baseValueForProperty(element, property);
 }
 
 function sortTimelineTracks(elements: VisualElement[]): void {
@@ -235,14 +230,6 @@ function offsetFromMap(map: KeyframeOffsetMap | undefined, id: string, property:
   if (isFiniteNumber(entry)) return entry;
   const value = entry[property];
   return isFiniteNumber(value) ? value : 0;
-}
-
-function canUsePosition(element: VisualElement): element is VisualElement & { x?: number; y?: number } {
-  return element.type === "path" || element.type === "point" || element.type === "text" || element.type === "image" || element.type === "group";
-}
-
-function isMotionValue(value: unknown): value is MotionValue {
-  return isFiniteNumber(value) || typeof value === "string" || isPoint2(value);
 }
 
 function isPropertySpec(value: unknown): value is KeyframePropertySpec {

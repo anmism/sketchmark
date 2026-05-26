@@ -332,7 +332,20 @@
           "type": "string"
         },
         {
-          "$ref": "#/$defs/point2"
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": true
         }
       ]
     },

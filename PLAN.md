@@ -26,7 +26,7 @@ Allowed animation:
 
 - element-local `timeline`
 - sparse `keyframes` as legacy `[time,value]` tuples or preferred `{ time, value, in, out, interpolation }` objects
-- values: number, string, `[x,y]`
+- values: JSON-safe timeline values, with known animatable properties type-checked by the kernel registry
 - interpolation `curve` as a normalized graph/cubic/hold primitive
 - per-segment curve resolution from keyframe `out`/`interpolation`/`in` before track fallback
 - synthetic `position` track for `x/y` elements
@@ -37,6 +37,7 @@ Allowed authoring adapters:
 - named ease presets that compile to explicit interpolation curves
 - per-element/per-property timing offsets for state-based keyframe compilation
 - edit helpers for selecting elements and safely changing properties/keyframes
+- an animatable property registry for known transform, style, effects, mask/clip, image-source, and structured-paint tracks
 - these adapters are APIs/scripts, not canonical JSON fields
 
 Explicitly out of kernel for now:

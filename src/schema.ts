@@ -89,7 +89,13 @@ export function generateVisualSchema(): JsonSchema {
         }
       },
       timelineValue: {
-        oneOf: [{ type: "number" }, { type: "string" }, { $ref: "#/$defs/point2" }]
+        oneOf: [
+          { type: "number" },
+          { type: "string" },
+          { type: "array", items: { type: "number" } },
+          { type: "array", items: { type: "string" } },
+          { type: "object", additionalProperties: true }
+        ]
       },
       timelineCurve: {
         oneOf: [
