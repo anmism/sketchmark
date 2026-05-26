@@ -1,217 +1,337 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const width = 960;
-const height = 540;
-const groundY = 430;
-const duration = 8;
+const width = 1280;
+const height = 720;
+const groundY = 620;
+const duration = 7;
 const fps = 60;
+
+function round(value) {
+  return Math.round(Number(value) * 1000) / 1000;
+}
+
+function clampTime(time) {
+  return Math.max(0, Math.min(duration, round(time)));
+}
 
 function pathElement(id, d, style = {}) {
   return { id, type: "path", d, ...style };
 }
 
-function group(id, x, y, children, extra = {}) {
+function groupElement(id, x, y, children, extra = {}) {
   return { id, type: "group", x, y, children, ...extra };
 }
 
-function circlePath(cx, cy, r) {
-  const c = Math.round(r * 0.5522847498 * 1000) / 1000;
+function textElement(id, x, y, text, style = {}) {
+  return { id, type: "text", x, y, text, ...style };
+}
+
+function rectPath(x, y, w, h) {
   return [
-    `M ${cx + r} ${cy}`,
-    `C ${cx + r} ${cy + c} ${cx + c} ${cy + r} ${cx} ${cy + r}`,
-    `C ${cx - c} ${cy + r} ${cx - r} ${cy + c} ${cx - r} ${cy}`,
-    `C ${cx - r} ${cy - c} ${cx - c} ${cy - r} ${cx} ${cy - r}`,
-    `C ${cx + c} ${cy - r} ${cx + r} ${cy - c} ${cx + r} ${cy}`,
+    `M ${x} ${y}`,
+    `H ${x + w}`,
+    `V ${y + h}`,
+    `H ${x}`,
     "Z"
   ].join(" ");
 }
 
-function rectPathCentered(w, h) {
-  const x = -w / 2;
-  const y = -h / 2;
-  return `M ${x} ${y} H ${x + w} V ${y + h} H ${x} Z`;
+function ellipsePath(cx, cy, rx, ry) {
+  const c = 0.5522847498;
+  const ox = round(rx * c);
+  const oy = round(ry * c);
+  return [
+    `M ${round(cx + rx)} ${round(cy)}`,
+    `C ${round(cx + rx)} ${round(cy + oy)} ${round(cx + ox)} ${round(cy + ry)} ${round(cx)} ${round(cy + ry)}`,
+    `C ${round(cx - ox)} ${round(cy + ry)} ${round(cx - rx)} ${round(cy + oy)} ${round(cx - rx)} ${round(cy)}`,
+    `C ${round(cx - rx)} ${round(cy - oy)} ${round(cx - ox)} ${round(cy - ry)} ${round(cx)} ${round(cy - ry)}`,
+    `C ${round(cx + ox)} ${round(cy - ry)} ${round(cx + rx)} ${round(cy - oy)} ${round(cx + rx)} ${round(cy)}`,
+    "Z"
+  ].join(" ");
 }
 
-function rounded(n, digits) {
-  const factor = 10 ** digits;
-  return Math.round(n * factor) / factor;
+function roundedRectPath(x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  return [
+    `M ${x + rr} ${y}`,
+    `H ${x + w - rr}`,
+    `Q ${x + w} ${y} ${x + w} ${y + rr}`,
+    `V ${y + h - rr}`,
+    `Q ${x + w} ${y + h} ${x + w - rr} ${y + h}`,
+    `H ${x + rr}`,
+    `Q ${x} ${y + h} ${x} ${y + h - rr}`,
+    `V ${y + rr}`,
+    `Q ${x} ${y} ${x + rr} ${y}`,
+    "Z"
+  ].join(" ");
 }
 
-function makeBounceTracks(options) {
-  const dt = 1 / 30;
-  const gravity = options.gravity ?? 1650;
-  const restitution = options.restitution ?? 0.58;
-  const restSpeed = options.restSpeed ?? 24;
-  const delay = options.delay ?? 0;
-  const baseX = options.x;
-  const floorY = options.floorY;
+function circlePath(r) {
+  return ellipsePath(0, 0, r, r);
+}
 
-  let x = baseX;
-  let y = options.startY;
-  let vy = 0;
-  let rotation = options.rotationStart ?? 0;
-  let spin = options.spin ?? 0;
-  let atRest = false;
+function curveEaseIn() {
+  return { type: "cubicBezier", x1: 0.5, y1: 0, x2: 1, y2: 0.5 };
+}
 
-  const positionKeyframes = [];
-  const rotationKeyframes = [];
+function curveLift() {
+  return { type: "cubicBezier", x1: 0.12, y1: 0.75, x2: 0.22, y2: 1 };
+}
 
-  for (let t = 0; t <= duration + 0.0001; t += dt) {
-    const activeT = Math.max(0, t - delay);
+function curveFloat() {
+  return { type: "cubicBezier", x1: 0.22, y1: 0, x2: 0.68, y2: 1 };
+}
 
-    if (!atRest && activeT > 0) {
-      vy += gravity * dt;
-      y += vy * dt;
-      rotation += spin * dt;
-
-      if (y >= floorY) {
-        y = floorY;
-        vy = -vy * restitution;
-        spin *= 0.72;
-        if (Math.abs(vy) < restSpeed) {
-          vy = 0;
-          atRest = true;
-        }
-      }
+function sanitizeKeyframes(frames) {
+  const sorted = frames
+    .map((frame) => ({ ...frame, time: clampTime(frame.time) }))
+    .filter((frame) => Number.isFinite(frame.time))
+    .sort((left, right) => left.time - right.time);
+  const compact = [];
+  for (const frame of sorted) {
+    if (!compact.length) {
+      compact.push(frame);
+      continue;
     }
+    const previous = compact[compact.length - 1];
+    if (Math.abs(previous.time - frame.time) < 0.0001) compact[compact.length - 1] = frame;
+    else compact.push(frame);
+  }
+  return compact;
+}
 
-    if (options.driftAmp) {
-      const sway = Math.sin(activeT * (options.driftFreq ?? 4.5)) * options.driftAmp;
-      const damp = Math.exp(-activeT * (options.driftDamp ?? 0.5));
-      x = baseX + sway * damp;
-    } else {
-      x = baseX;
-    }
+function buildBouncePositionTrack(config) {
+  const {
+    x,
+    startY,
+    restY,
+    startTime,
+    dropDuration,
+    bounces,
+    bounceHeight,
+    restitution,
+    drift
+  } = config;
 
-    positionKeyframes.push([rounded(t, 3), [rounded(x, 2), rounded(y, 2)]]);
-    rotationKeyframes.push([rounded(t, 3), rounded(rotation, 2)]);
+  const keyframes = [
+    { time: startTime, value: [x, startY], out: curveEaseIn() }
+  ];
+  const impactTimes = [];
+
+  let cursor = startTime + dropDuration;
+  let driftX = drift * 0.25;
+  keyframes.push({ time: cursor, value: [x + driftX, restY], out: curveLift() });
+  impactTimes.push(cursor);
+
+  let heightPx = bounceHeight;
+  for (let i = 0; i < bounces; i += 1) {
+    heightPx *= restitution;
+    if (heightPx < 8) break;
+    const upDuration = Math.max(0.08, dropDuration * 0.23 * Math.pow(0.74, i));
+    const downDuration = Math.max(0.08, dropDuration * 0.27 * Math.pow(0.74, i));
+    const upTime = cursor + upDuration;
+    driftX += drift * 0.2;
+    keyframes.push({
+      time: upTime,
+      value: [x + driftX, restY - heightPx],
+      out: curveFloat()
+    });
+    const downTime = upTime + downDuration;
+    driftX += drift * 0.18;
+    keyframes.push({
+      time: downTime,
+      value: [x + driftX, restY],
+      out: curveLift()
+    });
+    impactTimes.push(downTime);
+    cursor = downTime;
   }
 
+  keyframes.push({ time: duration, value: [x + drift, restY] });
+  return { keyframes: sanitizeKeyframes(keyframes), impactTimes };
+}
+
+function buildSquashTracks(startTime, impactTimes, amount) {
+  const scaleX = [{ time: startTime, value: 1 }];
+  const scaleY = [{ time: startTime, value: 1 }];
+  for (const hitTime of impactTimes) {
+    const t0 = clampTime(hitTime - 0.05);
+    const t1 = clampTime(hitTime);
+    const t2 = clampTime(hitTime + 0.08);
+    const t3 = clampTime(hitTime + 0.18);
+    scaleX.push({ time: t0, value: 1 });
+    scaleX.push({ time: t1, value: round(1 + amount) });
+    scaleX.push({ time: t2, value: round(1 - amount * 0.45) });
+    scaleX.push({ time: t3, value: 1 });
+
+    scaleY.push({ time: t0, value: 1 });
+    scaleY.push({ time: t1, value: round(1 - amount * 0.85) });
+    scaleY.push({ time: t2, value: round(1 + amount * 0.35) });
+    scaleY.push({ time: t3, value: 1 });
+  }
+  scaleX.push({ time: duration, value: 1 });
+  scaleY.push({ time: duration, value: 1 });
   return {
-    position: positionKeyframes,
-    rotation: rotationKeyframes
+    scaleX: { keyframes: sanitizeKeyframes(scaleX) },
+    scaleY: { keyframes: sanitizeKeyframes(scaleY) }
   };
 }
 
-function makeBall(id, x, radius, color, delay) {
-  const tracks = makeBounceTracks({
-    x,
-    startY: -120 - radius * 1.4,
-    floorY: groundY - radius,
-    delay,
-    restitution: 0.6,
-    spin: 130 + radius * 0.8,
-    driftAmp: 16,
-    driftFreq: 3.2 + radius * 0.03,
-    driftDamp: 0.35
-  });
+function buildBoxRotationTrack(startTime, impactTimes, initialSpin) {
+  const keyframes = [{ time: startTime, value: round(-initialSpin * 0.5), out: curveEaseIn() }];
+  let spin = initialSpin;
+  for (const hitTime of impactTimes) {
+    const before = clampTime(hitTime - 0.03);
+    const after = clampTime(hitTime + 0.17);
+    keyframes.push({ time: before, value: round(spin * 0.55) });
+    spin = -spin * 0.58;
+    keyframes.push({ time: after, value: round(spin), out: curveFloat() });
+  }
+  keyframes.push({ time: duration, value: 0 });
+  return { keyframes: sanitizeKeyframes(keyframes) };
+}
 
-  return group(
-    id,
-    x,
-    -120,
+function makeBall(item, index) {
+  const radius = item.size / 2;
+  const startY = 52 + index * 24;
+  const restY = groundY - radius;
+  const motion = buildBouncePositionTrack({
+    x: item.x,
+    startY,
+    restY,
+    startTime: item.startTime,
+    dropDuration: item.dropDuration,
+    bounces: item.bounces,
+    bounceHeight: item.bounceHeight,
+    restitution: item.restitution,
+    drift: item.drift
+  });
+  return groupElement(
+    item.id,
+    item.x,
+    startY,
     [
-      pathElement(`${id}_body`, circlePath(0, 0, radius), {
-        fill: color,
+      pathElement(`${item.id}_body`, circlePath(radius), {
+        fill: item.color,
         stroke: "#0f172a",
-        strokeWidth: 2
+        strokeWidth: 3
       }),
-      pathElement(`${id}_shine`, circlePath(-radius * 0.34, -radius * 0.34, radius * 0.26), {
+      pathElement(`${item.id}_highlight`, ellipsePath(-radius * 0.28, -radius * 0.3, radius * 0.33, radius * 0.22), {
         fill: "#ffffff",
-        opacity: 0.33
+        opacity: 0.2
       })
     ],
     {
-      origin: [0, 0],
       timeline: {
         tracks: {
-          position: { keyframes: tracks.position },
-          rotation: { keyframes: tracks.rotation }
+          position: { keyframes: motion.keyframes },
+          ...buildSquashTracks(item.startTime, motion.impactTimes, 0.17)
         }
       }
     }
   );
 }
 
-function makeBox(id, x, size, color, delay) {
-  const tracks = makeBounceTracks({
-    x,
-    startY: -170 - size * 0.8,
-    floorY: groundY - size / 2,
-    delay,
-    restitution: 0.44,
-    spin: 190 + size * 0.9,
-    driftAmp: 10,
-    driftFreq: 3.8,
-    driftDamp: 0.55
+function makeBox(item, index) {
+  const side = item.size;
+  const startY = 68 + index * 22;
+  const restY = groundY - side / 2;
+  const motion = buildBouncePositionTrack({
+    x: item.x,
+    startY,
+    restY,
+    startTime: item.startTime,
+    dropDuration: item.dropDuration,
+    bounces: item.bounces,
+    bounceHeight: item.bounceHeight,
+    restitution: item.restitution,
+    drift: item.drift
   });
-
-  const half = size / 2;
-  const inset = size * 0.17;
-  const inner = half - inset;
-
-  return group(
-    id,
-    x,
-    -170,
+  return groupElement(
+    item.id,
+    item.x,
+    startY,
     [
-      pathElement(`${id}_body`, rectPathCentered(size, size), {
-        fill: color,
-        stroke: "#111827",
-        strokeWidth: 2
+      pathElement(`${item.id}_body`, roundedRectPath(-side / 2, -side / 2, side, side, 12), {
+        fill: item.color,
+        stroke: "#0f172a",
+        strokeWidth: 3
       }),
-      pathElement(
-        `${id}_mark`,
-        `M ${-inner} ${-inner} L ${inner} ${inner} M ${inner} ${-inner} L ${-inner} ${inner}`,
-        {
-          fill: "none",
-          stroke: "#ffffff",
-          strokeWidth: 1.5,
-          opacity: 0.6
-        }
-      )
+      pathElement(`${item.id}_edge`, roundedRectPath(-side / 2 + 7, -side / 2 + 7, side - 14, side - 14, 8), {
+        fill: "none",
+        stroke: "#ffffff",
+        strokeWidth: 2,
+        opacity: 0.25
+      })
     ],
     {
-      origin: [0, 0],
       timeline: {
         tracks: {
-          position: { keyframes: tracks.position },
-          rotation: { keyframes: tracks.rotation }
+          position: { keyframes: motion.keyframes },
+          rotation: buildBoxRotationTrack(item.startTime, motion.impactTimes, item.spin),
+          ...buildSquashTracks(item.startTime, motion.impactTimes, 0.1)
         }
       }
     }
   );
 }
 
-const document = {
+const actors = [
+  { id: "ball_blue", kind: "ball", x: 150, size: 62, color: "#3b82f6", startTime: 0.0, dropDuration: 1.05, bounces: 4, bounceHeight: 180, restitution: 0.5, drift: 60 },
+  { id: "box_orange", kind: "box", x: 320, size: 76, color: "#f97316", startTime: 0.25, dropDuration: 1.2, bounces: 4, bounceHeight: 160, restitution: 0.47, drift: 48, spin: 26 },
+  { id: "ball_green", kind: "ball", x: 500, size: 74, color: "#22c55e", startTime: 0.5, dropDuration: 1.32, bounces: 4, bounceHeight: 190, restitution: 0.5, drift: 56 },
+  { id: "box_violet", kind: "box", x: 700, size: 70, color: "#8b5cf6", startTime: 0.85, dropDuration: 1.15, bounces: 4, bounceHeight: 150, restitution: 0.46, drift: 44, spin: 30 },
+  { id: "ball_rose", kind: "ball", x: 905, size: 58, color: "#f43f5e", startTime: 1.1, dropDuration: 1.0, bounces: 5, bounceHeight: 145, restitution: 0.54, drift: 52 },
+  { id: "box_teal", kind: "box", x: 1090, size: 78, color: "#14b8a6", startTime: 1.35, dropDuration: 1.25, bounces: 4, bounceHeight: 170, restitution: 0.48, drift: 40, spin: 24 }
+];
+
+const doc = {
   version: 1,
   canvas: {
     width,
     height,
-    background: "#f8fafc",
+    background: "#e2e8f0",
     duration,
     fps
   },
   elements: [
-    pathElement("ground_fill", `M 0 ${groundY} H ${width} V ${height} H 0 Z`, { fill: "#dbeafe" }),
+    pathElement("sky_strip", rectPath(0, 0, width, groundY), {
+      fill: "#f8fafc"
+    }),
+    pathElement("ground", rectPath(0, groundY, width, height - groundY), {
+      fill: "#cbd5e1"
+    }),
     pathElement("ground_line", `M 0 ${groundY} H ${width}`, {
       fill: "none",
-      stroke: "#0f172a",
-      strokeWidth: 3
+      stroke: "#64748b",
+      strokeWidth: 4
     }),
-
-    makeBall("ball_blue", 130, 28, "#38bdf8", 0.00),
-    makeBall("ball_green", 260, 24, "#22c55e", 0.18),
-    makeBall("ball_orange", 390, 34, "#f97316", 0.35),
-    makeBall("ball_pink", 540, 22, "#ec4899", 0.54),
-
-    makeBox("box_amber", 670, 52, "#f59e0b", 0.10),
-    makeBox("box_indigo", 790, 44, "#6366f1", 0.30),
-    makeBox("box_teal", 890, 58, "#14b8a6", 0.52)
+    ...actors.map((item, index) => {
+      const w = item.size * (item.kind === "ball" ? 1.7 : 1.45);
+      const h = item.size * 0.22;
+      return pathElement(`shadow_${item.id}`, ellipsePath(item.x, groundY + 3, w / 2, h / 2), {
+        fill: "#0f172a",
+        opacity: 0.16
+      });
+    }),
+    textElement("title", width / 2, 72, "Falling Balls + Boxes Bounce Test", {
+      align: "center",
+      fontSize: 44,
+      weight: 800,
+      fill: "#0f172a",
+      fontFamily: "Inter, system-ui, sans-serif"
+    }),
+    textElement("hint", width / 2, 124, "Simple gravity-style drop with damped bounces", {
+      align: "center",
+      fontSize: 20,
+      fill: "#334155",
+      fontFamily: "Inter, system-ui, sans-serif"
+    }),
+    ...actors.map((item, index) => (item.kind === "ball" ? makeBall(item, index) : makeBox(item, index)))
   ]
 };
 
 const outPath = path.join(__dirname, "falling-balls-boxes.visual.json");
-fs.writeFileSync(outPath, JSON.stringify(document, null, 2) + "\n", "utf8");
+fs.writeFileSync(outPath, JSON.stringify(doc, null, 2) + "\n", "utf8");
 console.log(`Wrote ${outPath}`);

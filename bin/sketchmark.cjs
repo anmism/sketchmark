@@ -111,6 +111,10 @@ async function edit(args, options = {}) {
         sendJson(response, 200, { ok: true, svg: core.renderResolvedSvg(resolved), resolved, duration, fps: visualFps(doc), canvas: doc.canvas });
         return;
       }
+      if (request.method === "GET" && url.pathname === "/api/export") {
+        await exportFromEditor(response, loadDocument(inputPath), inputPath, url);
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/canvas") {
         if (options.readOnly) {
           sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
@@ -222,6 +226,41 @@ function inferFormat(outputPath) {
   throw new Error(`Cannot infer kernel output format from '${outputPath}'. Use .svg, .html, .mp4, or .webm.`);
 }
 
+async function exportFromEditor(response, document, inputPath, url) {
+  const format = String(url.searchParams.get("format") || "svg").toLowerCase();
+  const duration = Number(document.canvas.duration ?? 0);
+  const time = clamp(Number(url.searchParams.get("time") || 0), 0, Math.max(duration, 0));
+  const base = exportBaseName(inputPath);
+  if (format === "svg") {
+    const svg = core.renderToSvg(document, { time });
+    sendDownload(response, 200, "image/svg+xml; charset=utf-8", `${base}-${timeLabel(time)}.svg`, Buffer.from(svg, "utf8"));
+    return;
+  }
+  if (format === "png") {
+    const sharp = loadSharp();
+    const svg = core.renderToSvg(document, { time });
+    const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
+    sendDownload(response, 200, "image/png", `${base}-${timeLabel(time)}.png`, png);
+    return;
+  }
+  if (format === "mp4") {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "sketchmark-editor-export-"));
+    const outputPath = path.join(tempDir, "export.mp4");
+    try {
+      await renderVideo(document, outputPath, "mp4", {
+        duration: visualDuration(document),
+        fps: visualFps(document),
+        transparent: false
+      });
+      sendDownload(response, 200, "video/mp4", `${base}.mp4`, fs.readFileSync(outputPath));
+    } finally {
+      safeRemoveDirectory(tempDir);
+    }
+    return;
+  }
+  throw new Error("Editor export format must be svg, png, or mp4.");
+}
+
 async function renderVideo(document, outputPath, format, options) {
   if (format === "mp4" && options.transparent) {
     throw new Error("MP4 does not support alpha in this exporter. Use .webm for transparent video.");
@@ -304,6 +343,15 @@ function send(response, status, type, body) {
   response.end(body);
 }
 
+function sendDownload(response, status, type, filename, body) {
+  response.writeHead(status, {
+    "content-type": type,
+    "content-disposition": `attachment; filename="${safeHeaderFilename(filename)}"`,
+    "cache-control": "no-store"
+  });
+  response.end(body);
+}
+
 function sendJson(response, status, payload) {
   send(response, status, "application/json; charset=utf-8", JSON.stringify(payload));
 }
@@ -317,6 +365,19 @@ function editorDocumentPayload(document) {
     duration: Number(document.canvas.duration ?? 0),
     fps: visualFps(document)
   };
+}
+
+function exportBaseName(inputPath) {
+  const file = path.basename(inputPath).replace(/\.visual\.json$/i, "").replace(/\.[^.]+$/i, "");
+  return safeHeaderFilename(file || "sketchmark");
+}
+
+function timeLabel(time) {
+  return `t${Number(time).toFixed(2).replace(".", "-")}`;
+}
+
+function safeHeaderFilename(value) {
+  return String(value || "sketchmark").replace(/[^A-Za-z0-9._-]+/g, "_");
 }
 
 function readJson(request) {

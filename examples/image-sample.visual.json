@@ -3,7 +3,7 @@
   "canvas": {
     "width": 1280,
     "height": 720,
-    "background": "#0b1020",
+    "background": "#0037eb",
     "duration": 6,
     "fps": 30
   },
@@ -17,6 +17,26 @@
         "tracks": {
           "position": {
             "keyframes": [
+              {
+                "time": 4.36,
+                "value": [
+                  86,
+                  234
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
               {
                 "time": 4.818241999999992,
                 "value": [
@@ -46,14 +66,90 @@
       "id": "bg_bottom",
       "type": "path",
       "d": "M 0 396.00000000000006 H 1280 V 720 H 0 Z",
-      "fill": "#111827"
+      "fill": "#111827",
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 4.36,
+                "value": [
+                  101,
+                  -59
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "frame_shadow",
       "type": "path",
       "d": "M 242 114 H 1038 Q 1062 114 1062 138 V 584 Q 1062 608 1038 608 H 242 Q 218 608 218 584 V 138 Q 218 114 242 114 Z",
       "fill": "#000000",
-      "opacity": 0.28
+      "opacity": 0.28,
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  -38,
+                  123
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 4.36,
+                "value": [
+                  32,
+                  81
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "frame_outer",
@@ -66,6 +162,46 @@
         "tracks": {
           "position": {
             "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  137,
+                  146
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 4.36,
+                "value": [
+                  285,
+                  43
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
               {
                 "time": 4.818241999999992,
                 "value": [
@@ -102,6 +238,46 @@
         "tracks": {
           "position": {
             "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  269,
+                  107
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 4.36,
+                "value": [
+                  -6,
+                  73
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
               {
                 "time": 4.818241999999992,
                 "value": [
@@ -143,11 +319,21 @@
               {
                 "time": 0,
                 "value": [
-                  271,
-                  141
+                  314,
+                  143
                 ],
                 "out": {
-                  "type": "hold"
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
                 }
               },
               {
@@ -177,6 +363,26 @@
                   148
                 ]
               ],
+              {
+                "time": 4.36,
+                "value": [
+                  338,
+                  312
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
               {
                 "time": 4.368200000000015,
                 "value": [
@@ -372,7 +578,35 @@
       "fontSize": 38,
       "weight": 800,
       "fill": "#e2e8f0",
-      "fontFamily": "Inter, system-ui, sans-serif"
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  352,
+                  251
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "id": "sub",
@@ -383,7 +617,55 @@
       "align": "center",
       "fontSize": 15,
       "fill": "#93c5fd",
-      "fontFamily": "monospace"
+      "fontFamily": "monospace",
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  298,
+                  379
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              },
+              {
+                "time": 4.36,
+                "value": [
+                  278,
+                  134
+                ],
+                "out": {
+                  "type": "graph",
+                  "points": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

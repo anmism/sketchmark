@@ -62,7 +62,12 @@ input,select{box-sizing:border-box;width:100%}
 .curveModalBar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 .curveModalContent .curvePanel{margin-top:0}
 #tree::-webkit-scrollbar,#inspector::-webkit-scrollbar,#timeline::-webkit-scrollbar,.curveModal::-webkit-scrollbar{width:0;height:0}
-#error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center}
+#error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:6px;align-items:center}
+.menuWrap{position:relative}
+.menuBtn{min-width:72px}
+.menuList{position:absolute;right:0;top:calc(100% + 4px);display:grid;gap:2px;padding:4px;background:#f3f4f6;border:1px solid #8f96a3;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:5}
+.menuList button{min-width:88px;text-align:left;padding:2px 8px}
+.menuList.hidden{display:none}
 </style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div><script>
 const tree = document.getElementById("tree");
 const stageWrap = document.getElementById("stageWrap");
@@ -111,6 +116,13 @@ curveModal.onclick = (event) => event.stopPropagation();
 zoomOut.onclick = () => zoomBy(1.12);
 zoomIn.onclick = () => zoomBy(1 / 1.12);
 zoomFit.onclick = () => resetViewport(true);
+document.addEventListener("click", (event) => {
+  const wrap = document.getElementById("exportMenuWrap");
+  const menu = document.getElementById("exportMenu");
+  if (!wrap || !menu) return;
+  if (wrap.contains(event.target)) return;
+  menu.classList.add("hidden");
+});
 
 async function api(path, options) {
   const response = await fetch(path, options || { cache: "no-store" });
@@ -932,8 +944,27 @@ function bindDynamicInspectorInputs(bindAutoKeyframe) {
 function renderTimeline() {
   const element = findElement(selectedId);
   const tracks = element && element.timeline && element.timeline.tracks ? element.timeline.tracks : {};
-  timeline.innerHTML = "<div class='toolbar'><button id='play'>" + (playing ? "Pause" : "Play") + "</button><input id='scrub' type='range' min='0' max='" + Math.max(Number(doc.canvas.duration || 0), 0.01) + "' step='0.005' value='" + currentTime + "'><strong id='timeLabel'>" + currentTime.toFixed(2) + "s</strong><button id='refresh'>Refresh</button></div>";
+  timeline.innerHTML = "<div class='toolbar'><button id='play'>" + (playing ? "Pause" : "Play") + "</button><input id='scrub' type='range' min='0' max='" + Math.max(Number(doc.canvas.duration || 0), 0.01) + "' step='0.005' value='" + currentTime + "'><strong id='timeLabel'>" + currentTime.toFixed(2) + "s</strong><button id='refresh'>Refresh</button><div id='exportMenuWrap' class='menuWrap'><button id='exportMenuBtn' class='menuBtn' type='button' title='Export options'>Export</button><div id='exportMenu' class='menuList hidden'><button id='exportSvg' type='button' title='Export current frame as SVG'>SVG</button><button id='exportPng' type='button' title='Export current frame as PNG'>PNG</button><button id='exportMp4' type='button' title='Export full animation as MP4'>MP4</button></div></div></div>";
   document.getElementById("play").onclick = togglePlay;
+  const exportMenuBtn = document.getElementById("exportMenuBtn");
+  const exportMenu = document.getElementById("exportMenu");
+  exportMenuBtn.onclick = (event) => {
+    event.stopPropagation();
+    if (exportMenu) exportMenu.classList.toggle("hidden");
+  };
+  if (exportMenu) exportMenu.onclick = (event) => event.stopPropagation();
+  document.getElementById("exportSvg").onclick = () => {
+    if (exportMenu) exportMenu.classList.add("hidden");
+    exportDocument("svg", exportMenuBtn);
+  };
+  document.getElementById("exportPng").onclick = () => {
+    if (exportMenu) exportMenu.classList.add("hidden");
+    exportDocument("png", exportMenuBtn);
+  };
+  document.getElementById("exportMp4").onclick = () => {
+    if (exportMenu) exportMenu.classList.add("hidden");
+    exportDocument("mp4", exportMenuBtn);
+  };
   document.getElementById("refresh").onclick = load;
   document.getElementById("scrub").oninput = (event) => {
     setCurrentTime(event.target.value);
@@ -995,6 +1026,46 @@ function renderTimeline() {
     timeline.appendChild(box);
   }
   if (isCurveModalOpen()) refreshCurveModal(tracks);
+}
+
+async function exportDocument(format, triggerButton) {
+  const button = triggerButton || document.getElementById("exportMenuBtn");
+  const label = button ? button.textContent : "";
+  try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = format === "mp4" ? "Exporting..." : "Export...";
+    }
+    const response = await fetch("/api/export?format=" + encodeURIComponent(format) + "&time=" + encodeURIComponent(currentTime), { cache: "no-store" });
+    if (!response.ok) {
+      let message = "Export failed.";
+      try {
+        const data = await response.json();
+        message = data.error || message;
+      } catch {}
+      throw new Error(message);
+    }
+    const blob = await response.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filenameFromDisposition(response.headers.get("content-disposition")) || ("sketchmark." + format);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch (error) {
+    showError(error);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+}
+
+function filenameFromDisposition(header) {
+  const match = /filename="([^"]+)"/.exec(header || "");
+  return match ? match[1] : "";
 }
 
 function isCurveModalOpen() {
