@@ -2,33 +2,81 @@
 
 function editorHtml(title) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sketchmark Editor - ${escapeHtml(title)}</title><style>
-html,body{margin:0;width:100%;height:100%;font:13px Arial,sans-serif;background:#c0c0c0;color:#000}
-body{display:grid;grid-template-columns:240px 1fr 300px;grid-template-rows:1fr 165px;min-width:900px}
+html,body{margin:0;width:100%;height:100%;font:13px Arial,sans-serif;background:#c0c0c0;color:#000;overflow:hidden}
+body{display:grid;grid-template-columns:240px 1fr 300px;grid-template-rows:1fr 165px;min-width:900px;overflow:hidden}
 button,input,select{font:13px Arial,sans-serif}
 button{padding:3px 8px}
 input,select{box-sizing:border-box;width:100%}
-#tree,#inspector,#timeline{background:#eee;border:2px inset #ddd;overflow:auto;padding:8px}
+#tree,#inspector,#timeline{background:#f3f4f6;border:1px solid #c6ccd6;overflow:auto;padding:6px;scrollbar-width:none;-ms-overflow-style:none}
 #tree{grid-row:1/3}
-#stageWrap{display:grid;place-items:center;min-width:0;min-height:0;padding:8px;background:#999}
+#stageWrap{position:relative;display:grid;place-items:center;min-width:0;min-height:0;padding:0;background:#fff;overflow:hidden;cursor:default}
+#stageWrap.panning{cursor:grabbing}
+#stage{display:grid;place-items:center;min-width:0;min-height:0}
 #stage svg{max-width:100%;max-height:calc(100vh - 190px);background:white;border:1px solid #333;overflow:visible}
+#viewportHud{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:6px;background:rgba(238,238,238,.95);border:1px solid #8f96a3;z-index:3}
+#viewportHud button{padding:1px 8px;min-width:42px}
+#zoomLabel{min-width:42px;text-align:center;font-weight:bold;color:#111827}
 #timeline{grid-column:2/4}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0}
+.row label{display:block}
+.colorField{display:grid;grid-template-columns:34px 1fr;gap:6px;align-items:center}
+.colorField input[type=color]{width:34px;height:28px;padding:0;border:1px solid #8f96a3;background:#fff;cursor:pointer}
 .stack{display:grid;gap:5px}.section{margin:0 0 10px}.label{display:block;font-weight:bold;margin:0 0 3px}
+.panelGroup{margin:0 0 8px;border:1px solid #c9cfdb;background:#f8fafc}
+.panelGroup > summary{list-style:none;cursor:pointer;padding:6px 8px;font-weight:bold;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.panelGroup > summary::-webkit-details-marker{display:none}
+.panelGroup > summary::after{content:"+";font-weight:bold;color:#4b5563}
+.panelGroup[open] > summary::after{content:"-"}
+.panelGroup > summary .summaryMeta{font-size:11px;color:#4b5563;font-weight:normal;margin-left:auto}
+.panelBody{padding:6px 8px;border-top:1px solid #d8dee8}
+.subhead{display:block;font-size:11px;font-weight:bold;color:#374151;margin:6px 0 2px}
 .treeRow{display:grid;grid-template-columns:16px 20px 20px 1fr;gap:3px;align-items:center;margin:1px 0}
 .treePad{display:block;width:16px;height:20px}
 .treeCtl{height:20px;padding:0;border:1px solid #9aa1ad;background:#f8fafc;cursor:pointer;line-height:18px;font-size:11px}
 .treeCtl.active{background:#003399;color:#fff;border-color:#003399}
-.treeBtn{display:block;width:100%;text-align:left;margin:0;border:1px solid transparent;background:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px}
+.canvasError{color:#900;font-size:11px;min-height:14px}
+.treeBtn{display:block;width:100%;text-align:left;margin:0;border:1px solid transparent;background:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px}
 .treeBtn.dim{opacity:0.6}
 .treeBtn.selected{background:#003399;color:white}.muted{color:#555}.track{border:1px solid #888;background:#ddd;padding:5px;margin:4px 0}
-.kf{display:inline-block;margin:3px;padding:2px 4px;background:#eee;border:1px solid #999}.kf button{padding:0 4px;margin-left:4px}
+.trackName{display:block;font-weight:bold;margin-bottom:4px}
+.trackLine{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.kf{display:inline-flex;align-items:center;gap:4px;padding:2px 4px;background:#eee;border:1px solid #999;cursor:pointer}.kf button{padding:0 4px;margin:0}
+.segBadge{padding:1px 6px;border:1px solid #8f96a3;background:#f9fbff;font-size:11px;cursor:pointer}
+.segBadge.active{background:#003399;color:#fff;border-color:#003399}
+.curvePanel{border:1px solid #777;background:#ececec;padding:6px;margin-top:6px}
+.curvePanelHead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.curvePanelTitle{font-weight:bold}
+.curvePanelRange{font-size:11px;color:#333}
+.curvePreview{width:100%;height:120px;border:1px solid #9aa1ad;background:#fff;margin-bottom:6px;overflow:hidden}
+.curvePreview svg{display:block;width:100%;height:100%;overflow:hidden}
+.curvePresets{display:flex;flex-wrap:wrap;gap:6px}
+.curvePreset{padding:2px 8px;border:1px solid #8f96a3;background:#f9fbff;cursor:pointer}
+.curvePreset.active{background:#003399;color:#fff;border-color:#003399}
+.curveCustom{border:1px solid #b8bcc4;background:#f7f7f7;padding:6px;margin-top:6px}
+.curveCustomLabel{display:block;font-size:11px;color:#333;margin-bottom:4px}
+.curveCustomFields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.curveCustom textarea{width:100%;height:56px;box-sizing:border-box;font:12px Consolas,monospace}
+.modalBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:9999}
+.modalBackdrop.hidden{display:none}
+.curveModal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border:2px outset #ddd;background:#ececec;padding:8px;scrollbar-width:none;-ms-overflow-style:none}
+.curveModalBar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.curveModalContent .curvePanel{margin-top:0}
+#tree::-webkit-scrollbar,#inspector::-webkit-scrollbar,#timeline::-webkit-scrollbar,.curveModal::-webkit-scrollbar{width:0;height:0}
 #error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center}
-</style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div></main><aside id="inspector"></aside><section id="timeline"></section><script>
+</style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div><script>
 const tree = document.getElementById("tree");
 const stageWrap = document.getElementById("stageWrap");
 const stage = document.getElementById("stage");
+const zoomOut = document.getElementById("zoomOut");
+const zoomIn = document.getElementById("zoomIn");
+const zoomFit = document.getElementById("zoomFit");
+const zoomLabel = document.getElementById("zoomLabel");
 const inspector = document.getElementById("inspector");
 const timeline = document.getElementById("timeline");
+const curveModalBackdrop = document.getElementById("curveModalBackdrop");
+const curveModal = document.getElementById("curveModal");
+const curveModalContent = document.getElementById("curveModalContent");
+const curveModalClose = document.getElementById("curveModalClose");
 let doc = null;
 let refs = [];
 let selectedId = "";
@@ -49,6 +97,20 @@ let parentById = Object.create(null);
 let childIdsById = Object.create(null);
 let typeById = Object.create(null);
 let sidebarCommitTimers = Object.create(null);
+let selectedSegment = null;
+let panelOpenState = Object.create(null);
+let viewport = { initialized: false, baseWidth: 1, baseHeight: 1, x: 0, y: 0, width: 1, height: 1 };
+let viewportPan = null;
+let spacePanActive = false;
+
+curveModalClose.onclick = closeCurveModal;
+curveModalBackdrop.onclick = (event) => {
+  if (event.target === curveModalBackdrop) closeCurveModal();
+};
+curveModal.onclick = (event) => event.stopPropagation();
+zoomOut.onclick = () => zoomBy(1.12);
+zoomIn.onclick = () => zoomBy(1 / 1.12);
+zoomFit.onclick = () => resetViewport(true);
 
 async function api(path, options) {
   const response = await fetch(path, options || { cache: "no-store" });
@@ -83,7 +145,12 @@ async function draw() {
     resolvedDoc = data.resolved || null;
     stage.innerHTML = data.svg;
     const svg = stage.querySelector("svg");
-    if (svg) svg.style.overflow = "visible";
+    if (svg) {
+      svg.style.overflow = "visible";
+      applyViewportToSvg(svg, data.canvas || (doc && doc.canvas));
+    } else {
+      updateZoomLabel();
+    }
     applyEditorFlagsToStage();
     const selected = selectedId ? stage.querySelector("#" + cssId(selectedId)) : null;
     if (selected && !isElementHidden(selectedId) && !isElementLocked(selectedId)) {
@@ -114,8 +181,236 @@ function requestDraw() {
   });
 }
 
+function canvasSize(canvas) {
+  const width = Math.max(1, Number(canvas && canvas.width || 1));
+  const height = Math.max(1, Number(canvas && canvas.height || 1));
+  return { width, height };
+}
+
+function ensureViewportState(canvas, forceReset) {
+  const size = canvasSize(canvas);
+  const changed = !viewport.initialized || viewport.baseWidth !== size.width || viewport.baseHeight !== size.height;
+  if (forceReset || changed) {
+    viewport = {
+      initialized: true,
+      baseWidth: size.width,
+      baseHeight: size.height,
+      x: 0,
+      y: 0,
+      width: size.width,
+      height: size.height
+    };
+  }
+  clampViewport();
+}
+
+function applyViewportToSvg(svg, canvas) {
+  if (!svg) return;
+  ensureViewportState(canvas, false);
+  svg.setAttribute("viewBox", viewport.x.toFixed(3) + " " + viewport.y.toFixed(3) + " " + viewport.width.toFixed(3) + " " + viewport.height.toFixed(3));
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  updateZoomLabel();
+}
+
+function updateZoomLabel() {
+  if (!zoomLabel) return;
+  if (!viewport.initialized || viewport.width <= 0) {
+    zoomLabel.textContent = "100%";
+    return;
+  }
+  const zoom = Math.round((viewport.baseWidth / viewport.width) * 100);
+  zoomLabel.textContent = zoom + "%";
+}
+
+function clampViewport() {
+  if (!viewport.initialized) return;
+  viewport.width = clampRange(viewport.width, viewport.baseWidth * 0.08, viewport.baseWidth);
+  viewport.height = clampRange(viewport.height, viewport.baseHeight * 0.08, viewport.baseHeight);
+  const maxX = viewport.baseWidth - viewport.width;
+  const maxY = viewport.baseHeight - viewport.height;
+  viewport.x = clampRange(viewport.x, 0, Math.max(0, maxX));
+  viewport.y = clampRange(viewport.y, 0, Math.max(0, maxY));
+}
+
+function clampRange(value, min, max) {
+  return Math.max(min, Math.min(max, Number(value)));
+}
+
+function wheelDeltaToPixels(event) {
+  const mode = Number(event && event.deltaMode || 0);
+  if (mode === 1) return { x: event.deltaX * 16, y: event.deltaY * 16 };
+  if (mode === 2) return { x: event.deltaX * Math.max(1, stageWrap.clientWidth), y: event.deltaY * Math.max(1, stageWrap.clientHeight) };
+  return { x: event.deltaX, y: event.deltaY };
+}
+
+function zoomFactorFromWheel(event) {
+  const delta = wheelDeltaToPixels(event);
+  const dy = clampRange(delta.y, -600, 600);
+  return Math.exp(dy * 0.002);
+}
+
+function currentSvg() {
+  return stage.querySelector("svg");
+}
+
+function svgPointFromClient(svg, clientX, clientY) {
+  if (!svg || !svg.getScreenCTM) return null;
+  const matrix = svg.getScreenCTM();
+  if (!matrix || !matrix.inverse) return null;
+  const point = svg.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  return point.matrixTransform(matrix.inverse());
+}
+
+function zoomBy(factor, clientX, clientY) {
+  const svg = currentSvg();
+  if (!svg || !doc || !doc.canvas) return;
+  ensureViewportState(doc.canvas, false);
+  const focus = Number.isFinite(clientX) && Number.isFinite(clientY)
+    ? svgPointFromClient(svg, clientX, clientY)
+    : { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+  const worldX = focus ? focus.x : viewport.x + viewport.width / 2;
+  const worldY = focus ? focus.y : viewport.y + viewport.height / 2;
+  const ux = clamp01((worldX - viewport.x) / viewport.width);
+  const uy = clamp01((worldY - viewport.y) / viewport.height);
+  const nextWidth = clampRange(viewport.width * Number(factor || 1), viewport.baseWidth * 0.08, viewport.baseWidth);
+  const zoomScale = nextWidth / viewport.width;
+  const nextHeight = clampRange(viewport.height * zoomScale, viewport.baseHeight * 0.08, viewport.baseHeight);
+  viewport.x = worldX - ux * nextWidth;
+  viewport.y = worldY - uy * nextHeight;
+  viewport.width = nextWidth;
+  viewport.height = nextHeight;
+  clampViewport();
+  applyViewportToSvg(svg, doc.canvas);
+}
+
+function resetViewport(applyNow) {
+  ensureViewportState(doc && doc.canvas, true);
+  if (!applyNow) return;
+  const svg = currentSvg();
+  if (svg) applyViewportToSvg(svg, doc && doc.canvas);
+  else updateZoomLabel();
+}
+
+function panViewportByPixels(deltaX, deltaY) {
+  const svg = currentSvg();
+  if (!svg || !doc || !doc.canvas) return;
+  ensureViewportState(doc.canvas, false);
+  const rect = svg.getBoundingClientRect();
+  const widthPx = Math.max(1, rect.width);
+  const heightPx = Math.max(1, rect.height);
+  viewport.x += (Number(deltaX) || 0) * (viewport.width / widthPx);
+  viewport.y += (Number(deltaY) || 0) * (viewport.height / heightPx);
+  clampViewport();
+  applyViewportToSvg(svg, doc.canvas);
+}
+
+function shouldStartViewportPan(event) {
+  if (!stage.contains(event.target)) return false;
+  if (event.target && event.target.closest && event.target.closest("#viewportHud")) return false;
+  if (event.button === 1) return true;
+  return spacePanActive && event.button === 0;
+}
+
+function beginViewportPan(event) {
+  if (!doc || !doc.canvas) return;
+  const svg = currentSvg();
+  if (!svg) return;
+  ensureViewportState(doc.canvas, false);
+  viewportPan = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startX: viewport.x,
+    startY: viewport.y,
+    moved: false
+  };
+  stageWrap.classList.add("panning");
+  stageWrap.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function updateViewportPan(event) {
+  if (!viewportPan || event.pointerId !== viewportPan.pointerId) return;
+  const svg = currentSvg();
+  if (!svg || !doc || !doc.canvas) return;
+  const startPoint = svgPointFromClient(svg, viewportPan.startClientX, viewportPan.startClientY);
+  const currentPoint = svgPointFromClient(svg, event.clientX, event.clientY);
+  if (!startPoint || !currentPoint) return;
+  const dx = currentPoint.x - startPoint.x;
+  const dy = currentPoint.y - startPoint.y;
+  viewport.x = viewportPan.startX - dx;
+  viewport.y = viewportPan.startY - dy;
+  clampViewport();
+  applyViewportToSvg(svg, doc.canvas);
+  viewportPan.moved = viewportPan.moved || Math.abs(dx) > 0.25 || Math.abs(dy) > 0.25;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+function endViewportPan(event) {
+  if (!viewportPan) return;
+  if (event && event.pointerId !== undefined && event.pointerId !== viewportPan.pointerId) return;
+  const pointerId = viewportPan.pointerId;
+  if (viewportPan.moved) suppressClick = true;
+  viewportPan = null;
+  stageWrap.classList.remove("panning");
+  if (pointerId !== undefined) stageWrap.releasePointerCapture?.(pointerId);
+}
+
+function isEditableInputTarget(target) {
+  if (!target || !target.tagName) return false;
+  const tag = String(target.tagName).toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || Boolean(target.isContentEditable);
+}
+
+function isPanelOpen(panelId, defaultOpen) {
+  if (Object.prototype.hasOwnProperty.call(panelOpenState, panelId)) return Boolean(panelOpenState[panelId]);
+  return Boolean(defaultOpen);
+}
+
+function panelDetails(panelId, title, body, options) {
+  const open = isPanelOpen(panelId, options && options.defaultOpen);
+  const extraClass = options && options.className ? " " + options.className : "";
+  const meta = options && options.meta !== undefined && options.meta !== ""
+    ? "<span class='summaryMeta'>" + escapeText(String(options.meta)) + "</span>"
+    : "";
+  return "<details class='panelGroup" + extraClass + "' data-panel='" + escapeAttr(panelId) + "'" + (open ? " open" : "") + ">" +
+    "<summary><span>" + escapeText(title) + "</span>" + meta + "</summary>" +
+    "<div class='panelBody'>" + (body || "") + "</div>" +
+    "</details>";
+}
+
+function bindPanelStates(scope) {
+  const root = scope || document;
+  const panels = root.querySelectorAll("details[data-panel]");
+  for (const panel of panels) {
+    const panelId = panel.getAttribute("data-panel");
+    if (!panelId) continue;
+    panelOpenState[panelId] = panel.open;
+    panel.ontoggle = () => {
+      panelOpenState[panelId] = panel.open;
+    };
+  }
+}
+
 function renderTree() {
-  tree.innerHTML = "<div class='section'><span class='label'>Elements</span></div>";
+  const canvas = doc && doc.canvas ? doc.canvas : {};
+  const canvasSummary = Math.round(valueOr(canvas.width, 1)) + "x" + Math.round(valueOr(canvas.height, 1));
+  const canvasBody =
+    "<div class='row'><label>Width<input id='canvasWidth' type='number' step='1' min='1' value='" + escapeAttr(valueOr(canvas.width, 1)) + "'></label><label>Height<input id='canvasHeight' type='number' step='1' min='1' value='" + escapeAttr(valueOr(canvas.height, 1)) + "'></label></div>" +
+    "<div class='row'>" + colorTextInput("Background", "canvasBackground", "", valueOr(canvas.background, ""), "", "#ffffff") + "<div></div></div>" +
+    "<div class='row'><label>Duration<input id='canvasDuration' type='number' step='0.1' min='0' value='" + escapeAttr(valueOr(canvas.duration, "")) + "'></label><label>FPS<input id='canvasFps' type='number' step='1' min='1' value='" + escapeAttr(valueOr(canvas.fps, "")) + "'></label></div>" +
+    "<div id='canvasError' class='canvasError'></div>";
+  tree.innerHTML =
+    panelDetails("tree-canvas", "Canvas", canvasBody, { defaultOpen: false, meta: canvasSummary }) +
+    panelDetails("tree-elements", "Elements", "<div id='elementsTree'></div>", { defaultOpen: false, meta: refs.length + " items" });
+  bindPanelStates(tree);
+  bindCanvasInputs();
+  const treeRoot = document.getElementById("elementsTree");
+  if (!treeRoot) return;
   for (const ref of refs) {
     if (isInCollapsedBranch(ref.id)) continue;
     const row = document.createElement("div");
@@ -160,8 +455,70 @@ function renderTree() {
     button.textContent = ref.id + "  " + ref.type;
     button.onclick = () => select(ref.id);
     row.appendChild(button);
-    tree.appendChild(row);
+    treeRoot.appendChild(row);
   }
+}
+
+function bindCanvasInputs() {
+  const bind = (id, callback) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.oninput = callback;
+    input.onchange = callback;
+  };
+  bind("canvasWidth", () => scheduleCanvasCommit("width", () => parseCanvasNumber("canvasWidth", { min: 1, integer: true })));
+  bind("canvasHeight", () => scheduleCanvasCommit("height", () => parseCanvasNumber("canvasHeight", { min: 1, integer: true })));
+  bind("canvasBackground", () => scheduleCanvasCommit("background", () => parseCanvasBackground("canvasBackground")));
+  bind("canvasDuration", () => scheduleCanvasCommit("duration", () => parseCanvasNumber("canvasDuration", { min: 0, optional: true })));
+  bind("canvasFps", () => scheduleCanvasCommit("fps", () => parseCanvasNumber("canvasFps", { min: 1, integer: true, optional: true })));
+  bindColorPickerPair("canvasBackground");
+}
+
+function scheduleCanvasCommit(property, reader) {
+  const timerKey = "__canvas__" + property;
+  if (sidebarCommitTimers[timerKey]) clearTimeout(sidebarCommitTimers[timerKey]);
+  sidebarCommitTimers[timerKey] = setTimeout(async () => {
+    delete sidebarCommitTimers[timerKey];
+    try {
+      const value = reader();
+      if (value === undefined) return;
+      await mutate(
+        "/api/canvas",
+        { [property]: value },
+        { refreshTree: false, refreshInspector: false, refreshTimeline: true }
+      );
+      showCanvasError("");
+    } catch (error) {
+      showCanvasError(error && error.message ? error.message : String(error));
+    }
+  }, 160);
+}
+
+function parseCanvasNumber(inputId, options) {
+  const input = document.getElementById(inputId);
+  if (!input) return undefined;
+  const raw = String(input.value || "").trim();
+  if (!raw) {
+    if (options && options.optional) return null;
+    throw new Error(inputId + " cannot be empty.");
+  }
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) throw new Error(inputId + " must be a number.");
+  const min = options && Number.isFinite(Number(options.min)) ? Number(options.min) : undefined;
+  if (min !== undefined && numeric < min) throw new Error(inputId + " must be >= " + min + ".");
+  return options && options.integer ? Math.round(numeric) : numeric;
+}
+
+function parseCanvasBackground(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return undefined;
+  const raw = String(input.value || "").trim();
+  return raw ? raw : null;
+}
+
+function showCanvasError(message) {
+  const box = document.getElementById("canvasError");
+  if (box) box.textContent = message || "";
 }
 
 function rebuildElementIndex() {
@@ -264,6 +621,10 @@ function applyEditorFlagsToStage() {
 
 function select(id, options) {
   clearSidebarCommitTimers();
+  if (selectedId !== id) {
+    selectedSegment = null;
+    closeCurveModal();
+  }
   selectedId = id;
   renderTree();
   renderInspector();
@@ -279,6 +640,8 @@ function deselect() {
   if (!selectedId) return;
   clearSidebarCommitTimers();
   selectedId = "";
+  selectedSegment = null;
+  closeCurveModal();
   clearHandles();
   renderTree();
   renderInspector();
@@ -311,7 +674,10 @@ function renderInspector() {
     ? "<div class='tiny'>Structured paint channels can be keyframed below.</div>"
     : "";
   const paintRows = supportsPaint
-    ? "<div class='row'><label>Fill<input id='propFill' type='text' placeholder='#22c55e or color' " + lockDisabled + "></label><label>Stroke<input id='propStroke' type='text' placeholder='#0f172a or color' " + lockDisabled + "></label></div>" +
+    ? "<div class='row'>" +
+      colorTextInput("Fill", "propFill", "fill", typeof displayElement.fill === "string" ? displayElement.fill : "", lockDisabled, "#22c55e or color") +
+      colorTextInput("Stroke", "propStroke", "stroke", typeof displayElement.stroke === "string" ? displayElement.stroke : "", lockDisabled, "#0f172a or color") +
+      "</div>" +
       "<div class='row'><label>Stroke W<input id='propStrokeWidth' type='number' step='0.1' value='" + valueOr(displayElement.strokeWidth, 1) + "' " + lockDisabled + "></label><label>Dash Offset<input id='propDashOffset' type='number' step='0.1' value='" + valueOr(displayElement.dashOffset, 0) + "' " + lockDisabled + "></label></div>"
     : "";
   const pathRows = isPath
@@ -324,24 +690,36 @@ function renderInspector() {
   const effectsRows = supportsEffects ? renderEffectsRows(displayElement, lockDisabled) : "";
   const sourceRows = element.type === "image" ? renderImageSourceRows(displayElement, lockDisabled) : "";
   const structuredPaintRows = supportsPaint ? renderStructuredPaintRows(displayElement, "fill", lockDisabled) + renderStructuredPaintRows(displayElement, "stroke", lockDisabled) : "";
-  inspector.innerHTML =
-    "<div class='section'><span class='label'>Selected</span><strong>" + escapeText(element.id || "") + "</strong><div class='muted'>" + escapeText(element.type) + (hidden ? " | hidden" : "") + (locked ? " | locked" : "") + "</div>" + (locked ? "<div class='tiny'>Locked elements and groups cannot be edited from canvas or inspector.</div>" : "") + "<div id='error'></div></div>" +
-    "<div class='section'><span class='label'>Properties</span>" +
+  const selectedMeta = escapeText(element.type) + (hidden ? " | hidden" : "") + (locked ? " | locked" : "");
+  const selectedRows =
+    "<strong>" + escapeText(element.id || "") + "</strong>" +
+    "<div class='muted'>" + selectedMeta + "</div>" +
+    (locked ? "<div class='tiny'>Locked elements and groups cannot be edited from canvas or inspector.</div>" : "") +
+    "<div id='error'></div>";
+  const transformRows =
     "<div class='row'><label>X<input id='propX' type='number' step='1' value='" + valueOr(displayElement.x, 0) + "' " + positionDisabled + "></label><label>Y<input id='propY' type='number' step='1' value='" + valueOr(displayElement.y, 0) + "' " + positionDisabled + "></label></div>" +
     "<div class='row'><label>Rotation<input id='propRotation' type='number' step='1' value='" + valueOr(displayElement.rotation, 0) + "' " + lockDisabled + "></label><label>Scale<input id='propScale' type='number' step='0.05' value='" + valueOr(displayElement.scale, 1) + "' " + lockDisabled + "></label></div>" +
     "<div class='row'><label>Scale X<input id='propScaleX' type='number' step='0.05' value='" + valueOr(displayElement.scaleX, valueOr(displayElement.scale, 1)) + "' " + lockDisabled + "></label><label>Scale Y<input id='propScaleY' type='number' step='0.05' value='" + valueOr(displayElement.scaleY, valueOr(displayElement.scale, 1)) + "' " + lockDisabled + "></label></div>" +
-    originRows +
+    originRows;
+  const appearanceRows =
     "<div class='row'><label>Opacity<input id='propOpacity' type='number' min='0' max='1' step='0.05' value='" + valueOr(displayElement.opacity, 1) + "' " + lockDisabled + "></label><div></div></div>" +
     paintRows +
-    pathRows +
-    textRows +
-    paintHint +
-    sourceRows +
-    effectsRows +
-    structuredPaintRows +
-    "</div>" +
-    "<div class='section'><span class='label'>Keyframe</span><div class='row'><label>Time<input id='kfTime' type='number' step='0.05' value='" + currentTime.toFixed(2) + "'></label><label>Curve<select id='curve'><option value='linear'>linear</option><option value='ease-in'>ease-in</option><option value='ease-out'>ease-out</option><option value='ease-in-out'>ease-in-out</option><option value='hold'>hold</option></select></label></div>" +
-    "<p class='tiny'>Changing sidebar values updates keyframes at the current time.</p><p class='tiny'>Drag to move. Use the square to scale and the round handle to rotate.</p></div>";
+    paintHint;
+  const contentRows = pathRows + textRows + sourceRows;
+  const keyframeRows =
+    "<div class='row'><label>Time<input id='kfTime' type='number' step='0.05' value='" + currentTime.toFixed(2) + "'></label><div></div></div>" +
+    "<p class='tiny'>Changing sidebar values updates keyframes at the current time.</p>" +
+    "<p class='tiny'>Interpolation curves are edited from timeline badges.</p>" +
+    "<p class='tiny'>Drag to move. Use the square to scale and the round handle to rotate.</p>";
+  inspector.innerHTML =
+    panelDetails("inspector-selected", "Selected", selectedRows, { defaultOpen: true, meta: element.type }) +
+    panelDetails("inspector-transform", "Transform", transformRows, { defaultOpen: false }) +
+    panelDetails("inspector-appearance", "Appearance", appearanceRows, { defaultOpen: false }) +
+    (contentRows ? panelDetails("inspector-content", "Path / Content", contentRows, { defaultOpen: false }) : "") +
+    (supportsEffects ? panelDetails("inspector-effects", "Effects", effectsRows, { defaultOpen: false }) : "") +
+    (structuredPaintRows ? panelDetails("inspector-structured-paint", "Structured Paint", structuredPaintRows, { defaultOpen: false }) : "") +
+    panelDetails("inspector-keyframe", "Keyframe", keyframeRows, { defaultOpen: false });
+  bindPanelStates(inspector);
   if (supportsPaint) {
     setInput("propFill", typeof displayElement.fill === "string" ? displayElement.fill : "");
     setInput("propStroke", typeof displayElement.stroke === "string" ? displayElement.stroke : "");
@@ -389,13 +767,13 @@ function renderInspector() {
     }
     bindDynamicInspectorInputs(bindAutoKeyframe);
   }
+  bindColorPickersInScope(inspector);
 }
 
 function renderEffectsRows(element, disabled) {
   const effects = element.effects || {};
   const shadow = effects.shadow || {};
-  return "<div class='section'><span class='label'>Effects</span>" +
-    "<div class='row'>" +
+  return "<div class='row'>" +
     dynamicNumberInput("Blur", "propEffectsBlur", "effects.blur", valueOr(effects.blur, 0), disabled, "0.1") +
     dynamicNumberInput("Bright", "propEffectsBrightness", "effects.brightness", valueOr(effects.brightness, 1), disabled, "0.05") +
     "</div>" +
@@ -405,7 +783,7 @@ function renderEffectsRows(element, disabled) {
     "</div>" +
     "<div class='row'>" +
     dynamicNumberInput("Hue", "propEffectsHue", "effects.hueRotate", valueOr(effects.hueRotate, 0), disabled, "1") +
-    dynamicTextInput("Shadow Color", "propShadowColor", "effects.shadow.color", valueOr(shadow.color, "#000000"), disabled) +
+    dynamicColorInput("Shadow Color", "propShadowColor", "effects.shadow.color", valueOr(shadow.color, "#000000"), disabled) +
     "</div>" +
     "<div class='row'>" +
     dynamicNumberInput("Shadow X", "propShadowDx", "effects.shadow.dx", valueOr(shadow.dx, 0), disabled, "0.5") +
@@ -414,26 +792,25 @@ function renderEffectsRows(element, disabled) {
     "<div class='row'>" +
     dynamicNumberInput("Shadow Blur", "propShadowBlur", "effects.shadow.blur", valueOr(shadow.blur, 0), disabled, "0.5") +
     dynamicNumberInput("Shadow Opacity", "propShadowOpacity", "effects.shadow.opacity", valueOr(shadow.opacity, 1), disabled, "0.05", "0", "1") +
-    "</div></div>";
+    "</div>";
 }
 
 function renderImageSourceRows(element, disabled) {
   const source = element.source || { x: 0, y: 0, width: element.width || 0, height: element.height || 0 };
-  return "<div class='section'><span class='label'>Image Source</span>" +
-    "<div class='row'>" +
+  return "<div class='row'>" +
     dynamicNumberInput("Source X", "propSourceX", "source.x", valueOr(source.x, 0), disabled, "1") +
     dynamicNumberInput("Source Y", "propSourceY", "source.y", valueOr(source.y, 0), disabled, "1") +
     "</div>" +
     "<div class='row'>" +
     dynamicNumberInput("Source W", "propSourceWidth", "source.width", valueOr(source.width, element.width || 0), disabled, "1") +
     dynamicNumberInput("Source H", "propSourceHeight", "source.height", valueOr(source.height, element.height || 0), disabled, "1") +
-    "</div></div>";
+    "</div>";
 }
 
 function renderStructuredPaintRows(element, root, disabled) {
   const paint = element[root];
   if (!paint || typeof paint !== "object") return "";
-  let html = "<div class='section'><span class='label'>" + root + " paint</span>";
+  let html = "<span class='subhead'>" + escapeText(cap(root)) + " Paint</span>";
   if (paint.type === "linearGradient") {
     html += "<div class='row'>" +
       dynamicPointInput(root + " From", "prop" + cap(root) + "From", root + ".from", paint.from || [0, 0], disabled) +
@@ -454,10 +831,10 @@ function renderStructuredPaintRows(element, root, disabled) {
     const color = Array.isArray(stop) ? stop[1] : stop && stop.color;
     html += "<div class='row'>" +
       dynamicNumberInput(root + " Stop " + index, "prop" + cap(root) + "Stop" + index + "Offset", root + ".stops." + index + ".offset", valueOr(offset, index / Math.max(1, stops.length - 1)), disabled, "0.01", "0", "1") +
-      dynamicTextInput("Color " + index, "prop" + cap(root) + "Stop" + index + "Color", root + ".stops." + index + ".color", valueOr(color, "#000000"), disabled) +
+      dynamicColorInput("Color " + index, "prop" + cap(root) + "Stop" + index + "Color", root + ".stops." + index + ".color", valueOr(color, "#000000"), disabled) +
       "</div>";
   }
-  return html + "</div>";
+  return html;
 }
 
 function dynamicNumberInput(label, id, property, value, disabled, step, min, max) {
@@ -466,6 +843,72 @@ function dynamicNumberInput(label, id, property, value, disabled, step, min, max
 
 function dynamicTextInput(label, id, property, value, disabled) {
   return "<label>" + escapeText(label) + "<input id='" + id + "' type='text' data-kf-property='" + property + "' data-kf-kind='text' value='" + escapeAttr(value) + "' " + disabled + "></label>";
+}
+
+function dynamicColorInput(label, id, property, value, disabled) {
+  return colorTextInput(label, id, property, value, disabled, "#000000");
+}
+
+function colorTextInput(label, id, property, value, disabled, placeholder) {
+  const data = property ? " data-kf-property='" + escapeAttr(property) + "' data-kf-kind='text'" : "";
+  const place = placeholder ? " placeholder='" + escapeAttr(placeholder) + "'" : "";
+  return "<label>" + escapeText(label) +
+    "<div class='colorField'>" +
+    "<input id='" + id + "Picker' type='color' data-color-source='" + id + "' value='" + escapeAttr(colorPickerValue(value)) + "' " + disabled + ">" +
+    "<input id='" + id + "' type='text'" + data + place + " value='" + escapeAttr(valueOr(value, "")) + "' " + disabled + ">" +
+    "</div></label>";
+}
+
+function bindColorPickersInScope(scope) {
+  const root = scope || document;
+  const pickers = root.querySelectorAll("input[type='color'][data-color-source]");
+  const seen = new Set();
+  for (const picker of pickers) {
+    const textId = picker.getAttribute("data-color-source");
+    if (!textId || seen.has(textId)) continue;
+    seen.add(textId);
+    bindColorPickerPair(textId);
+  }
+}
+
+function bindColorPickerPair(textId) {
+  const text = document.getElementById(textId);
+  const picker = document.getElementById(textId + "Picker");
+  if (!text || !picker) return;
+  const sync = () => {
+    picker.value = colorPickerValue(text.value);
+  };
+  sync();
+  picker.oninput = () => {
+    text.value = picker.value;
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  picker.onchange = picker.oninput;
+  text.addEventListener("input", sync);
+  text.addEventListener("change", sync);
+}
+
+function syncColorPickersInScope(scope) {
+  const root = scope || document;
+  const pickers = root.querySelectorAll("input[type='color'][data-color-source]");
+  for (const picker of pickers) {
+    const text = document.getElementById(picker.getAttribute("data-color-source"));
+    if (text) picker.value = colorPickerValue(text.value);
+  }
+}
+
+function colorPickerValue(value) {
+  const normalized = normalizeHexColor(value);
+  return normalized || "#000000";
+}
+
+function normalizeHexColor(value) {
+  const text = String(value === undefined || value === null ? "" : value).trim();
+  const short = /^#([0-9a-f]{3})$/i.exec(text);
+  if (short) return "#" + short[1].split("").map((char) => char + char).join("").toLowerCase();
+  const full = /^#([0-9a-f]{6})$/i.exec(text);
+  if (full) return "#" + full[1].toLowerCase();
+  return undefined;
 }
 
 function dynamicPointInput(label, idPrefix, property, value, disabled) {
@@ -495,31 +938,429 @@ function renderTimeline() {
   document.getElementById("scrub").oninput = (event) => {
     setCurrentTime(event.target.value);
   };
-  for (const property of Object.keys(tracks)) {
+  const properties = Object.keys(tracks);
+  if (!properties.length) {
+    selectedSegment = null;
+    closeCurveModal();
+    const empty = document.createElement("div");
+    empty.className = "tiny";
+    empty.textContent = "No keyframes on selected element yet.";
+    timeline.appendChild(empty);
+    return;
+  }
+  selectedSegment = reconcileSelectedSegment(tracks, selectedSegment);
+  for (const property of properties) {
     const track = tracks[property];
+    const frames = normalizeTrackKeyframes(track);
     const box = document.createElement("div");
     box.className = "track";
-    box.innerHTML = "<strong>" + escapeText(property) + "</strong> ";
-    for (const frame of track.keyframes || []) {
-      const time = Array.isArray(frame) ? frame[0] : frame.time;
-      const value = Array.isArray(frame) ? frame[1] : frame.value;
+    const name = document.createElement("span");
+    name.className = "trackName";
+    name.textContent = property;
+    box.appendChild(name);
+    const line = document.createElement("div");
+    line.className = "trackLine";
+    for (let index = 0; index < frames.length; index += 1) {
+      const frame = frames[index];
       const chip = document.createElement("span");
       chip.className = "kf";
-      chip.textContent = Number(time).toFixed(2) + "s " + formatMotionValue(value);
       chip.title = "Jump to this keyframe time";
-      chip.style.cursor = "pointer";
+      const text = document.createElement("span");
+      text.textContent = Number(frame.time).toFixed(2) + "s " + formatMotionValue(frame.value);
+      chip.appendChild(text);
       const remove = document.createElement("button");
       remove.textContent = "x";
-      remove.onclick = () => removeKeyframe(property, time);
-      chip.onclick = (event) => {
-        if (event.target === remove) return;
-        setCurrentTime(time);
+      remove.onclick = (event) => {
+        event.stopPropagation();
+        removeKeyframe(property, frame.time);
       };
+      chip.onclick = () => setCurrentTime(frame.time);
       chip.appendChild(remove);
-      box.appendChild(chip);
+      line.appendChild(chip);
+      if (index >= frames.length - 1) continue;
+      const interpolation = resolveSegmentInterpolation(track, frames, index);
+      const indicator = document.createElement("button");
+      indicator.type = "button";
+      indicator.className = "segBadge" + (selectedSegment && selectedSegment.property === property && selectedSegment.index === index ? " active" : "");
+      indicator.textContent = interpolation.preset === "custom" ? "custom" : interpolation.preset;
+      indicator.title = "Edit interpolation: " + Number(frames[index].time).toFixed(2) + "s -> " + Number(frames[index + 1].time).toFixed(2) + "s";
+      indicator.onclick = () => {
+        selectedSegment = { property, index };
+        renderTimeline();
+        openCurveModal();
+      };
+      line.appendChild(indicator);
     }
+    box.appendChild(line);
     timeline.appendChild(box);
   }
+  if (isCurveModalOpen()) refreshCurveModal(tracks);
+}
+
+function isCurveModalOpen() {
+  return !curveModalBackdrop.classList.contains("hidden");
+}
+
+function openCurveModal() {
+  refreshCurveModal();
+  curveModalBackdrop.classList.remove("hidden");
+}
+
+function closeCurveModal() {
+  curveModalBackdrop.classList.add("hidden");
+  curveModalContent.innerHTML = "";
+}
+
+function selectedTracks() {
+  const element = findElement(selectedId);
+  return element && element.timeline && element.timeline.tracks ? element.timeline.tracks : {};
+}
+
+function refreshCurveModal(tracksInput) {
+  const tracks = tracksInput || selectedTracks();
+  const panel = renderCurvePanel(tracks);
+  if (!panel) {
+    closeCurveModal();
+    return;
+  }
+  curveModalContent.innerHTML = "";
+  curveModalContent.appendChild(panel);
+}
+
+function renderCurvePanel(tracks) {
+  if (!selectedSegment) return null;
+  const track = tracks[selectedSegment.property];
+  if (!track) return null;
+  const frames = normalizeTrackKeyframes(track);
+  if (selectedSegment.index < 0 || selectedSegment.index >= frames.length - 1) return null;
+  const start = frames[selectedSegment.index];
+  const end = frames[selectedSegment.index + 1];
+  const interpolation = resolveSegmentInterpolation(track, frames, selectedSegment.index);
+  const panel = document.createElement("div");
+  panel.className = "curvePanel";
+  const header = document.createElement("div");
+  header.className = "curvePanelHead";
+  header.innerHTML = "<span class='curvePanelTitle'>Interpolation</span><span class='curvePanelRange'>" + escapeText(selectedSegment.property) + " | " + Number(start.time).toFixed(2) + "s -> " + Number(end.time).toFixed(2) + "s</span>";
+  panel.appendChild(header);
+  const graph = document.createElement("div");
+  graph.className = "curvePreview";
+  graph.innerHTML = renderCurveSvg(interpolation.curve, interpolation.ease, 320, 120);
+  panel.appendChild(graph);
+  const presets = document.createElement("div");
+  presets.className = "curvePresets";
+  const options = ["linear", "ease-in", "ease-out", "ease-in-out", "hold"];
+  for (const option of options) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "curvePreset" + (interpolation.preset === option ? " active" : "");
+    button.textContent = option;
+    button.onclick = () => {
+      applySegmentPreset(selectedSegment.property, selectedSegment.index, option).catch(showError);
+    };
+    presets.appendChild(button);
+  }
+  panel.appendChild(presets);
+  const custom = document.createElement("div");
+  custom.className = "curveCustom";
+  if (interpolation.curve && interpolation.curve.type === "graph" && !isLinearGraphCurve(interpolation.curve.points)) {
+    const label = document.createElement("span");
+    label.className = "curveCustomLabel";
+    label.textContent = "Custom graph points [x,y] (x must increase):";
+    custom.appendChild(label);
+    const area = document.createElement("textarea");
+    area.value = formatGraphPoints(interpolation.curve.points);
+    custom.appendChild(area);
+    const applyGraph = document.createElement("button");
+    applyGraph.type = "button";
+    applyGraph.textContent = "Apply Graph";
+    applyGraph.onclick = () => {
+      const points = parseGraphPoints(area.value);
+      if (!points) {
+        showError(new Error("Graph points must be JSON array of [x,y] with increasing x."));
+        return;
+      }
+      applySegmentCurve(selectedSegment.property, selectedSegment.index, { type: "graph", points }).catch(showError);
+    };
+    custom.appendChild(applyGraph);
+  } else {
+    const label = document.createElement("span");
+    label.className = "curveCustomLabel";
+    label.textContent = "Custom cubicBezier (editable graph controls):";
+    custom.appendChild(label);
+    const cubic = curveToEditableCubic(interpolation.curve, interpolation.ease);
+    const fields = document.createElement("div");
+    fields.className = "curveCustomFields";
+    fields.innerHTML =
+      "<label>x1<input id='curveX1' type='number' step='0.01' min='0' max='1' value='" + escapeAttr(cubic.x1.toFixed(2)) + "'></label>" +
+      "<label>y1<input id='curveY1' type='number' step='0.01' value='" + escapeAttr(cubic.y1.toFixed(2)) + "'></label>" +
+      "<label>x2<input id='curveX2' type='number' step='0.01' min='0' max='1' value='" + escapeAttr(cubic.x2.toFixed(2)) + "'></label>" +
+      "<label>y2<input id='curveY2' type='number' step='0.01' value='" + escapeAttr(cubic.y2.toFixed(2)) + "'></label>";
+    custom.appendChild(fields);
+    const applyCubic = document.createElement("button");
+    applyCubic.type = "button";
+    applyCubic.textContent = "Apply Custom";
+    applyCubic.onclick = () => {
+      const x1 = clamp01(Number(document.getElementById("curveX1").value));
+      const y1 = Number(document.getElementById("curveY1").value);
+      const x2 = clamp01(Number(document.getElementById("curveX2").value));
+      const y2 = Number(document.getElementById("curveY2").value);
+      if (!Number.isFinite(y1) || !Number.isFinite(y2)) {
+        showError(new Error("Bezier y values must be finite numbers."));
+        return;
+      }
+      applySegmentCurve(selectedSegment.property, selectedSegment.index, { type: "cubicBezier", x1, y1, x2, y2 }).catch(showError);
+    };
+    custom.appendChild(applyCubic);
+  }
+  panel.appendChild(custom);
+  const hint = document.createElement("div");
+  hint.className = "tiny";
+  hint.textContent = "Click an interpolation badge between keyframes to edit this segment.";
+  panel.appendChild(hint);
+  return panel;
+}
+
+function reconcileSelectedSegment(tracks, current) {
+  if (current && isSegmentSelectionValid(tracks, current)) return current;
+  for (const [property, track] of Object.entries(tracks)) {
+    const frames = normalizeTrackKeyframes(track);
+    if (frames.length >= 2) return { property, index: 0 };
+  }
+  return null;
+}
+
+function isSegmentSelectionValid(tracks, selection) {
+  if (!selection) return false;
+  const track = tracks[selection.property];
+  if (!track) return false;
+  const frames = normalizeTrackKeyframes(track);
+  return selection.index >= 0 && selection.index < frames.length - 1;
+}
+
+function normalizeTrackKeyframes(track) {
+  const frames = [];
+  for (const frame of track && Array.isArray(track.keyframes) ? track.keyframes : []) {
+    if (Array.isArray(frame) && Number.isFinite(Number(frame[0]))) {
+      frames.push({ time: Number(frame[0]), value: frame[1] });
+      continue;
+    }
+    if (frame && typeof frame === "object" && Number.isFinite(Number(frame.time))) {
+      frames.push({
+        time: Number(frame.time),
+        value: frame.value,
+        in: frame.in,
+        out: frame.out,
+        interpolation: frame.interpolation
+      });
+    }
+  }
+  frames.sort((left, right) => left.time - right.time);
+  return frames;
+}
+
+function resolveSegmentInterpolation(track, frames, index) {
+  const previous = frames[index];
+  const next = frames[index + 1];
+  const curve = (previous && (previous.out || previous.interpolation)) || (next && next.in) || (track && track.curve);
+  const ease = curve ? undefined : track && track.ease;
+  return { curve, ease, preset: curvePresetName(curve, ease), label: curvePresetLabel(curve, ease) };
+}
+
+function curvePresetName(curve, ease) {
+  if (!curve) {
+    const eased = String(ease || "linear");
+    return eased === "ease-in" || eased === "ease-out" || eased === "ease-in-out" || eased === "linear" ? eased : "custom";
+  }
+  if (curve.type === "hold") return "hold";
+  if (curve.type === "graph") return isLinearGraphCurve(curve.points) ? "linear" : "custom";
+  if (curve.type === "cubicBezier") {
+    if (isBezierCurve(curve, 0.42, 0, 1, 1)) return "ease-in";
+    if (isBezierCurve(curve, 0, 0, 0.58, 1)) return "ease-out";
+    if (isBezierCurve(curve, 0.42, 0, 0.58, 1)) return "ease-in-out";
+    if (isBezierCurve(curve, 0, 0, 1, 1)) return "linear";
+    return "custom";
+  }
+  return "custom";
+}
+
+function curvePresetLabel(curve, ease) {
+  const name = curvePresetName(curve, ease);
+  return name === "custom" ? "custom" : name;
+}
+
+function isLinearGraphCurve(points) {
+  if (!Array.isArray(points) || points.length < 2) return false;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!Array.isArray(first) || !Array.isArray(last)) return false;
+  return nearlyEqual(Number(first[0]), 0) && nearlyEqual(Number(first[1]), 0) && nearlyEqual(Number(last[0]), 1) && nearlyEqual(Number(last[1]), 1);
+}
+
+function isBezierCurve(curve, x1, y1, x2, y2) {
+  return nearlyEqual(Number(curve.x1), x1) && nearlyEqual(Number(curve.y1), y1) && nearlyEqual(Number(curve.x2), x2) && nearlyEqual(Number(curve.y2), y2);
+}
+
+function nearlyEqual(a, b) {
+  return Math.abs(Number(a) - Number(b)) < 0.0001;
+}
+
+function renderCurveSvg(curve, ease, width, height) {
+  const innerWidth = Math.max(16, Number(width || 160));
+  const innerHeight = Math.max(16, Number(height || 56));
+  const line = curvePath(curve, ease, innerWidth - 2, innerHeight - 2, 36);
+  return "<svg viewBox='0 0 " + innerWidth + " " + innerHeight + "' preserveAspectRatio='none' width='100%' height='100%' aria-hidden='true'>" +
+    "<path d='M1 " + (innerHeight - 1) + " L" + (innerWidth - 1) + " 1' stroke='#d2d6dd' stroke-width='1' fill='none'/>" +
+    "<path d='" + line + "' stroke='#0f172a' stroke-width='2' fill='none'/>" +
+    "</svg>";
+}
+
+function curvePath(curve, ease, width, height, steps) {
+  const segments = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / Math.max(1, steps);
+    const x = 1 + t * width;
+    const y = 1 + (1 - clamp01(sampleCurve(curve, ease, t))) * height;
+    segments.push((index === 0 ? "M" : "L") + x.toFixed(2) + " " + y.toFixed(2));
+  }
+  return segments.join(" ");
+}
+
+function sampleCurve(curve, ease, t) {
+  const x = clamp01(t);
+  if (!curve) return sampleEase(ease, x);
+  if (curve.type === "hold") return x < 1 ? 0 : 1;
+  if (curve.type === "graph") return sampleGraph(curve.points, x);
+  if (curve.type === "cubicBezier") return sampleCubicBezier(x, Number(curve.x1), Number(curve.y1), Number(curve.x2), Number(curve.y2));
+  return sampleEase(ease, x);
+}
+
+function sampleGraph(points, t) {
+  const list = Array.isArray(points) ? points.filter((point) => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1]))) : [];
+  if (!list.length) return t;
+  list.sort((left, right) => Number(left[0]) - Number(right[0]));
+  if (t <= Number(list[0][0])) return Number(list[0][1]);
+  for (let index = 1; index < list.length; index += 1) {
+    const previous = list[index - 1];
+    const next = list[index];
+    if (t <= Number(next[0])) {
+      const span = Math.max(0.000001, Number(next[0]) - Number(previous[0]));
+      const local = (t - Number(previous[0])) / span;
+      return Number(previous[1]) + (Number(next[1]) - Number(previous[1])) * local;
+    }
+  }
+  const last = list[list.length - 1];
+  return Number(last[1]);
+}
+
+function sampleCubicBezier(t, x1, y1, x2, y2) {
+  let low = 0;
+  let high = 1;
+  let u = t;
+  for (let index = 0; index < 24; index += 1) {
+    u = (low + high) / 2;
+    const x = cubicBezierValue(0, x1, x2, 1, u);
+    if (x < t) low = u;
+    else high = u;
+  }
+  return cubicBezierValue(0, y1, y2, 1, u);
+}
+
+function cubicBezierValue(a, b, c, d, t) {
+  const mt = 1 - t;
+  return mt * mt * mt * a + 3 * mt * mt * t * b + 3 * mt * t * t * c + t * t * t * d;
+}
+
+function sampleEase(ease, t) {
+  const x = clamp01(t);
+  switch (ease) {
+    case "ease-in":
+      return x * x;
+    case "ease-out":
+      return 1 - (1 - x) * (1 - x);
+    case "ease-in-out":
+      return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    case "linear":
+    default:
+      return x;
+  }
+}
+
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function curveToEditableCubic(curve, ease) {
+  if (curve && curve.type === "cubicBezier") {
+    return {
+      x1: clamp01(curve.x1),
+      y1: Number.isFinite(Number(curve.y1)) ? Number(curve.y1) : 0,
+      x2: clamp01(curve.x2),
+      y2: Number.isFinite(Number(curve.y2)) ? Number(curve.y2) : 1
+    };
+  }
+  const preset = curvePresetName(curve, ease);
+  if (preset === "ease-in") return { x1: 0.42, y1: 0, x2: 1, y2: 1 };
+  if (preset === "ease-out") return { x1: 0, y1: 0, x2: 0.58, y2: 1 };
+  if (preset === "ease-in-out") return { x1: 0.42, y1: 0, x2: 0.58, y2: 1 };
+  if (preset === "linear") return { x1: 0, y1: 0, x2: 1, y2: 1 };
+  return { x1: 0.42, y1: 0, x2: 0.58, y2: 1 };
+}
+
+function formatGraphPoints(points) {
+  const list = Array.isArray(points) ? points.filter((point) => Array.isArray(point) && point.length >= 2) : [];
+  const safe = list.map((point) => [Number(point[0]), Number(point[1])]);
+  return JSON.stringify(safe, null, 2);
+}
+
+function parseGraphPoints(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(String(text || "").trim());
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.length < 2) return null;
+  const points = parsed
+    .map((point) => Array.isArray(point) && point.length >= 2 ? [Number(point[0]), Number(point[1])] : null)
+    .filter((point) => point && Number.isFinite(point[0]) && Number.isFinite(point[1]));
+  if (points.length < 2) return null;
+  points.sort((left, right) => left[0] - right[0]);
+  for (let index = 1; index < points.length; index += 1) {
+    if (points[index][0] <= points[index - 1][0]) return null;
+  }
+  return points;
+}
+
+async function applySegmentPreset(property, segmentIndex, preset) {
+  if (!selectedId || !ensureElementEditable(selectedId)) return;
+  const element = findElement(selectedId);
+  const track = element && element.timeline && element.timeline.tracks ? element.timeline.tracks[property] : null;
+  if (!track) return;
+  const frames = normalizeTrackKeyframes(track);
+  if (segmentIndex < 0 || segmentIndex >= frames.length - 1) return;
+  const start = frames[segmentIndex];
+  await mutate(
+    "/api/keyframe",
+    { id: selectedId, property, value: start.value, time: start.time, curvePreset: preset },
+    { refreshTree: false, refreshInspector: false, refreshTimeline: true }
+  );
+}
+
+async function applySegmentCurve(property, segmentIndex, curve) {
+  if (!selectedId || !ensureElementEditable(selectedId)) return;
+  const element = findElement(selectedId);
+  const track = element && element.timeline && element.timeline.tracks ? element.timeline.tracks[property] : null;
+  if (!track) return;
+  const frames = normalizeTrackKeyframes(track);
+  if (segmentIndex < 0 || segmentIndex >= frames.length - 1) return;
+  const start = frames[segmentIndex];
+  await mutate(
+    "/api/keyframe",
+    { id: selectedId, property, value: start.value, time: start.time, curve },
+    { refreshTree: false, refreshInspector: false, refreshTimeline: true }
+  );
 }
 
 function setCurrentTime(time) {
@@ -619,10 +1460,9 @@ function scheduleSidebarKeyframe(property, valueReader) {
     const value = valueReader();
     if (value === null || value === undefined) return;
     try {
-      const curve = document.getElementById("curve");
       await mutate(
         "/api/keyframe",
-        { id: selectedId, property, value, time: currentTime, curvePreset: curve ? curve.value : "linear" },
+        { id: selectedId, property, value, time: currentTime, curvePreset: "linear" },
         { refreshTree: false, refreshInspector: false, refreshTimeline: true }
       );
     } catch (error) {
@@ -659,6 +1499,9 @@ async function mutate(path, body, options) {
   const data = await api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   doc = data.document;
   refs = data.elements;
+  const duration = Math.max(Number(doc && doc.canvas && doc.canvas.duration || 0), 0.01);
+  if (!Number.isFinite(currentTime) || currentTime < 0) currentTime = 0;
+  if (currentTime > duration) currentTime = duration;
   rebuildElementIndex();
   if (selectedId && !findElement(selectedId)) selectedId = "";
   if (refreshTree) renderTree();
@@ -666,6 +1509,36 @@ async function mutate(path, body, options) {
   if (refreshTimeline) renderTimeline();
   requestDraw();
 }
+
+stageWrap.addEventListener("wheel", (event) => {
+  if (!stage.contains(event.target)) return;
+  const delta = wheelDeltaToPixels(event);
+  const zoomGesture = event.ctrlKey || event.metaKey;
+  if (spacePanActive || !zoomGesture) {
+    panViewportByPixels(delta.x, delta.y);
+    event.preventDefault();
+    return;
+  }
+  zoomBy(zoomFactorFromWheel(event), event.clientX, event.clientY);
+  event.preventDefault();
+}, { passive: false });
+
+stageWrap.addEventListener("pointerdown", (event) => {
+  if (!shouldStartViewportPan(event)) return;
+  beginViewportPan(event);
+}, true);
+
+stageWrap.addEventListener("pointermove", (event) => {
+  updateViewportPan(event);
+}, true);
+
+stageWrap.addEventListener("pointerup", (event) => {
+  endViewportPan(event);
+}, true);
+
+stageWrap.addEventListener("pointercancel", (event) => {
+  endViewportPan(event);
+}, true);
 
 stage.addEventListener("click", (event) => {
   if (suppressClick) {
@@ -693,10 +1566,29 @@ stageWrap.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.code === "Space" && !isEditableInputTarget(document.activeElement)) {
+    spacePanActive = true;
+    event.preventDefault();
+    return;
+  }
   if (event.key !== "Escape") return;
+  if (isCurveModalOpen()) {
+    closeCurveModal();
+    return;
+  }
   drag = null;
+  endViewportPan();
   suppressClick = false;
   deselect();
+});
+
+document.addEventListener("keyup", (event) => {
+  if (event.code === "Space") spacePanActive = false;
+});
+
+window.addEventListener("blur", () => {
+  spacePanActive = false;
+  endViewportPan();
 });
 
 stage.addEventListener("pointerdown", (event) => {
@@ -807,8 +1699,7 @@ async function commitDrag(snapshot) {
 
 async function commitEditedProperty(element, property, value) {
   if (!ensureElementEditable(element.id)) return;
-  const curve = document.getElementById("curve");
-  await mutate("/api/keyframe", { id: element.id, property, value, time: currentTime, curvePreset: curve ? curve.value : "linear" });
+  await mutate("/api/keyframe", { id: element.id, property, value, time: currentTime, curvePreset: "linear" });
 }
 
 function ensureElementEditable(id) {
@@ -1042,6 +1933,7 @@ function syncInspectorValues() {
   if (typeof element.stroke === "string") setInput("propStroke", element.stroke);
   if (element.type === "text") setInput("propText", element.text === undefined ? "" : String(element.text));
   syncDynamicInspectorValues(element);
+  syncColorPickersInScope(inspector);
 }
 
 function syncDynamicInspectorValues(element) {

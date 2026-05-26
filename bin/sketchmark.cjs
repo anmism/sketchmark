@@ -111,6 +111,17 @@ async function edit(args, options = {}) {
         sendJson(response, 200, { ok: true, svg: core.renderResolvedSvg(resolved), resolved, duration, fps: visualFps(doc), canvas: doc.canvas });
         return;
       }
+      if (request.method === "POST" && url.pathname === "/api/canvas") {
+        if (options.readOnly) {
+          sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
+          return;
+        }
+        const payload = await readJson(request);
+        const doc = applyCanvasPatch(loadDocument(inputPath), payload);
+        saveDocument(inputPath, doc);
+        sendJson(response, 200, editorDocumentPayload(doc));
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/property") {
         if (options.readOnly) {
           sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
@@ -338,6 +349,46 @@ function requiredNumber(value, name) {
   const number = Number(value);
   if (!Number.isFinite(number)) throw new Error(`${name} must be a finite number.`);
   return number;
+}
+
+function applyCanvasPatch(document, payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("canvas payload must be an object.");
+  }
+  const next = {
+    ...document,
+    canvas: { ...(document.canvas || {}) }
+  };
+  if ("width" in payload) next.canvas.width = requiredCanvasDimension(payload.width, "width");
+  if ("height" in payload) next.canvas.height = requiredCanvasDimension(payload.height, "height");
+  if ("background" in payload) {
+    if (payload.background === null || payload.background === "") delete next.canvas.background;
+    else if (typeof payload.background === "string") next.canvas.background = payload.background;
+    else throw new Error("background must be a string or null.");
+  }
+  if ("duration" in payload) {
+    if (payload.duration === null || payload.duration === "") delete next.canvas.duration;
+    else {
+      const duration = Number(payload.duration);
+      if (!Number.isFinite(duration) || duration < 0) throw new Error("duration must be a non-negative number or null.");
+      next.canvas.duration = duration;
+    }
+  }
+  if ("fps" in payload) {
+    if (payload.fps === null || payload.fps === "") delete next.canvas.fps;
+    else {
+      const fps = Number(payload.fps);
+      if (!Number.isFinite(fps) || fps <= 0) throw new Error("fps must be a positive number or null.");
+      next.canvas.fps = Math.round(fps);
+    }
+  }
+  return next;
+}
+
+function requiredCanvasDimension(value, name) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new Error(`${name} must be a positive number.`);
+  return Math.round(number);
 }
 
 function normalizeMotionValue(value) {
