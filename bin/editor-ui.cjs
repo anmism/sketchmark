@@ -844,6 +844,10 @@ function renderImageSourceRows(element, disabled) {
     "<div class='row'>" +
     dynamicNumberInput("Source W", "propSourceWidth", "source.width", valueOr(source.width, element.width || 0), disabled, "1") +
     dynamicNumberInput("Source H", "propSourceHeight", "source.height", valueOr(source.height, element.height || 0), disabled, "1") +
+    "</div>" +
+    "<div class='row'>" +
+    dynamicNumberInput("Radius", "propCornerRadius", "cornerRadius", valueOr(element.cornerRadius, 0), disabled, "1", "0") +
+    "<div></div>" +
     "</div>";
 }
 
@@ -2081,6 +2085,7 @@ function syncDynamicInspectorValues(element) {
     setInput("propSourceY", valueOr(source.y, 0));
     setInput("propSourceWidth", valueOr(source.width, element.width || 0));
     setInput("propSourceHeight", valueOr(source.height, element.height || 0));
+    setInput("propCornerRadius", valueOr(element.cornerRadius, 0));
   }
   syncStructuredPaintValues(element, "fill");
   syncStructuredPaintValues(element, "stroke");

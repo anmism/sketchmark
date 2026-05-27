@@ -7,6 +7,16 @@ interface SvgContext {
   nextId: number;
 }
 
+interface CommonAttrParts {
+  id: string;
+  opacity: string;
+  filter: string;
+  clip: string;
+  mask: string;
+  blend: string;
+  transform: string;
+}
+
 const DEFAULT_FONT_FAMILY = "Roboto, Arial, sans-serif";
 const LEGACY_DEFAULT_FONT_STACKS = new Set([
   "inter,system-ui,sans-serif",
@@ -30,7 +40,7 @@ export function renderResolvedSvg(document: ResolvedVisualDocument, options: Ren
 }
 
 function renderElement(element: VisualElement, context: SvgContext): string {
-  const attrs = commonAttrs(element, context);
+  const attrs = commonAttrParts(element, context);
   const fill = paintValue(element.fill, context, element.type === "text" ? "#111827" : "none");
   const stroke = strokeAttrs(element, context, "none");
 
@@ -38,37 +48,40 @@ function renderElement(element: VisualElement, context: SvgContext): string {
     case "point":
       return "";
     case "path":
-      return `<path${attrs} d="${escapeAttr(element.d)}" fill="${fill}"${stroke}${drawAttrs(element)}/>`;
+      return `<path${joinCommonAttrs(attrs)} d="${escapeAttr(element.d)}" fill="${fill}"${stroke}${drawAttrs(element)}/>`;
     case "text":
-      return renderText(element, attrs, fill);
+      return renderText(element, joinCommonAttrs(attrs), fill);
     case "image":
       return renderImage(element, attrs, context);
     case "group": {
       const children = element.children.map((child) => renderElement(child, context)).join("");
-      return `<g${attrs}${groupTransform(element)}>${children}</g>`;
+      return `<g${joinCommonAttrs(attrs)}${groupTransform(element)}>${children}</g>`;
     }
     default:
       return "";
   }
 }
 
-function renderImage(element: ImageElement, attrs: string, context: SvgContext): string {
+function renderImage(element: ImageElement, attrs: CommonAttrParts, context: SvgContext): string {
+  const imageClip = imageClipAttr(element, context);
+  const wrapped = !!attrs.clip;
+  const imageAttrs = joinCommonAttrs(attrs, wrapped ? ["clip", "transform"] : []);
   if (element.source) {
-    const id = nextId(context, "image-crop");
     const scaleX = element.width / element.source.width;
     const scaleY = element.height / element.source.height;
     const imageX = element.x - element.source.x * scaleX;
     const imageY = element.y - element.source.y * scaleY;
     const imageWidth = element.source.imageWidth * scaleX;
     const imageHeight = element.source.imageHeight * scaleY;
-    context.defs.push(`<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}"/></clipPath>`);
-    return `<image${attrs} href="${escapeAttr(element.src)}" x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" preserveAspectRatio="none" clip-path="url(#${id})"/>`;
+    const image = `<image${imageAttrs} href="${escapeAttr(element.src)}" x="${imageX}" y="${imageY}" width="${imageWidth}" height="${imageHeight}" preserveAspectRatio="none"${imageClip}/>`;
+    return wrapped ? `<g${attrs.clip}${attrs.transform}>${image}</g>` : image;
   }
-  return `<image${attrs} href="${escapeAttr(element.src)}" x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" preserveAspectRatio="${imageFit(element.fit)}"/>`;
+  const image = `<image${imageAttrs} href="${escapeAttr(element.src)}" x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" preserveAspectRatio="${imageFit(element.fit)}"${imageClip}/>`;
+  return wrapped ? `<g${attrs.clip}${attrs.transform}>${image}</g>` : image;
 }
 
 function renderText(element: TextElement, attrs: string, fill: string): string {
-  const anchor = element.align === "right" ? "end" : element.align === "left" ? "start" : "middle";
+  const anchor = element.align === "center" ? "middle" : element.align === "right" ? "end" : "start";
   const fontSize = Number(element.fontSize ?? 16);
   const lineHeight = fontSize * Number(element.lineHeight ?? 1.2);
   const lines = textLines(element);
@@ -98,20 +111,26 @@ function normalizeFontStack(value: string): string {
 }
 
 function textFirstLineY(element: TextElement, lineCount: number, fontSize: number, lineHeight: number): number {
-  if (element.valign === "top") return element.y + fontSize / 2;
+  if (element.valign === "middle") return element.y - ((lineCount - 1) * lineHeight) / 2;
   if (element.valign === "bottom") return element.y - fontSize / 2 - (lineCount - 1) * lineHeight;
-  return element.y - ((lineCount - 1) * lineHeight) / 2;
+  return element.y + fontSize / 2;
 }
 
-function commonAttrs(element: VisualElement, context: SvgContext): string {
-  const id = element.id ? ` id="${escapeAttr(element.id)}"` : "";
-  const opacity = element.opacity === undefined ? "" : ` opacity="${Number(element.opacity)}"`;
-  const filter = effectFilter(element.effects, context);
-  const clip = clipPath(element.clip, context);
-  const mask = maskPath(element.mask, context);
-  const blend = element.blendMode && element.blendMode !== "normal" ? ` style="mix-blend-mode:${escapeAttr(element.blendMode)}"` : "";
-  const transform = element.type === "group" ? "" : elementTransform(element);
-  return `${id}${opacity}${filter}${clip}${mask}${blend}${transform}`;
+function commonAttrParts(element: VisualElement, context: SvgContext): CommonAttrParts {
+  return {
+    id: element.id ? ` id="${escapeAttr(element.id)}"` : "",
+    opacity: element.opacity === undefined ? "" : ` opacity="${Number(element.opacity)}"`,
+    filter: effectFilter(element.effects, context),
+    clip: clipPath(element.clip, context),
+    mask: maskPath(element.mask, context),
+    blend: element.blendMode && element.blendMode !== "normal" ? ` style="mix-blend-mode:${escapeAttr(element.blendMode)}"` : "",
+    transform: element.type === "group" ? "" : elementTransform(element)
+  };
+}
+
+function joinCommonAttrs(parts: CommonAttrParts, omit: Array<keyof CommonAttrParts> = []): string {
+  const skipped = new Set(omit);
+  return `${skipped.has("id") ? "" : parts.id}${skipped.has("opacity") ? "" : parts.opacity}${skipped.has("filter") ? "" : parts.filter}${skipped.has("clip") ? "" : parts.clip}${skipped.has("mask") ? "" : parts.mask}${skipped.has("blend") ? "" : parts.blend}${skipped.has("transform") ? "" : parts.transform}`;
 }
 
 function strokeAttrs(element: VisualElement, context: SvgContext, fallback: string): string {
@@ -193,6 +212,15 @@ function clipPath(clip: ClipShape | undefined, context: SvgContext): string {
   return ` clip-path="url(#${id})"`;
 }
 
+function imageClipAttr(element: ImageElement, context: SvgContext): string {
+  const radius = clampedCornerRadius(element.cornerRadius, element.width, element.height);
+  if (!element.source && radius <= 0) return "";
+  const id = nextId(context, "image-clip");
+  const rx = radius > 0 ? ` rx="${radius}" ry="${radius}"` : "";
+  context.defs.push(`<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}"${rx}/></clipPath>`);
+  return ` clip-path="url(#${id})"`;
+}
+
 function maskPath(mask: MaskShape | undefined, context: SvgContext): string {
   if (!mask) return "";
   const id = nextId(context, "mask");
@@ -229,6 +257,9 @@ function groupTransform(element: Extract<VisualElement, { type: "group" }>): str
 
 function originPoint(element: VisualElement): Point2 {
   if (isPoint2(element.origin)) return element.origin;
+  if (element.type === "text" || element.type === "point") {
+    return [Number(element.x ?? 0), Number(element.y ?? 0)];
+  }
   const box = elementBox(element);
   return box ? [box.x + box.width / 2, box.y + box.height / 2] : [0, 0];
 }
@@ -242,6 +273,11 @@ function imageFit(fit: ImageFit | undefined): string {
   if (fit === "contain") return "xMidYMid meet";
   if (fit === "cover") return "xMidYMid slice";
   return "none";
+}
+
+function clampedCornerRadius(value: number | undefined, width: number, height: number): number {
+  if (!isFiniteNumber(value) || value <= 0) return 0;
+  return Math.min(Number(value), Math.max(0, width) / 2, Math.max(0, height) / 2);
 }
 
 function nextId(context: SvgContext, prefix: string): string {

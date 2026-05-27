@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1120,
+    "height": 880,
+    "background": "#ffffff"
+  },
+  "elements": [
+    {
+      "id": "hero-headline",
+      "type": "text",
+      "x": 560,
+      "y": 72,
+      "text": "Ship faster with less friction",
+      "align": "center",
+      "valign": "top",
+      "fontSize": 48,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 800,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "hero-subheadline",
+      "type": "text",
+      "x": 560,
+      "y": 140,
+      "text": "A modern platform for teams who want to build, deploy, and iterate\nwithout wrestling infrastructure or waiting on bottlenecks.",
+      "align": "center",
+      "valign": "top",
+      "fontSize": 18,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "lineHeight": 1.55,
+      "fill": "#475569",
+      "maxWidth": 960
+    },
+    {
+      "id": "chip-bg-0",
+      "type": "path",
+      "d": "M 261.75 212 L 461.25 212 Q 479.25 212 479.25 230 L 479.25 230 Q 479.25 248 461.25 248 L 261.75 248 Q 243.75 248 243.75 230 L 243.75 230 Q 243.75 212 261.75 212 Z",
+      "fill": "#f1f5f9",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1
+    },
+    {
+      "id": "chip-text-0",
+      "type": "text",
+      "x": 361.5,
+      "y": 230,
+      "text": "Real-time Collaboration",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 14,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 500,
+      "fill": "#334155"
+    },
+    {
+      "id": "chip-bg-1",
+      "type": "path",
+      "d": "M 511.25 212 L 651.25 212 Q 669.25 212 669.25 230 L 669.25 230 Q 669.25 248 651.25 248 L 511.25 248 Q 493.25 248 493.25 230 L 493.25 230 Q 493.25 212 511.25 212 Z",
+      "fill": "#f1f5f9",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1
+    },
+    {
+      "id": "chip-text-1",
+      "type": "text",
+      "x": 581.25,
+      "y": 230,
+      "text": "One-click Deploy",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 14,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 500,
+      "fill": "#334155"
+    },
+    {
+      "id": "chip-bg-2",
+      "type": "path",
+      "d": "M 701.25 212 L 858.25 212 Q 876.25 212 876.25 230 L 876.25 230 Q 876.25 248 858.25 248 L 701.25 248 Q 683.25 248 683.25 230 L 683.25 230 Q 683.25 212 701.25 212 Z",
+      "fill": "#f1f5f9",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1
+    },
+    {
+      "id": "chip-text-2",
+      "type": "text",
+      "x": 779.75,
+      "y": 230,
+      "text": "Built-in Analytics",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 14,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 500,
+      "fill": "#334155"
+    },
+    {
+      "id": "hero-divider",
+      "type": "path",
+      "d": "M 80 304 L 1040 304",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1,
+      "fill": "none"
+    },
+    {
+      "id": "section-title",
+      "type": "text",
+      "x": 80,
+      "y": 352,
+      "text": "Why teams choose us",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 26,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 700,
+      "fill": "#1e293b"
+    },
+    {
+      "id": "section-para",
+      "type": "text",
+      "x": 80,
+      "y": 396,
+      "text": "Most platforms promise speed but deliver complexity. We took a different approach:\nstrip away everything that doesn't directly help you ship. No configuration mazes,\nno permission matrices, no waiting for DevOps. Just write code, push, and see it live.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "lineHeight": 1.7,
+      "fill": "#475569",
+      "maxWidth": 960
+    },
+    {
+      "id": "bullet-dot-0",
+      "type": "path",
+      "d": "M 85 505 A 4 4 0 1 1 85 505.01 Z",
+      "fill": "#2563eb",
+      "stroke": "none"
+    },
+    {
+      "id": "bullet-text-0",
+      "type": "text",
+      "x": 100,
+      "y": 496,
+      "text": "Zero-config deployments with automatic scaling and rollback",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#475569",
+      "maxWidth": 940
+    },
+    {
+      "id": "bullet-dot-1",
+      "type": "path",
+      "d": "M 85 541 A 4 4 0 1 1 85 541.01 Z",
+      "fill": "#2563eb",
+      "stroke": "none"
+    },
+    {
+      "id": "bullet-text-1",
+      "type": "text",
+      "x": 100,
+      "y": 532,
+      "text": "Collaborative editing with live cursors and instant sync",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#475569",
+      "maxWidth": 940
+    },
+    {
+      "id": "bullet-dot-2",
+      "type": "path",
+      "d": "M 85 577 A 4 4 0 1 1 85 577.01 Z",
+      "fill": "#2563eb",
+      "stroke": "none"
+    },
+    {
+      "id": "bullet-text-2",
+      "type": "text",
+      "x": 100,
+      "y": 568,
+      "text": "Unified dashboard for logs, metrics, and error tracking",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#475569",
+      "maxWidth": 940
+    },
+    {
+      "id": "bullet-dot-3",
+      "type": "path",
+      "d": "M 85 613 A 4 4 0 1 1 85 613.01 Z",
+      "fill": "#2563eb",
+      "stroke": "none"
+    },
+    {
+      "id": "bullet-text-3",
+      "type": "text",
+      "x": 100,
+      "y": 604,
+      "text": "Native integrations with GitHub, GitLab, and Bitbucket",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#475569",
+      "maxWidth": 940
+    },
+    {
+      "id": "bullet-dot-4",
+      "type": "path",
+      "d": "M 85 649 A 4 4 0 1 1 85 649.01 Z",
+      "fill": "#2563eb",
+      "stroke": "none"
+    },
+    {
+      "id": "bullet-text-4",
+      "type": "text",
+      "x": 100,
+      "y": 640,
+      "text": "SOC 2 Type II certified with end-to-end encryption",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 15,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#475569",
+      "maxWidth": 940
+    }
+  ]
+}

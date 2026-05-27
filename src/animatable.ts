@@ -50,6 +50,7 @@ const BASE_SPECS: AnimatablePropertySpec[] = [
   { property: "weight", valueKind: "numberOrString", interpolation: "discrete", elementTypes: TEXT_TYPES, defaultValue: 400 },
   { property: "width", valueKind: "number", interpolation: "number", elementTypes: ["image", "group"], defaultValue: 0 },
   { property: "height", valueKind: "number", interpolation: "number", elementTypes: ["image", "group"], defaultValue: 0 },
+  { property: "cornerRadius", valueKind: "number", interpolation: "number", elementTypes: IMAGE_TYPES, defaultValue: 0 },
   { property: "src", valueKind: "string", interpolation: "discrete", elementTypes: IMAGE_TYPES },
   { property: "fit", valueKind: "string", interpolation: "discrete", elementTypes: IMAGE_TYPES },
   { property: "blendMode", valueKind: "string", interpolation: "discrete", elementTypes: VISIBLE_TYPES },

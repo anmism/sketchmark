@@ -17,22 +17,6 @@ Build Sketchmark animations as small generator programs that emit clean JSON. Pr
 6. Use a few meaningful keyframes per property instead of sampling every moment.
 7. Preview in the editor and simplify if the JSON becomes large or editing feels slow.
 
-## Use Origin As Anchor
-
-Treat `origin` as the Sketchmark anchor or pivot equivalent.
-
-- Use `origin: [x, y]` to control the point used for rotation and scaling.
-- Keep `origin` in the element or group's local coordinates.
-- Prefer wrapping related parts in a `group` and animating the group when several children should share the same pivot.
-- Animate `origin` only when the pivot itself needs to move over time.
-- When a user says "anchor point", implement it with `origin` unless the format has added a separate anchor feature.
-
-Practical rules:
-
-- Rotate a clock hand around its base: place the hand in a group and set the group's `origin` at the pin.
-- Rotate a card around a corner: keep the card path local to the group and set the group's `origin` to that corner.
-- Rig limbs or props: group the visible shapes, then rotate the group with the `origin` at the joint.
-
 ## Author JS Generators Cleanly
 
 Keep generator files generic and parameterized.
@@ -103,7 +87,7 @@ Use these property names directly in timeline tracks. Keep property names exact.
 Practical interpretation:
 
 - Motion values like `x`, `rotation`, `opacity`, `fontSize`, and `effects.blur` interpolate smoothly.
-- `origin` and `position` interpolate as 2D points.
+- 2D tracks like `position` and `origin` interpolate as points.
 - `fill` and `stroke` interpolate smoothly only when they are plain color strings.
 - `text`, `lines`, `fontFamily`, `src`, `fit`, `strokeCap`, `strokeJoin`, and `blendMode` are discrete.
 
@@ -264,24 +248,6 @@ timeline: {
 }
 ```
 
-Use `origin` whenever rotation or scaling should happen around a specific pivot:
-
-```js
-groupElement("hand", 400, 240, children, {
-  origin: [0, 60],
-  timeline: {
-    tracks: {
-      rotation: {
-        keyframes: [
-          { time: 0, value: -90 },
-          { time: 1, value: 0 }
-        ]
-      }
-    }
-  }
-})
-```
-
 Use discrete animation for content swaps:
 
 ```js
@@ -300,8 +266,34 @@ Use groups to make motion understandable.
 
 - Group each logical unit: character, bicycle, card, chart, hand, label cluster.
 - Keep child shapes near local `0,0` when possible so transforms stay intuitive.
-- Apply shared position, rotation, scale, and origin to the parent group.
+- Apply shared transforms to the parent group.
 - Keep unrelated motion in separate groups to avoid accidental coupling.
+
+### Path Animation Pitfall
+
+A path's `d` attribute contains absolute coordinates. Animating `x` or `y` on a path applies a translation offset to those coordinates. If you animate a path and a related element (like a text label) separately with matching keyframes, they may drift apart because the math works differently for each element type.
+
+To keep a path and its label in sync, wrap them in a group:
+
+```js
+// Wrong: separate elements with separate y animations can desync
+elements.push({ id: "btn-bg", type: "path", d: roundedRect(px, py, w, h, r), timeline: { y: ... } });
+elements.push({ id: "btn-label", type: "text", x: px + w/2, y: py + h/2, timeline: { y: ... } });
+
+// Right: group keeps children together, animate the group
+elements.push({
+  id: "btn",
+  type: "group",
+  x: px, y: py,
+  children: [
+    { id: "btn-bg", type: "path", d: roundedRect(0, 0, w, h, r) },
+    { id: "btn-label", type: "text", x: w/2, y: h/2, text: "Label", align: "center", valign: "middle" }
+  ],
+  timeline: { tracks: { y: { keyframes: [...] } } }
+});
+```
+
+Position children relative to the group origin, then animate the group's transform properties.
 
 ## Text And Styling
 
@@ -317,7 +309,6 @@ Keep text predictable across preview and export.
 
 - Generate animations by sampling the whole timeline into many tiny steps.
 - Mix world-space and local-space coordinates inside the same moving rig without a reason.
-- Hide pivot logic inside arbitrary magic numbers.
 - Bake giant JSON blobs inline in the generator.
 - Create one-off helpers whose parameter names only make sense for a single scene.
 
@@ -328,5 +319,4 @@ When asked to create Sketchmark motion:
 1. Produce or update a `make-*.cjs` generator.
 2. Keep the code readable enough to edit by hand later.
 3. Emit the `.visual.json`.
-4. Prefer origin-aware groups for pivoted motion.
-5. Prefer sparse timelines that stay responsive in preview and editor.
+4. Prefer sparse timelines that stay responsive in preview and editor.

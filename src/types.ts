@@ -149,6 +149,7 @@ export interface ImageElement extends VisualElementBase {
   y: number;
   width: number;
   height: number;
+  cornerRadius?: number;
   fit?: ImageFit;
   source?: {
     x: number;
