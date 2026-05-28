@@ -1,322 +1,286 @@
 ---
-name: sketchmark-animation
-description: Create or refactor Sketchmark animation generators and `.visual.json` documents for editor-friendly motion graphics. Use when Codex needs to author `make-*.cjs` files, build reusable motion helpers, add pivot-based rotation or scaling, organize animated scenes with groups, or simplify dense timelines so preview and edit stay fast.
+name: sketchmark
+description: Create, refactor, validate, or document Sketchmark kernel visuals, preset generators, and pack-ready authoring helpers. Use when Codex needs to work on `.visual.json`, `make-*.cjs` generators, `sketchmark/presets`, chat-first Sketchmark app generation, or animation timelines while preserving the frozen kernel boundary.
 ---
 
-# Sketchmark Animation
+# Sketchmark
 
-Build Sketchmark animations as small generator programs that emit clean JSON. Prefer sparse timelines, reusable helper functions, and group-local motion over per-frame sampled state generation.
+Sketchmark has three layers:
 
-## Workflow
+- `kernel`: the final render format, stored as `.visual.json`
+- `presets`: reusable authoring helpers that compile to kernel
+- `packs`: shareable collections of presets
 
-1. Read one or two nearby Sketchmark examples before writing new motion.
-2. Author a `.cjs` generator first, then emit the `.visual.json`.
-3. Define top-level composition constants once: `width`, `height`, `duration`, `fps`, font stack, palette, and curve presets.
-4. Add small reusable helpers for geometry, elements, groups, and track creation.
-5. Build scenes from groups and stable IDs.
-6. Use a few meaningful keyframes per property instead of sampling every moment.
-7. Preview in the editor and simplify if the JSON becomes large or editing feels slow.
+Treat the kernel as a small render and animation interchange format. Do not put editor state, AI prompts, semantic objects, or preset metadata into kernel JSON.
 
-## Author JS Generators Cleanly
+## First Decision
 
-Keep generator files generic and parameterized.
+Before editing, decide which layer you are touching.
 
-- Hard-code only document-wide constants and scene-specific content.
-- Pass positions, sizes, colors, timings, and IDs into helpers as parameters.
-- Keep helpers pure: return objects, do not mutate shared state in surprising ways.
-- Use descriptive helper names such as `pathElement()`, `textElement()`, `groupElement()`, `fadeTrack()`, and `enterTrack()`.
-- Keep scene timing in one `scenes` object with `start` and `end`.
-- Keep curve presets in one place and reuse them.
-- Keep IDs stable and readable so editor selection and timeline edits stay understandable.
-- Split repeated visual patterns into helper functions instead of copy-pasting large object literals.
+- Kernel work changes `src/`, schema, validation, rendering, timeline resolution, or docs such as `KERNEL_SPEC.md`.
+- Preset work changes `src/presets/`, examples, or helpers that output pure kernel fragments.
+- Pack work is documentation or trusted authoring code that exports presets.
+- App work should generate or refine kernel documents using presets; it should not invent app-only fields inside `.visual.json`.
 
-Prefer a structure like:
+If a requested feature is authoring convenience, prefer a preset/editor helper that compiles into existing kernel properties.
 
-```js
-const width = 1280;
-const height = 720;
-const duration = 12;
-const fps = 30;
+## Kernel Boundary
 
-const curves = {
-  easeOut: { type: "cubicBezier", x1: 0.16, y1: 1, x2: 0.3, y2: 1 }
-};
+Kernel documents allow only these top-level fields:
 
-function pathElement(id, d, style = {}) {
-  return { id, type: "path", d, ...style };
-}
-
-function groupElement(id, x, y, children, extra = {}) {
-  return { id, type: "group", x, y, children, ...extra };
-}
-
-function moveTrack(from, to, start, end) {
-  return {
-    keyframes: [
-      { time: start, value: from, out: curves.easeOut },
-      { time: end, value: to }
-    ]
-  };
+```json
+{
+  "version": 1,
+  "canvas": { "width": 960, "height": 540, "duration": 2, "fps": 30 },
+  "elements": []
 }
 ```
 
-## Keep Preview Fast
+Allowed element types:
 
-Prefer editor-friendly motion over dense generated timelines.
+- `path`
+- `text`
+- `image`
+- `point`
+- `group`
 
-- Prefer sparse hand-authored keyframes over per-frame or per-step sampled states.
-- Avoid compiling hundreds of near-identical state snapshots into timeline tracks unless absolutely necessary.
-- Avoid animating decorative background elements continuously if they do not help the story.
-- Keep canvas size reasonable while iterating; larger canvases cost more to preview.
-- If the generated `.visual.json` grows into multiple megabytes, simplify tracks before adding more detail.
+Do not add these to kernel documents:
 
-As a rule of thumb, a few strong keyframes with easing are better than many tiny linear corrections.
+- `metadata`
+- scenes, sequences, deck/page state, or global motion blocks
+- editor selection, lock, hidden, guide, snap, or source-object state
+- semantic objects such as rectangle, circle, arrow, chart, dog, walk cycle
+- image `cornerRadius`
 
-## Supported Animatable Properties
+Rectangles, circles, arrows, characters, effects, transitions, and layout scenes belong in presets and compile to `path`, `text`, `image`, `point`, `group`, timelines, clip, mask, paint, and effects.
 
-Use these property names directly in timeline tracks. Keep property names exact.
+Rounded images use `clip.d`, not `cornerRadius`.
 
-### Interpolation Rules
+## Kernel Animation Rules
 
-- `number`: smooth numeric interpolation
-- `point2`: smooth `[x, y]` interpolation
-- `color`: smooth color interpolation for plain color strings
-- `numberArray`: smooth element-wise interpolation
-- `discrete`: value switches at the keyframe; do not expect in-between blending
-
-Practical interpretation:
-
-- Motion values like `x`, `rotation`, `opacity`, `fontSize`, and `effects.blur` interpolate smoothly.
-- 2D tracks like `position` and `origin` interpolate as points.
-- `fill` and `stroke` interpolate smoothly only when they are plain color strings.
-- `text`, `lines`, `fontFamily`, `src`, `fit`, `strokeCap`, `strokeJoin`, and `blendMode` are discrete.
-
-### Shared Motion Properties
-
-Available on visible elements unless noted otherwise:
-
-- `position` -> `[x, y]`
-- `x`
-- `y`
-- `rotation`
-- `scale`
-- `scaleX`
-- `scaleY`
-- `origin` -> `[x, y]`
-- `opacity`
-- `blendMode`
-- `clip.d`
-- `mask.d`
-- `mask.opacity`
-
-Element support:
-
-- `path`, `text`, `image`, `group`: all shared motion properties above
-- `point`: `position`, `x`, `y`
-
-### Path Properties
-
-Use for `path` elements:
-
-- `fill` -> plain color string
-- `stroke` -> plain color string
-- `strokeWidth`
-- `strokeCap`
-- `strokeJoin`
-- `miterLimit`
-- `dashArray` -> number array
-- `dashOffset`
-- `drawStart`
-- `drawEnd`
-
-### Text Properties
-
-Use for `text` elements:
-
-- `fill` -> plain color string
-- `text` -> string; use `\n` for multiline text
-- `lines` -> string array; one string per rendered line
-- `fontFamily`
-- `fontSize`
-- `lineHeight`
-- `letterSpacing`
-- `maxWidth`
-- `weight`
-
-Multiline guidance:
-
-- Prefer `text` with explicit `\n` when authoring by hand or from a prompt.
-- Use `lines` when another system already produces arrays of per-line strings.
-- If both `text` and `lines` exist, `lines` takes precedence during rendering.
-- Do not rely on `wrap` or `maxWidth` for automatic line breaking; explicit line breaks are more reliable.
-
-### Image Properties
-
-Use for `image` elements:
-
-- `width`
-- `height`
-- `src`
-- `fit`
-- `source.x`
-- `source.y`
-- `source.width`
-- `source.height`
-
-### Group Properties
-
-Use for `group` elements:
-
-- `width`
-- `height`
-- all shared motion properties
-
-### Effects Properties
-
-Available on visible elements: `path`, `text`, `image`, `group`
-
-- `effects.blur`
-- `effects.brightness`
-- `effects.contrast`
-- `effects.saturate`
-- `effects.hueRotate`
-- `effects.shadow.dx`
-- `effects.shadow.dy`
-- `effects.shadow.blur`
-- `effects.shadow.color`
-- `effects.shadow.opacity`
-
-### Gradient Properties
-
-Use these nested properties when `fill` or `stroke` is a structured gradient paint. Do not mix them with plain color animation on the same root.
-
-For linear gradients:
-
-- `fill.from`
-- `fill.to`
-- `stroke.from`
-- `stroke.to`
-
-For radial gradients:
-
-- `fill.center`
-- `fill.focus`
-- `fill.radius`
-- `stroke.center`
-- `stroke.focus`
-- `stroke.radius`
-
-For gradient stops:
-
-- `fill.stops.0.offset`
-- `fill.stops.0.color`
-- `fill.stops.1.offset`
-- `fill.stops.1.color`
-- same pattern for higher stop indices and for `stroke.stops.*`
-
-### Track Conflicts To Avoid
-
-Prefer one representation for the same idea:
-
-- Use `position` or use `x` and `y`, not both.
-- Use `scale` or use `scaleX` and `scaleY`, not both, unless you are intentionally overriding with axis-specific tracks.
-- Use `fill` as a plain color track or use `fill.*` gradient tracks, not both on the same element.
-- Use `stroke` as a plain color track or use `stroke.*` gradient tracks, not both on the same element.
-
-## How To Animate
-
-Prefer small, explicit tracks with 2-5 keyframes.
-
-Example:
+Animation is element-local:
 
 ```js
-timeline: {
-  tracks: {
-    position: {
-      keyframes: [
-        { time: 0, value: [120, 200], out: curves.easeOut },
-        { time: 1.2, value: [420, 200] }
-      ]
-    },
-    rotation: {
-      keyframes: [
-        { time: 0, value: 0, out: curves.easeOut },
-        { time: 1.2, value: 18 }
-      ]
+{
+  id: "card",
+  type: "group",
+  x: 80,
+  y: 80,
+  children: [],
+  timeline: {
+    tracks: {
+      position: {
+        keyframes: [
+          { time: 0, value: [80, 120], out: { type: "cubicBezier", x1: 0.16, y1: 1, x2: 0.3, y2: 1 } },
+          { time: 0.5, value: [80, 80] }
+        ]
+      }
     }
   }
 }
 ```
 
-Use discrete animation for content swaps:
+Use object keyframes by default. Tuple keyframes remain legacy-compatible.
+
+Preferred curves:
+
+- `{ type: "graph", points: [[0, 0], [0.5, 0.2], [1, 1]] }`
+- `{ type: "cubicBezier", x1, y1, x2, y2 }`
+- `{ type: "hold" }`
+
+Do not emit legacy `ease` from new code. It can be read for backward compatibility only.
+
+Unknown timeline tracks are invalid. Check `ANIMATABLE_MATRIX.md` before adding or targeting a property.
+
+## Common Animatable Tracks
+
+Shared tracks:
+
+- `position`, `x`, `y`
+- `opacity`
+- `rotation`, `scale`, `scaleX`, `scaleY`, `origin`
+- `blendMode`
+- `clip.d`, `mask.d`, `mask.opacity`
+
+Path tracks:
+
+- `d`
+- `fill`, `stroke`
+- `strokeWidth`, `strokeCap`, `strokeJoin`, `miterLimit`
+- `dashArray`, `dashOffset`
+- `drawStart`, `drawEnd`
+
+Text tracks:
+
+- `text`, `lines`
+- `align`, `valign`
+- `fontFamily`, `fontStyle`, `fontSize`, `lineHeight`, `letterSpacing`, `maxWidth`, `weight`
+- `fill`
+
+Image tracks:
+
+- `width`, `height`
+- `src`, `fit`
+- `source.x`, `source.y`, `source.width`, `source.height`
+
+Effect tracks:
+
+- `effects.blur`
+- `effects.brightness`, `effects.contrast`, `effects.saturate`, `effects.hueRotate`
+- `effects.shadow.dx`, `effects.shadow.dy`, `effects.shadow.blur`, `effects.shadow.color`, `effects.shadow.opacity`
+
+Structured paint internals:
+
+- linear gradient: `fill.from`, `fill.to`, `stroke.from`, `stroke.to`
+- radial gradient: `fill.center`, `fill.focus`, `fill.radius`, `stroke.center`, `stroke.focus`, `stroke.radius`
+- stops: `fill.stops.N.offset`, `fill.stops.N.color`, `stroke.stops.N.offset`, `stroke.stops.N.color`
+- pattern: `fill.x`, `fill.y`, `fill.width`, `fill.height`, `fill.opacity`, and matching `stroke.*`
+
+Interpolation is numeric for numbers, point-like for `[x,y]`, color-like for plain hex color strings, and discrete for unsupported strings or objects. Path data such as `d` and `clip.d` is discrete; smooth-looking shape morphs or rounded-radius changes must be compiled above the kernel into multiple keyframes.
+
+## Presets Layer
+
+The package exposes presets separately:
 
 ```js
-text: {
-  keyframes: [
-    { time: 0, value: "Draft" },
-    { time: 1.5, value: "Render" },
-    { time: 3, value: "Export" }
-  ]
+const {
+  applyPresetFragments,
+  mergePresetFragments,
+  prefixPresetFragment,
+  shapes,
+  characters,
+  motions,
+  effects,
+  transitions,
+  scenes
+} = require("sketchmark/presets");
+```
+
+Inside this repo before publish, examples can import from built output:
+
+```js
+const { applyPresetFragments, shapes, motions } = require("../dist/src/presets");
+```
+
+Preset functions return fragments:
+
+```ts
+{
+  elements?: VisualElement[],
+  timelines?: Record<string, Record<string, TimelineTrack>>
 }
 ```
 
-## Grouping Guidance
+Use `applyPresetFragments(document, fragments)` to produce a pure kernel document. The output must validate as `.visual.json` and must not include preset metadata.
 
-Use groups to make motion understandable.
+Built-in namespaces:
 
-- Group each logical unit: character, bicycle, card, chart, hand, label cluster.
-- Keep child shapes near local `0,0` when possible so transforms stay intuitive.
-- Apply shared transforms to the parent group.
-- Keep unrelated motion in separate groups to avoid accidental coupling.
+- `shapes`: rect, roundedRect, ellipse, circle, line, polyline, arrow, regularPolygon, star, speechBubble
+- `characters`: stickPerson, talkingHead, simpleDog, simpleSpider, cursorHand, simpleMascot
+- `motions`: fadeIn, fadeOut, slideIn, riseIn, scaleIn, pulse, bob, shake, drawOn, stagger
+- `effects`: dropShadow, softBlur, glow, dim, tintFill, gradientSweep, roundedImageClip, maskReveal
+- `transitions`: crossfade, pushLeft, pushRight, slideUp, wipeLeft, wipeRight, zoomCut, fadeThroughBlack, irisIn, irisOut
+- `scenes`: titleCard, lowerThird, captionBubble, comparisonSplit, deviceFrame, gridBackground
 
-### Path Animation Pitfall
+Preset rules:
 
-A path's `d` attribute contains absolute coordinates. Animating `x` or `y` on a path applies a translation offset to those coordinates. If you animate a path and a related element (like a text label) separately with matching keyframes, they may drift apart because the math works differently for each element type.
+- output only kernel elements and kernel timelines
+- use stable, readable IDs
+- use dot-namespaced child IDs such as `hero.head` and `dog.frontLeg`
+- emit explicit curves, not legacy `ease`
+- use `prefixPresetFragment` when reusing the same fragment more than once
+- throw clear errors when a timeline targets an unknown element
 
-To keep a path and its label in sync, wrap them in a group:
+## Authoring Generators
+
+Prefer generator scripts over hand-writing large JSON:
+
+1. Read one or two nearby `examples/make-*.cjs` files.
+2. Write or update a `make-*.cjs` generator.
+3. Keep constants near the top: canvas size, duration, fps, palette, font stack, curve presets.
+4. Use helpers for paths, text, groups, tracks, and repeated scene structures.
+5. Generate `.visual.json`.
+6. Validate and render a frame or preview.
+
+Keep generators modular when scenes get long. Split helpers into local modules or small functions, but keep final output as one pure kernel document.
+
+Good generator shape:
 
 ```js
-// Wrong: separate elements with separate y animations can desync
-elements.push({ id: "btn-bg", type: "path", d: roundedRect(px, py, w, h, r), timeline: { y: ... } });
-elements.push({ id: "btn-label", type: "text", x: px + w/2, y: py + h/2, timeline: { y: ... } });
+const { applyPresetFragments, shapes, motions } = require("../dist/src/presets");
 
-// Right: group keeps children together, animate the group
-elements.push({
-  id: "btn",
-  type: "group",
-  x: px, y: py,
-  children: [
-    { id: "btn-bg", type: "path", d: roundedRect(0, 0, w, h, r) },
-    { id: "btn-label", type: "text", x: w/2, y: h/2, text: "Label", align: "center", valign: "middle" }
-  ],
-  timeline: { tracks: { y: { keyframes: [...] } } }
-});
+const curves = {
+  easeOut: { type: "cubicBezier", x1: 0.16, y1: 1, x2: 0.3, y2: 1 }
+};
+
+const doc = {
+  version: 1,
+  canvas: { width: 960, height: 540, background: "#ffffff", duration: 2, fps: 30 },
+  elements: []
+};
+
+const visual = applyPresetFragments(doc, [
+  shapes.roundedRect({ id: "card", x: 80, y: 80, width: 260, height: 120, radius: 16, fill: "#ffffff" }),
+  motions.riseIn({ id: "card", from: [80, 120], to: [80, 80], duration: 0.5, curve: curves.easeOut })
+]);
+
+module.exports = visual;
 ```
 
-Position children relative to the group origin, then animate the group's transform properties.
+## Motion Guidance
 
-## Text And Styling
+Prefer sparse, editor-friendly motion:
 
-Keep text predictable across preview and export.
+- 2-5 meaningful keyframes per property
+- parent-group transforms for whole objects
+- child-local coordinates near `0,0`
+- stable origins for rotation and scale
+- explicit hold curves for value switches
+- discrete keyframes for text, image source, path `d`, and clip/mask path changes
 
-- Prefer a consistent local font stack already used by the project.
-- Set `fontFamily` explicitly on generated text.
-- Reuse text helper functions so size, alignment, and weight stay consistent.
-- Use `text` with `\n` or `lines[]` for multiline layouts.
-- Animate text with the same sparse-track rule used for shapes.
+Avoid:
 
-## Avoid
+- per-frame sampled timelines unless compiling an intentionally complex effect
+- separate matching tracks on many children when a parent group can move them together
+- mixing `position` with `x/y` for the same element
+- mixing `scale` with `scaleX/scaleY` unless intentional
+- mixing whole `fill`/`stroke` paint tracks with nested paint tracks on the same element
 
-- Generate animations by sampling the whole timeline into many tiny steps.
-- Mix world-space and local-space coordinates inside the same moving rig without a reason.
-- Bake giant JSON blobs inline in the generator.
-- Create one-off helpers whose parameter names only make sense for a single scene.
+## App Generation
 
-## Output
+For `sketchmark-app`, keep generation chat-first and kernel-first.
 
-When asked to create Sketchmark motion:
+Generated code should return a `VisualDocument`. It may use preset globals made available by the app sandbox, but the final result must be pure kernel JSON.
 
-1. Produce or update a `make-*.cjs` generator.
-2. Keep the code readable enough to edit by hand later.
-3. Emit the `.visual.json`.
-4. Prefer sparse timelines that stay responsive in preview and editor.
+Do not ask the AI to output:
+
+- non-kernel element types
+- project/editor metadata
+- top-level `motion`
+- scenes or timeline formats not supported by the kernel
+
+The app backend can switch AI providers. Keep provider configuration in environment/backend code, not generated visual documents.
+
+## Validation And Checks
+
+Useful checks:
+
+```sh
+npm test
+node examples/make-presets-demo.cjs
+node examples/make-preset-character-motion.cjs
+node bin/sketchmark.cjs render examples/presets-demo.visual.json --time 0 --out /tmp/sketchmark-frame.svg
+```
+
+For docs-only changes, tests may be unnecessary. For kernel, preset, schema, renderer, or app generation changes, run the closest validation or full `npm test`.
+
+## When Unsure
+
+Preserve the boundary:
+
+- kernel stays render-focused and deterministic
+- presets absorb reusable authoring ideas
+- packs share presets
+- editor/app layers compile their source state away
+
+If the kernel needs a new field, first ask whether the same result can be represented by existing path, text, image, point, group, transform, paint, clip, mask, effect, or timeline properties.

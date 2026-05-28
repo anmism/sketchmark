@@ -1,6 +1,6 @@
 {
   "name": "sketchmark",
-  "version": "2.0.0",
+  "version": "2.1.3",
   "description": "Render kernel for Sketchmark visual documents.",
   "license": "MIT",
   "type": "commonjs",
@@ -20,6 +20,16 @@
       "require": "./dist/src/presets/index.js",
       "default": "./dist/src/presets/index.js"
     },
+    "./browser-export": {
+      "types": "./dist/src/browser-export.d.ts",
+      "require": "./dist/src/browser-export.js",
+      "default": "./dist/src/browser-export.js"
+    },
+    "./editor": {
+      "types": "./bin/editor-ui.d.ts",
+      "require": "./bin/editor-ui.cjs",
+      "default": "./bin/editor-ui.cjs"
+    },
     "./schema": {
       "default": "./schema/visual.schema.json"
     }
@@ -33,15 +43,12 @@
   "files": [
     "bin",
     "dist",
-    "examples",
     "schema",
-    "KERNEL_SPEC.md",
-    "ANIMATABLE_MATRIX.md",
-    "PRESETS.md",
-    "PACKS.md",
-    "WHAT_NEEDS_IMPROVEMENT.md",
     "README.md"
   ],
+  "dependencies": {
+    "mp4-muxer": "^5.2.2"
+  },
   "devDependencies": {
     "typescript": "^5.9.3"
   },

@@ -1,6 +1,13 @@
 "use strict";
 
-function editorHtml(title) {
+const fs = require("node:fs");
+const path = require("node:path");
+
+function editorHtml(title, options = {}) {
+  const apiBase = normalizeApiBase(options.apiBase || "/api");
+  const mp4MuxerUrl = options.mp4MuxerUrl || "";
+  const mp4MuxerSource = mp4MuxerUrl ? "" : resolveMp4MuxerSource(options.mp4MuxerSource);
+  const serverExportFallback = options.serverExportFallback !== false;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sketchmark Editor - ${escapeHtml(title)}</title><style>
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Light.ttf') format('truetype');font-weight:300;font-style:normal;font-display:swap}
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
@@ -66,12 +73,10 @@ textarea{min-height:88px;padding:4px;resize:vertical}
 .curveModalBar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 .curveModalContent .curvePanel{margin-top:0}
 #tree::-webkit-scrollbar,#inspector::-webkit-scrollbar,#timeline::-webkit-scrollbar,.curveModal::-webkit-scrollbar{width:0;height:0}
-#error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:6px;align-items:center}
-.menuWrap{position:relative}
-.menuBtn{min-width:72px}
-.menuList{position:absolute;right:0;top:calc(100% + 4px);display:grid;gap:2px;padding:4px;background:#f3f4f6;border:1px solid #8f96a3;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:5}
-.menuList button{min-width:88px;text-align:left;padding:2px 8px}
-.menuList.hidden{display:none}
+#error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center}
+.exportButtons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.exportButtons button{width:100%;text-align:left;padding:4px 6px}
+.exportButtons button.exportWide{grid-column:1/3}
 </style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div><script>
 const tree = document.getElementById("tree");
 const stageWrap = document.getElementById("stageWrap");
@@ -121,6 +126,16 @@ let panelOpenState = Object.create(null);
 let viewport = { initialized: false, baseWidth: 1, baseHeight: 1, x: 0, y: 0, width: 1, height: 1 };
 let viewportPan = null;
 let spacePanActive = false;
+const API_BASE = ${scriptJson(apiBase)};
+const EDITOR_TITLE = ${scriptJson(title || "sketchmark")};
+const MP4_MUXER_URL = ${scriptJson(mp4MuxerUrl)};
+const MP4_MUXER_SOURCE = ${scriptJson(mp4MuxerSource)};
+const SERVER_EXPORT_FALLBACK = ${scriptJson(serverExportFallback)};
+let mp4MuxerObjectUrl = "";
+
+function apiPath(path) {
+  return API_BASE + path;
+}
 
 curveModalClose.onclick = closeCurveModal;
 curveModalBackdrop.onclick = (event) => {
@@ -130,14 +145,6 @@ curveModal.onclick = (event) => event.stopPropagation();
 zoomOut.onclick = () => zoomBy(1.12);
 zoomIn.onclick = () => zoomBy(1 / 1.12);
 zoomFit.onclick = () => resetViewport(true);
-document.addEventListener("click", (event) => {
-  const wrap = document.getElementById("exportMenuWrap");
-  const menu = document.getElementById("exportMenu");
-  if (!wrap || !menu) return;
-  if (wrap.contains(event.target)) return;
-  menu.classList.add("hidden");
-});
-
 async function api(path, options) {
   const response = await fetch(path, options || { cache: "no-store" });
   const data = await response.json();
@@ -147,7 +154,7 @@ async function api(path, options) {
 
 async function load() {
   clearSidebarCommitTimers();
-  const data = await api("/api/document");
+  const data = await api(apiPath("/document"));
   doc = data.document;
   refs = data.elements;
   rebuildElementIndex();
@@ -167,7 +174,7 @@ async function draw() {
   drawInFlight = true;
   const time = currentTime;
   try {
-    const data = await api("/api/frame?time=" + encodeURIComponent(time));
+    const data = await api(apiPath("/frame") + "?time=" + encodeURIComponent(time));
     resolvedDoc = data.resolved || null;
     stage.innerHTML = data.svg;
     const svg = stage.querySelector("svg");
@@ -509,7 +516,7 @@ function scheduleCanvasCommit(property, reader) {
       const value = reader();
       if (value === undefined) return;
       await mutate(
-        "/api/canvas",
+        apiPath("/canvas"),
         { [property]: value },
         { refreshTree: false, refreshInspector: false, refreshTimeline: true }
       );
@@ -677,8 +684,11 @@ function deselect() {
 
 function renderInspector() {
   const element = findElement(selectedId);
+  const exportPanel = renderExportPanel();
   if (!element) {
-    inspector.innerHTML = "<div class='muted'>Select an element.</div>";
+    inspector.innerHTML = exportPanel + "<div class='muted'>Select an element.</div>";
+    bindPanelStates(inspector);
+    bindExportButtons();
     return;
   }
   const displayElement = findResolvedElement(selectedId) || element;
@@ -732,8 +742,7 @@ function renderInspector() {
   const selectedRows =
     "<strong>" + escapeText(element.id || "") + "</strong>" +
     "<div class='muted'>" + selectedMeta + "</div>" +
-    (locked ? "<div class='tiny'>Locked elements and groups cannot be edited from canvas or inspector.</div>" : "") +
-    "<div id='error'></div>";
+    (locked ? "<div class='tiny'>Locked elements and groups cannot be edited from canvas or inspector.</div>" : "");
   const transformRows =
     "<div class='row'><label>X<input id='propX' type='number' step='1' value='" + valueOr(displayElement.x, 0) + "' " + positionDisabled + "></label><label>Y<input id='propY' type='number' step='1' value='" + valueOr(displayElement.y, 0) + "' " + positionDisabled + "></label></div>" +
     "<div class='row'><label>Rotation<input id='propRotation' type='number' step='1' value='" + valueOr(displayElement.rotation, 0) + "' " + lockDisabled + "></label><label>Scale<input id='propScale' type='number' step='0.05' value='" + valueOr(displayElement.scale, 1) + "' " + lockDisabled + "></label></div>" +
@@ -750,6 +759,7 @@ function renderInspector() {
     "<p class='tiny'>Interpolation curves are edited from timeline badges.</p>" +
     "<p class='tiny'>Drag to move. Use the square to scale and the round handle to rotate.</p>";
   inspector.innerHTML =
+    exportPanel +
     panelDetails("inspector-selected", "Selected", selectedRows, { defaultOpen: true, meta: element.type }) +
     panelDetails("inspector-transform", "Transform", transformRows, { defaultOpen: false }) +
     panelDetails("inspector-appearance", "Appearance", appearanceRows, { defaultOpen: false }) +
@@ -758,6 +768,7 @@ function renderInspector() {
     (structuredPaintRows ? panelDetails("inspector-structured-paint", "Structured Paint", structuredPaintRows, { defaultOpen: false }) : "") +
     panelDetails("inspector-keyframe", "Keyframe", keyframeRows, { defaultOpen: false });
   bindPanelStates(inspector);
+  bindExportButtons();
   if (supportsPaint) {
     setInput("propFill", typeof displayElement.fill === "string" ? displayElement.fill : "");
     setInput("propStroke", typeof displayElement.stroke === "string" ? displayElement.stroke : "");
@@ -818,6 +829,35 @@ function renderInspector() {
     bindDynamicInspectorInputs(bindAutoKeyframe);
   }
   bindColorPickersInScope(inspector);
+}
+
+function renderExportPanel() {
+  const rows =
+    "<div class='exportButtons'>" +
+    "<button id='exportSvg' type='button' title='Export current frame as SVG'>SVG</button>" +
+    "<button id='exportPng' type='button' title='Export current frame as PNG'>PNG</button>" +
+    "<button id='exportJpg' type='button' title='Export current frame as JPG'>JPG</button>" +
+    "<button id='exportHtml' type='button' title='Export current frame as HTML'>HTML</button>" +
+    "<button id='exportJson' type='button' title='Export kernel JSON'>JSON</button>" +
+    "<button id='exportMp4' type='button' title='Export full animation as MP4'>MP4</button>" +
+    "</div>" +
+    "<div id='error'></div>" +
+    "<p class='tiny'>MP4 exports in the browser. Chrome or Edge is recommended.</p>";
+  return panelDetails("inspector-export", "Export", rows, { defaultOpen: true });
+}
+
+function bindExportButtons() {
+  bindExportButton("exportSvg", "svg");
+  bindExportButton("exportPng", "png");
+  bindExportButton("exportJpg", "jpg");
+  bindExportButton("exportHtml", "html");
+  bindExportButton("exportJson", "json");
+  bindExportButton("exportMp4", "mp4");
+}
+
+function bindExportButton(id, format) {
+  const button = document.getElementById(id);
+  if (button) button.onclick = () => exportDocument(format, button);
 }
 
 function fontFamilyOptionsHtml(currentValue) {
@@ -1035,27 +1075,8 @@ function bindDynamicInspectorInputs(bindAutoKeyframe) {
 function renderTimeline() {
   const element = findElement(selectedId);
   const tracks = element && element.timeline && element.timeline.tracks ? element.timeline.tracks : {};
-  timeline.innerHTML = "<div class='toolbar'><button id='play'>" + (playing ? "Pause" : "Play") + "</button><input id='scrub' type='range' min='0' max='" + Math.max(Number(doc.canvas.duration || 0), 0.01) + "' step='0.005' value='" + currentTime + "'><strong id='timeLabel'>" + currentTime.toFixed(2) + "s</strong><button id='refresh'>Refresh</button><div id='exportMenuWrap' class='menuWrap'><button id='exportMenuBtn' class='menuBtn' type='button' title='Export options'>Export</button><div id='exportMenu' class='menuList hidden'><button id='exportSvg' type='button' title='Export current frame as SVG'>SVG</button><button id='exportPng' type='button' title='Export current frame as PNG'>PNG</button><button id='exportMp4' type='button' title='Export full animation as MP4'>MP4</button></div></div></div>";
+  timeline.innerHTML = "<div class='toolbar'><button id='play'>" + (playing ? "Pause" : "Play") + "</button><input id='scrub' type='range' min='0' max='" + Math.max(Number(doc.canvas.duration || 0), 0.01) + "' step='0.005' value='" + currentTime + "'><strong id='timeLabel'>" + currentTime.toFixed(2) + "s</strong><button id='refresh'>Refresh</button></div>";
   document.getElementById("play").onclick = togglePlay;
-  const exportMenuBtn = document.getElementById("exportMenuBtn");
-  const exportMenu = document.getElementById("exportMenu");
-  exportMenuBtn.onclick = (event) => {
-    event.stopPropagation();
-    if (exportMenu) exportMenu.classList.toggle("hidden");
-  };
-  if (exportMenu) exportMenu.onclick = (event) => event.stopPropagation();
-  document.getElementById("exportSvg").onclick = () => {
-    if (exportMenu) exportMenu.classList.add("hidden");
-    exportDocument("svg", exportMenuBtn);
-  };
-  document.getElementById("exportPng").onclick = () => {
-    if (exportMenu) exportMenu.classList.add("hidden");
-    exportDocument("png", exportMenuBtn);
-  };
-  document.getElementById("exportMp4").onclick = () => {
-    if (exportMenu) exportMenu.classList.add("hidden");
-    exportDocument("mp4", exportMenuBtn);
-  };
   document.getElementById("refresh").onclick = load;
   document.getElementById("scrub").oninput = (event) => {
     setCurrentTime(event.target.value);
@@ -1127,23 +1148,26 @@ async function exportDocument(format, triggerButton) {
       button.disabled = true;
       button.textContent = format === "mp4" ? "Exporting..." : "Export...";
     }
-    const response = await fetch("/api/export?format=" + encodeURIComponent(format) + "&time=" + encodeURIComponent(currentTime), { cache: "no-store" });
-    if (!response.ok) {
-      let message = "Export failed.";
-      try {
-        const data = await response.json();
-        message = data.error || message;
-      } catch {}
-      throw new Error(message);
+    if (format === "json") {
+      downloadBlob(
+        new Blob([JSON.stringify(doc, null, 2)], { type: "application/json;charset=utf-8" }),
+        safeFileName(EDITOR_TITLE) + ".json"
+      );
+      return;
     }
-    const blob = await response.blob();
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filenameFromDisposition(response.headers.get("content-disposition")) || ("sketchmark." + format);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    if (format === "svg" || format === "png" || format === "jpg" || format === "html") {
+      await exportCurrentFrameInBrowser(format);
+      return;
+    }
+    if (format === "mp4") {
+      try {
+        await exportMp4InBrowser(button);
+        return;
+      } catch (error) {
+        if (!SERVER_EXPORT_FALLBACK) throw error;
+      }
+    }
+    await exportViaServer(format);
   } catch (error) {
     showError(error);
   } finally {
@@ -1154,9 +1178,186 @@ async function exportDocument(format, triggerButton) {
   }
 }
 
+async function exportCurrentFrameInBrowser(format) {
+  const data = await api(apiPath("/frame") + "?time=" + encodeURIComponent(currentTime));
+  const width = Math.max(1, Number(data.canvas && data.canvas.width || 1));
+  const height = Math.max(1, Number(data.canvas && data.canvas.height || 1));
+  const baseName = safeFileName(EDITOR_TITLE);
+  const frameName = baseName + "-t" + Number(currentTime).toFixed(2).replace(".", "-");
+  if (format === "svg") {
+    downloadBlob(new Blob([data.svg], { type: "image/svg+xml;charset=utf-8" }), frameName + ".svg");
+    return;
+  }
+  if (format === "html") {
+    const html = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>" + escapeText(EDITOR_TITLE) + "</title></head><body style='margin:0'>" + data.svg + "</body></html>";
+    downloadBlob(new Blob([html], { type: "text/html;charset=utf-8" }), frameName + ".html");
+    return;
+  }
+  const mimeType = format === "jpg" ? "image/jpeg" : "image/png";
+  const blob = await rasterizeSvgBlob(data.svg, width, height, mimeType, format === "jpg" ? 0.92 : undefined);
+  downloadBlob(blob, frameName + "." + format);
+}
+
+async function exportViaServer(format) {
+  const response = await fetch(apiPath("/export") + "?format=" + encodeURIComponent(format) + "&time=" + encodeURIComponent(currentTime), { cache: "no-store" });
+  if (!response.ok) {
+    let message = "Export failed.";
+    try {
+      const data = await response.json();
+      message = data.error || message;
+    } catch {}
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  downloadBlob(blob, filenameFromDisposition(response.headers.get("content-disposition")) || ("sketchmark." + format));
+}
+
+async function exportMp4InBrowser(button) {
+  const VideoEncoderCtor = window.VideoEncoder;
+  const VideoFrameCtor = window.VideoFrame;
+  if (!VideoEncoderCtor || !VideoFrameCtor) {
+    throw new Error("Browser MP4 export requires WebCodecs. Try Chrome or Edge.");
+  }
+  if (!MP4_MUXER_URL && !MP4_MUXER_SOURCE) {
+    throw new Error("Browser MP4 export is not configured for this editor.");
+  }
+  const duration = Number(doc && doc.canvas && doc.canvas.duration || 0);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error("MP4 export requires a positive canvas.duration.");
+  }
+  const fps = Math.max(1, Math.round(Number(doc && doc.canvas && doc.canvas.fps || 30) || 30));
+  const sourceWidth = Math.max(1, Number(doc && doc.canvas && doc.canvas.width || 1));
+  const sourceHeight = Math.max(1, Number(doc && doc.canvas && doc.canvas.height || 1));
+  const width = evenDimension(sourceWidth);
+  const height = evenDimension(sourceHeight);
+  const totalFrames = Math.max(1, Math.ceil(duration * fps));
+  const muxerModule = await importMp4Muxer();
+  const target = new muxerModule.ArrayBufferTarget();
+  const muxer = new muxerModule.Muxer({
+    target,
+    video: { codec: "avc", width, height },
+    fastStart: "in-memory"
+  });
+  let encoderError = null;
+  const encoder = new VideoEncoderCtor({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (error) => { encoderError = error; }
+  });
+  encoder.configure({
+    codec: "avc1.640028",
+    width,
+    height,
+    bitrate: 5000000,
+    framerate: fps
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  try {
+    for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+      const time = Math.min(duration, frameIndex / fps);
+      const data = await api(apiPath("/frame") + "?time=" + encodeURIComponent(time));
+      await drawSvgToCanvas(data.svg, canvas, width, height);
+      const frame = new VideoFrameCtor(canvas, {
+        timestamp: Math.round((frameIndex / fps) * 1000000),
+        duration: Math.round((1 / fps) * 1000000)
+      });
+      encoder.encode(frame, { keyFrame: frameIndex % Math.max(1, fps * 2) === 0 });
+      frame.close();
+      if (encoderError) throw encoderError;
+      if (frameIndex % 5 === 0 || frameIndex === totalFrames - 1) {
+        const progress = Math.round(((frameIndex + 1) / totalFrames) * 100);
+        if (button) button.textContent = "Exporting " + progress + "%";
+        await yieldToBrowser();
+      }
+    }
+    await encoder.flush();
+    if (encoderError) throw encoderError;
+    encoder.close();
+    muxer.finalize();
+    downloadBlob(new Blob([target.buffer], { type: "video/mp4" }), safeFileName(EDITOR_TITLE) + ".mp4");
+  } catch (error) {
+    try { encoder.close(); } catch {}
+    throw error;
+  }
+}
+
+async function importMp4Muxer() {
+  if (MP4_MUXER_URL) return import(MP4_MUXER_URL);
+  if (MP4_MUXER_SOURCE) {
+    if (!mp4MuxerObjectUrl) {
+      mp4MuxerObjectUrl = URL.createObjectURL(new Blob([MP4_MUXER_SOURCE], { type: "text/javascript" }));
+    }
+    return import(mp4MuxerObjectUrl);
+  }
+  throw new Error("Browser MP4 export is not available in this editor build.");
+}
+
 function filenameFromDisposition(header) {
   const match = /filename="([^"]+)"/.exec(header || "");
   return match ? match[1] : "";
+}
+
+function rasterizeSvgBlob(svg, width, height, mimeType, quality) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return drawSvgToCanvas(svg, canvas, width, height).then(() => canvasToBlob(canvas, mimeType || "image/png", quality));
+}
+
+function drawSvgToCanvas(svg, canvas, width, height) {
+  return new Promise((resolve, reject) => {
+    const context = canvas.getContext("2d");
+    if (!context) {
+      reject(new Error("Could not create canvas context."));
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      context.clearRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      resolve();
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not rasterize current SVG frame."));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not export the canvas frame. Cross-origin image assets can block browser raster export."));
+    }, mimeType, quality);
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function evenDimension(value) {
+  const rounded = Math.max(2, Math.round(Number(value) || 2));
+  return rounded % 2 === 0 ? rounded : rounded + 1;
+}
+
+function safeFileName(value) {
+  return String(value || "sketchmark").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "sketchmark";
+}
+
+function yieldToBrowser() {
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 function isCurveModalOpen() {
@@ -1504,7 +1705,7 @@ async function applySegmentPreset(property, segmentIndex, preset) {
   if (segmentIndex < 0 || segmentIndex >= frames.length - 1) return;
   const start = frames[segmentIndex];
   await mutate(
-    "/api/keyframe",
+    apiPath("/keyframe"),
     { id: selectedId, property, value: start.value, time: start.time, curvePreset: preset },
     { refreshTree: false, refreshInspector: false, refreshTimeline: true }
   );
@@ -1519,7 +1720,7 @@ async function applySegmentCurve(property, segmentIndex, curve) {
   if (segmentIndex < 0 || segmentIndex >= frames.length - 1) return;
   const start = frames[segmentIndex];
   await mutate(
-    "/api/keyframe",
+    apiPath("/keyframe"),
     { id: selectedId, property, value: start.value, time: start.time, curve },
     { refreshTree: false, refreshInspector: false, refreshTimeline: true }
   );
@@ -1662,7 +1863,7 @@ function scheduleSidebarKeyframe(property, valueReader) {
     if (value === null || value === undefined) return;
     try {
       await mutate(
-        "/api/keyframe",
+        apiPath("/keyframe"),
         { id: selectedId, property, value, time: currentTime, curvePreset: "linear" },
         { refreshTree: false, refreshInspector: false, refreshTimeline: true }
       );
@@ -1687,7 +1888,7 @@ function readTextInput(id) {
 async function removeKeyframe(property, time) {
   try {
     if (!ensureElementEditable(selectedId)) return;
-    await mutate("/api/remove-keyframe", { id: selectedId, property, time });
+    await mutate(apiPath("/remove-keyframe"), { id: selectedId, property, time });
   } catch (error) {
     showError(error);
   }
@@ -1900,7 +2101,7 @@ async function commitDrag(snapshot) {
 
 async function commitEditedProperty(element, property, value) {
   if (!ensureElementEditable(element.id)) return;
-  await mutate("/api/keyframe", { id: element.id, property, value, time: currentTime, curvePreset: "linear" });
+  await mutate(apiPath("/keyframe"), { id: element.id, property, value, time: currentTime, curvePreset: "linear" });
 }
 
 function ensureElementEditable(id) {
@@ -2282,4 +2483,48 @@ function escapeHtml(value) {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-module.exports = { editorHtml };
+function normalizeApiBase(value) {
+  const text = String(value || "/api").replace(/\/+$/, "");
+  return text.startsWith("/") ? text : `/${text}`;
+}
+
+function editorMp4MuxerSource(value) {
+  if (value === false) return "";
+  if (typeof value === "string") return value;
+  for (const candidate of mp4MuxerSourceCandidates()) {
+    try {
+      if (candidate && fs.existsSync(candidate)) return fs.readFileSync(candidate, "utf8");
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return "";
+}
+
+function resolveMp4MuxerSource(value) {
+  return editorMp4MuxerSource(value);
+}
+
+function mp4MuxerSourceCandidates() {
+  const candidates = [path.join(__dirname, "vendor", "mp4-muxer.mjs")];
+  try {
+    const resolved = require.resolve("mp4-muxer");
+    candidates.push(resolved.replace(/\.js$/, ".mjs"));
+    candidates.push(path.join(path.dirname(resolved), "mp4-muxer.mjs"));
+  } catch {
+    // Dependency may be bundled differently by the host app.
+  }
+  candidates.push(path.join(process.cwd(), "node_modules", "mp4-muxer", "build", "mp4-muxer.mjs"));
+  return candidates;
+}
+
+function scriptJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+module.exports = { editorHtml, editorMp4MuxerSource };
