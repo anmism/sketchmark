@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 800,
+    "height": 600,
+    "background": "#64748b"
+  },
+  "elements": [
+    {
+      "id": "overlay",
+      "type": "path",
+      "d": "M 0 0 L 800 0 L 800 600 L 0 600 Z",
+      "fill": "#0f172a",
+      "opacity": 0.5,
+      "stroke": "none"
+    },
+    {
+      "id": "modal-bg",
+      "type": "path",
+      "d": "M 152 60 L 648 60 Q 660 60 660 72 L 660 528 Q 660 540 648 540 L 152 540 Q 140 540 140 528 L 140 72 Q 140 60 152 60 Z",
+      "fill": "#ffffff",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1,
+      "effects": {
+        "shadow": {
+          "dx": 0,
+          "dy": 8,
+          "blur": 32,
+          "color": "#000000",
+          "opacity": 0.15
+        }
+      }
+    },
+    {
+      "id": "modal-title",
+      "type": "text",
+      "x": 168,
+      "y": 88,
+      "text": "Delete Project",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 20,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 700,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "modal-desc",
+      "type": "text",
+      "x": 168,
+      "y": 120,
+      "text": "This action will permanently remove the project and all associated\ndata. This cannot be undone.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 14,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "lineHeight": 1.55,
+      "fill": "#475569",
+      "maxWidth": 464
+    },
+    {
+      "id": "warning-bg",
+      "type": "path",
+      "d": "M 174 176 L 626 176 Q 632 176 632 182 L 632 226 Q 632 232 626 232 L 174 232 Q 168 232 168 226 L 168 182 Q 168 176 174 176 Z",
+      "fill": "#fef2f2",
+      "stroke": "#fecaca",
+      "strokeWidth": 1
+    },
+    {
+      "id": "warning-text",
+      "type": "text",
+      "x": 182,
+      "y": 190,
+      "text": "Warning: 3 team members will lose access immediately. Any\nactive integrations connected to this project will stop working.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 12,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 500,
+      "lineHeight": 1.5,
+      "fill": "#991b1b",
+      "maxWidth": 436
+    },
+    {
+      "id": "field1-label",
+      "type": "text",
+      "x": 168,
+      "y": 256,
+      "text": "Project Name",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 600,
+      "fill": "#1e293b"
+    },
+    {
+      "id": "field1-helper",
+      "type": "text",
+      "x": 168,
+      "y": 278,
+      "text": "Enter the project name exactly as shown to confirm deletion.\nThis helps prevent accidental removal of important data.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 12,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "lineHeight": 1.5,
+      "fill": "#64748b",
+      "maxWidth": 464
+    },
+    {
+      "id": "field1-input-bg",
+      "type": "path",
+      "d": "M 174 320 L 626 320 Q 632 320 632 326 L 632 352 Q 632 358 626 358 L 174 358 Q 168 358 168 352 L 168 326 Q 168 320 174 320 Z",
+      "fill": "#ffffff",
+      "stroke": "#cbd5e1",
+      "strokeWidth": 1
+    },
+    {
+      "id": "field1-placeholder",
+      "type": "text",
+      "x": 180,
+      "y": 339,
+      "text": "acme-dashboard-v2",
+      "align": "left",
+      "valign": "middle",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#94a3b8"
+    },
+    {
+      "id": "field2-label",
+      "type": "text",
+      "x": 168,
+      "y": 378,
+      "text": "Confirmation Phrase",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 600,
+      "fill": "#1e293b"
+    },
+    {
+      "id": "field2-helper",
+      "type": "text",
+      "x": 168,
+      "y": 400,
+      "text": "Type \"delete my project\" to enable the delete button.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 12,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#64748b",
+      "maxWidth": 464
+    },
+    {
+      "id": "field2-input-bg",
+      "type": "path",
+      "d": "M 174 426 L 626 426 Q 632 426 632 432 L 632 458 Q 632 464 626 464 L 174 464 Q 168 464 168 458 L 168 432 Q 168 426 174 426 Z",
+      "fill": "#ffffff",
+      "stroke": "#cbd5e1",
+      "strokeWidth": 1
+    },
+    {
+      "id": "field2-placeholder",
+      "type": "text",
+      "x": 180,
+      "y": 445,
+      "text": "delete my project",
+      "align": "left",
+      "valign": "middle",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#94a3b8"
+    },
+    {
+      "id": "footer-bg",
+      "type": "path",
+      "d": "M 140 472 L 660 472 L 660 528 Q 660 540 648 540 L 152 540 Q 140 540 140 528 Z",
+      "fill": "#f8fafc",
+      "stroke": "none"
+    },
+    {
+      "id": "footer-border",
+      "type": "path",
+      "d": "M 140 472 L 660 472",
+      "stroke": "#e2e8f0",
+      "strokeWidth": 1,
+      "fill": "none"
+    },
+    {
+      "id": "btn-cancel-bg",
+      "type": "path",
+      "d": "M 426 487 L 494 487 Q 500 487 500 493 L 500 519 Q 500 525 494 525 L 426 525 Q 420 525 420 519 L 420 493 Q 420 487 426 487 Z",
+      "fill": "#ffffff",
+      "stroke": "#cbd5e1",
+      "strokeWidth": 1
+    },
+    {
+      "id": "btn-cancel-label",
+      "type": "text",
+      "x": 460,
+      "y": 506,
+      "text": "Cancel",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 500,
+      "fill": "#475569"
+    },
+    {
+      "id": "btn-delete-bg",
+      "type": "path",
+      "d": "M 518 487 L 626 487 Q 632 487 632 493 L 632 519 Q 632 525 626 525 L 518 525 Q 512 525 512 519 L 512 493 Q 512 487 518 487 Z",
+      "fill": "#dc2626",
+      "stroke": "none"
+    },
+    {
+      "id": "btn-delete-label",
+      "type": "text",
+      "x": 572,
+      "y": 506,
+      "text": "Delete Project",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 13,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 600,
+      "fill": "#ffffff"
+    }
+  ]
+}

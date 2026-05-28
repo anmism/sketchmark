@@ -1,0 +1,1372 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#f8fafc",
+    "duration": 24,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "hero-title",
+      "type": "text",
+      "x": 640,
+      "y": 280,
+      "text": "Build beautiful interfaces",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 56,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 800,
+      "fill": "#0f172a",
+      "opacity": 0,
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 0.2,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "value": 1
+              },
+              {
+                "time": 4,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 4.6,
+                "value": 0
+              }
+            ]
+          },
+          "y": {
+            "keyframes": [
+              {
+                "time": 0.2,
+                "value": 300,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "value": 280
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 0.2,
+                "value": 0.95,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "hero-sub",
+      "type": "text",
+      "x": 640,
+      "y": 360,
+      "text": "Design, prototype, and ship — all in one place.",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 22,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#64748b",
+      "opacity": 0,
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 0.6,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 1.2,
+                "value": 1
+              },
+              {
+                "time": 4,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 4.6,
+                "value": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "dash-panel",
+      "type": "group",
+      "x": 200,
+      "y": 120,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "dash-bg",
+          "type": "path",
+          "d": "M 12 0 L 868 0 Q 880 0 880 12 L 880 468 Q 880 480 868 480 L 12 480 Q 0 480 0 468 L 0 12 Q 0 0 12 0 Z",
+          "fill": "#ffffff",
+          "stroke": "#e2e8f0",
+          "strokeWidth": 1
+        },
+        {
+          "id": "dash-title",
+          "type": "text",
+          "x": 28,
+          "y": 28,
+          "text": "Your Projects",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 20,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "dash-subtitle",
+          "type": "text",
+          "x": 28,
+          "y": 56,
+          "text": "3 projects · Last updated 2 hours ago",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#94a3b8"
+        },
+        {
+          "id": "dash-divider",
+          "type": "path",
+          "d": "M 0 90 L 880 90",
+          "stroke": "#e2e8f0",
+          "strokeWidth": 1,
+          "fill": "none"
+        },
+        {
+          "id": "proj-0-name",
+          "type": "text",
+          "x": 28,
+          "y": 110,
+          "text": "Marketing Website",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 15,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "proj-0-meta",
+          "type": "text",
+          "x": 28,
+          "y": 132,
+          "text": "12 screens · Published",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 12,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#94a3b8"
+        },
+        {
+          "id": "proj-1-name",
+          "type": "text",
+          "x": 28,
+          "y": 170,
+          "text": "Mobile App v2",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 15,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "proj-1-meta",
+          "type": "text",
+          "x": 28,
+          "y": 192,
+          "text": "8 screens · Draft",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 12,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#94a3b8"
+        },
+        {
+          "id": "proj-2-name",
+          "type": "text",
+          "x": 28,
+          "y": 230,
+          "text": "Dashboard Redesign",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 15,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "proj-2-meta",
+          "type": "text",
+          "x": 28,
+          "y": 252,
+          "text": "24 screens · In review",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 12,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#94a3b8"
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 5,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 5.6,
+                "value": 1
+              },
+              {
+                "time": 9,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 9.6,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 5,
+                "value": 0.96,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 5.6,
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "create-btn",
+      "type": "group",
+      "x": 940,
+      "y": 144,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "create-btn-bg",
+          "type": "path",
+          "d": "M 8 0 L 104 0 Q 112 0 112 8 L 112 32 Q 112 40 104 40 L 8 40 Q 0 40 0 32 L 0 8 Q 0 0 8 0 Z",
+          "fill": "#2563eb",
+          "stroke": "none"
+        },
+        {
+          "id": "create-btn-text",
+          "type": "text",
+          "x": 56,
+          "y": 20,
+          "text": "Create New",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 14,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#ffffff"
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 5.3,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 5.8,
+                "value": 1
+              },
+              {
+                "time": 9,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 9.6,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 7,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.2,
+                  "y1": 1,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 7.15,
+                "value": 0.95
+              },
+              {
+                "time": 7.3,
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "origin": [
+        56,
+        20
+      ]
+    },
+    {
+      "id": "modal-backdrop",
+      "type": "path",
+      "d": "M 0 0 L 1280 0 L 1280 720 L 0 720 Z",
+      "fill": "#0f172a",
+      "opacity": 0,
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 10,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 10.4,
+                "value": 0.4
+              },
+              {
+                "time": 19,
+                "value": 0.4,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "modal",
+      "type": "group",
+      "x": 400,
+      "y": 190,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "modal-bg",
+          "type": "path",
+          "d": "M 12 0 L 468 0 Q 480 0 480 12 L 480 328 Q 480 340 468 340 L 12 340 Q 0 340 0 328 L 0 12 Q 0 0 12 0 Z",
+          "fill": "#ffffff",
+          "stroke": "none"
+        },
+        {
+          "id": "modal-title",
+          "type": "text",
+          "x": 28,
+          "y": 28,
+          "text": "Create new project",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 18,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "modal-desc",
+          "type": "text",
+          "x": 28,
+          "y": 56,
+          "text": "Give your project a name and choose a template to get started.",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#475569",
+          "maxWidth": 424
+        },
+        {
+          "id": "field-label",
+          "type": "text",
+          "x": 28,
+          "y": 100,
+          "text": "Project name",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "field-input-bg",
+          "type": "path",
+          "d": "M 34 124 L 446 124 Q 452 124 452 130 L 452 160 Q 452 166 446 166 L 34 166 Q 28 166 28 160 L 28 130 Q 28 124 34 124 Z",
+          "fill": "#f8fafc",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 1
+        },
+        {
+          "id": "field-placeholder",
+          "type": "text",
+          "x": 40,
+          "y": 145,
+          "text": "Enter project name...",
+          "align": "left",
+          "valign": "middle",
+          "fontSize": 14,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#64748b"
+        },
+        {
+          "id": "template-label",
+          "type": "text",
+          "x": 28,
+          "y": 186,
+          "text": "Template",
+          "align": "left",
+          "valign": "top",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "tpl-0-bg",
+          "type": "path",
+          "d": "M 34 210 L 122 210 Q 128 210 128 216 L 128 264 Q 128 270 122 270 L 34 270 Q 28 270 28 264 L 28 216 Q 28 210 34 210 Z",
+          "fill": "#2563eb",
+          "stroke": "#2563eb",
+          "strokeWidth": 2,
+          "opacity": 0.1
+        },
+        {
+          "id": "tpl-0-border",
+          "type": "path",
+          "d": "M 34 210 L 122 210 Q 128 210 128 216 L 128 264 Q 128 270 122 270 L 34 270 Q 28 270 28 264 L 28 216 Q 28 210 34 210 Z",
+          "fill": "none",
+          "stroke": "#2563eb",
+          "strokeWidth": 2
+        },
+        {
+          "id": "tpl-0-label",
+          "type": "text",
+          "x": 78,
+          "y": 240,
+          "text": "Blank",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#2563eb"
+        },
+        {
+          "id": "tpl-1-bg",
+          "type": "path",
+          "d": "M 144 210 L 232 210 Q 238 210 238 216 L 238 264 Q 238 270 232 270 L 144 270 Q 138 270 138 264 L 138 216 Q 138 210 144 210 Z",
+          "fill": "#f8fafc",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 1,
+          "opacity": 1
+        },
+        {
+          "id": "tpl-1-border",
+          "type": "path",
+          "d": "M 144 210 L 232 210 Q 238 210 238 216 L 238 264 Q 238 270 232 270 L 144 270 Q 138 270 138 264 L 138 216 Q 138 210 144 210 Z",
+          "fill": "none",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 1
+        },
+        {
+          "id": "tpl-1-label",
+          "type": "text",
+          "x": 188,
+          "y": 240,
+          "text": "Dashboard",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#475569"
+        },
+        {
+          "id": "tpl-2-bg",
+          "type": "path",
+          "d": "M 274 210 L 362 210 Q 368 210 368 216 L 368 264 Q 368 270 362 270 L 274 270 Q 268 270 268 264 L 268 216 Q 268 210 274 210 Z",
+          "fill": "#f8fafc",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 1,
+          "opacity": 1
+        },
+        {
+          "id": "tpl-2-border",
+          "type": "path",
+          "d": "M 274 210 L 362 210 Q 368 210 368 216 L 368 264 Q 368 270 362 270 L 274 270 Q 268 270 268 264 L 268 216 Q 268 210 274 210 Z",
+          "fill": "none",
+          "stroke": "#cbd5e1",
+          "strokeWidth": 1
+        },
+        {
+          "id": "tpl-2-label",
+          "type": "text",
+          "x": 318,
+          "y": 240,
+          "text": "Landing",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 13,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "fill": "#475569"
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 10,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 10.5,
+                "value": 1
+              },
+              {
+                "time": 19,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 10,
+                "value": 0.9,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 10.5,
+                "value": 1
+              },
+              {
+                "time": 19,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0.95
+              }
+            ]
+          },
+          "y": {
+            "keyframes": [
+              {
+                "time": 10,
+                "value": 220,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 10.5,
+                "value": 190
+              }
+            ]
+          }
+        }
+      },
+      "origin": [
+        240,
+        170
+      ]
+    },
+    {
+      "id": "typed-text",
+      "type": "text",
+      "x": 440,
+      "y": 335,
+      "text": "Product Launch 2024",
+      "align": "left",
+      "valign": "middle",
+      "fontSize": 14,
+      "fontFamily": "Inter, system-ui, sans-serif",
+      "weight": 400,
+      "fill": "#1e293b",
+      "opacity": 0,
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 12,
+                "value": 0
+              },
+              {
+                "time": 12.5,
+                "value": 1
+              },
+              {
+                "time": 19,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "cancel-btn",
+      "type": "group",
+      "x": 428,
+      "y": 462,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "cancel-btn-bg",
+          "type": "path",
+          "d": "M 8 0 L 82 0 Q 90 0 90 8 L 90 32 Q 90 40 82 40 L 8 40 Q 0 40 0 32 L 0 8 Q 0 0 8 0 Z",
+          "fill": "#ffffff",
+          "stroke": "#e2e8f0",
+          "strokeWidth": 1
+        },
+        {
+          "id": "cancel-btn-text",
+          "type": "text",
+          "x": 45,
+          "y": 20,
+          "text": "Cancel",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 14,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 500,
+          "fill": "#475569"
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 10.6,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 11,
+                "value": 1
+              },
+              {
+                "time": 19,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "save-btn",
+      "type": "group",
+      "x": 730,
+      "y": 462,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "save-btn-bg",
+          "type": "path",
+          "d": "M 8 0 L 114 0 Q 122 0 122 8 L 122 32 Q 122 40 114 40 L 8 40 Q 0 40 0 32 L 0 8 Q 0 0 8 0 Z",
+          "fill": "#2563eb",
+          "stroke": "none"
+        },
+        {
+          "id": "save-btn-text",
+          "type": "text",
+          "x": 61,
+          "y": 20,
+          "text": "Create Project",
+          "align": "center",
+          "valign": "middle",
+          "fontSize": 14,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#ffffff"
+        }
+      ],
+      "origin": [
+        61,
+        20
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 10.6,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 11,
+                "value": 1
+              },
+              {
+                "time": 19,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 19.5,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 17.5,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.2,
+                  "y1": 1,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 17.65,
+                "value": 0.95
+              },
+              {
+                "time": 17.8,
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "success-panel",
+      "type": "group",
+      "x": 440,
+      "y": 240,
+      "opacity": 0,
+      "children": [
+        {
+          "id": "success-bg",
+          "type": "path",
+          "d": "M 12 0 L 388 0 Q 400 0 400 12 L 400 188 Q 400 200 388 200 L 12 200 Q 0 200 0 188 L 0 12 Q 0 0 12 0 Z",
+          "fill": "#ffffff",
+          "stroke": "#e2e8f0",
+          "strokeWidth": 1
+        },
+        {
+          "id": "success-circle",
+          "type": "path",
+          "d": "M 200 50 m -30 0 a 30 30 0 1 1 60 0 a 30 30 0 1 1 -60 0",
+          "fill": "#d1fae5",
+          "stroke": "none"
+        },
+        {
+          "id": "success-check",
+          "type": "path",
+          "d": "M 186 50 L 196 60 L 214 42",
+          "fill": "none",
+          "stroke": "#10b981",
+          "strokeWidth": 3,
+          "strokeCap": "round",
+          "strokeJoin": "round"
+        },
+        {
+          "id": "success-title",
+          "type": "text",
+          "x": 200,
+          "y": 105,
+          "text": "Project created!",
+          "align": "center",
+          "valign": "top",
+          "fontSize": 20,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 600,
+          "fill": "#1e293b"
+        },
+        {
+          "id": "success-desc",
+          "type": "text",
+          "x": 200,
+          "y": 135,
+          "text": "Your new project is ready. Start designing\nyour first screen now.",
+          "align": "center",
+          "valign": "top",
+          "fontSize": 14,
+          "fontFamily": "Inter, system-ui, sans-serif",
+          "weight": 400,
+          "lineHeight": 1.5,
+          "fill": "#475569",
+          "maxWidth": 340
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 19.5,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 20.2,
+                "value": 1
+              },
+              {
+                "time": 23,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 23.6,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 19.5,
+                "value": 0.9,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 20.2,
+                "value": 1
+              }
+            ]
+          },
+          "y": {
+            "keyframes": [
+              {
+                "time": 19.5,
+                "value": 260,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 20.2,
+                "value": 240
+              }
+            ]
+          }
+        }
+      },
+      "origin": [
+        200,
+        100
+      ]
+    },
+    {
+      "id": "click-ring",
+      "type": "path",
+      "d": "M 0 0 m -16 0 a 16 16 0 1 1 32 0 a 16 16 0 1 1 -32 0",
+      "x": 996,
+      "y": 164,
+      "fill": "none",
+      "stroke": "#3b82f6",
+      "strokeWidth": 2,
+      "opacity": 0,
+      "origin": [
+        0,
+        0
+      ],
+      "timeline": {
+        "tracks": {
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 7,
+                "value": 0
+              },
+              {
+                "time": 7.1,
+                "value": 0.6
+              },
+              {
+                "time": 7.5,
+                "value": 0
+              },
+              {
+                "time": 17.5,
+                "value": 0
+              },
+              {
+                "time": 17.6,
+                "value": 0.6
+              },
+              {
+                "time": 18,
+                "value": 0
+              }
+            ]
+          },
+          "scale": {
+            "keyframes": [
+              {
+                "time": 7,
+                "value": 0.5,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 7.5,
+                "value": 1.5
+              },
+              {
+                "time": 17.5,
+                "value": 0.5,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 18,
+                "value": 1.5
+              }
+            ]
+          },
+          "x": {
+            "keyframes": [
+              {
+                "time": 7,
+                "value": 996
+              },
+              {
+                "time": 17.5,
+                "value": 791
+              }
+            ]
+          },
+          "y": {
+            "keyframes": [
+              {
+                "time": 7,
+                "value": 164
+              },
+              {
+                "time": 17.5,
+                "value": 482
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "cursor",
+      "type": "group",
+      "x": -50,
+      "y": -50,
+      "children": [
+        {
+          "id": "cursor-arrow",
+          "type": "path",
+          "d": "M 0 0 L 0 20 L 5 16 L 8 24 L 12 22 L 9 14 L 15 14 Z",
+          "fill": "#0f172a",
+          "stroke": "#ffffff",
+          "strokeWidth": 1.5
+        }
+      ],
+      "timeline": {
+        "tracks": {
+          "x": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": -50
+              },
+              {
+                "time": 5.5,
+                "value": -50,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 6.5,
+                "value": 996
+              },
+              {
+                "time": 8,
+                "value": 996
+              },
+              {
+                "time": 10,
+                "value": 996,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 11,
+                "value": 640
+              },
+              {
+                "time": 16,
+                "value": 640,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 17,
+                "value": 791
+              },
+              {
+                "time": 20,
+                "value": 791,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 21,
+                "value": 1400
+              }
+            ]
+          },
+          "y": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": -50
+              },
+              {
+                "time": 5.5,
+                "value": -50,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 6.5,
+                "value": 164
+              },
+              {
+                "time": 8,
+                "value": 164
+              },
+              {
+                "time": 10,
+                "value": 164,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 11,
+                "value": 335
+              },
+              {
+                "time": 16,
+                "value": 335,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 17,
+                "value": 482
+              },
+              {
+                "time": 20,
+                "value": 482,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.4,
+                  "y1": 0,
+                  "x2": 0.2,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 21,
+                "value": 800
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
