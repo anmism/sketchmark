@@ -174,4 +174,4 @@ Prefer one representation per property family.
 
 ## Authoring Rule
 
-If a desired animation is not in this matrix, do not add a new kernel field casually. Prefer a compound/editor helper that compiles into existing tracks.
+If a desired animation is not in this matrix, do not add a new kernel field casually. Prefer a preset/editor helper that compiles into existing tracks.

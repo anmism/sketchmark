@@ -15,6 +15,11 @@
       "require": "./dist/src/index.js",
       "default": "./dist/src/index.js"
     },
+    "./presets": {
+      "types": "./dist/src/presets/index.d.ts",
+      "require": "./dist/src/presets/index.js",
+      "default": "./dist/src/presets/index.js"
+    },
     "./schema": {
       "default": "./schema/visual.schema.json"
     }
@@ -32,6 +37,8 @@
     "schema",
     "KERNEL_SPEC.md",
     "ANIMATABLE_MATRIX.md",
+    "PRESETS.md",
+    "PACKS.md",
     "WHAT_NEEDS_IMPROVEMENT.md",
     "README.md"
   ],

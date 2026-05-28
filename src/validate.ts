@@ -80,8 +80,8 @@ export function validateVisualDocument(document: VisualDocument): ValidationResu
   for (const [index, element] of allElements.entries()) {
     const path = `/elements/${index}`;
     if (typeof element.id === "string") {
-      if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(element.id)) {
-        issues.push(issue(`${path}/id`, "invalid_id", `Invalid id '${element.id}'. Use letters, numbers, '_' or '-'.`));
+      if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(element.id)) {
+        issues.push(issue(`${path}/id`, "invalid_id", `Invalid id '${element.id}'. Use letters, numbers, '_', '-' or '.'.`));
       } else if (ids.has(element.id)) {
         issues.push(issue(`${path}/id`, "duplicate_id", `Duplicate element id '${element.id}'.`));
       } else {

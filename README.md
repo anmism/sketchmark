@@ -10,12 +10,14 @@ The canonical JSON contains only renderable atoms:
 - `point`
 - `group`
 
-Everything else, including rectangles, circles, arrows, diagrams, charts, scenes, decks, 3D, and walking cycles, belongs in a future compound layer that compiles down to this kernel.
+Everything else, including rectangles, circles, arrows, diagrams, charts, scenes, decks, 3D, and walking cycles, belongs above the kernel and compiles down to this format. Sketchmark ships an official `presets` layer for common reusable authoring helpers.
 
-Kernel reference docs:
+Reference docs:
 
 - [Kernel Spec](./KERNEL_SPEC.md)
 - [Animatable Property Matrix](./ANIMATABLE_MATRIX.md)
+- [Presets](./PRESETS.md)
+- [Packs](./PACKS.md)
 - [What Needs Improvement](./WHAT_NEEDS_IMPROVEMENT.md)
 
 ## Kernel Document
@@ -109,7 +111,7 @@ Track values may be numbers, strings, `[x,y]` points, same-length number arrays,
 }
 ```
 
-The graph maps normalized time progress `x` to normalized value progress `y`. Kernel curves can be `graph`, `cubicBezier`, or `hold`. Segment resolution is: previous keyframe `out`, previous keyframe `interpolation`, next keyframe `in`, track `curve`, legacy `ease`, then linear. Named easing strings are still accepted as compatibility shorthands, but helpers/compounds should prefer emitting explicit curves. There are no expressions, path followers, pose drivers, scenes, or 3D in this kernel pass.
+The graph maps normalized time progress `x` to normalized value progress `y`. Kernel curves can be `graph`, `cubicBezier`, or `hold`. Segment resolution is: previous keyframe `out`, previous keyframe `interpolation`, next keyframe `in`, track `curve`, legacy `ease`, then linear. Named easing strings are still accepted as compatibility shorthands, but helpers/presets should prefer emitting explicit curves. There are no expressions, path followers, pose drivers, scenes, or 3D in this kernel pass.
 
 Current known animatable properties include transform/layout (`position`, `x`, `y`, `rotation`, `scale`, `scaleX`, `scaleY`, `origin`, `width`, `height`, `opacity`), path data/drawing/style (`d`, `fill`, `stroke`, `strokeWidth`, caps/joins, `dashArray`, `dashOffset`, `drawStart`, `drawEnd`), text content/layout (`text`, `lines`, `align`, `valign`, `fontStyle`, typography sizing), image `src`/`fit`/`source.*`, clip/mask paths and opacity, filter effects (`effects.*`), whole paint switching, structured gradient internals such as `fill.to` or `fill.stops.0.color`, and pattern internals such as `fill.x`, `fill.width`, or `fill.opacity`.
 
@@ -147,6 +149,38 @@ const animated = compileKeyframeStates(document, [
 
 This is an authoring adapter, not a new JSON schema feature. The compiled output is still only kernel elements with local timelines.
 
+## Preset Layer
+
+Presets are reusable authoring helpers that compile to pure kernel output. They are exported separately so the root package can stay kernel-focused:
+
+```js
+const { applyPresetFragments, shapes, motions, effects } = require("sketchmark/presets");
+
+const visual = applyPresetFragments(
+  {
+    version: 1,
+    canvas: { width: 960, height: 540, duration: 2, fps: 30 },
+    elements: []
+  },
+  [
+    shapes.roundedRect({
+      id: "card",
+      x: 80,
+      y: 80,
+      width: 260,
+      height: 120,
+      radius: 16,
+      fill: "#ffffff",
+      stroke: "#cbd5e1"
+    }),
+    motions.riseIn({ id: "card", from: [80, 120], to: [80, 80] }),
+    effects.dropShadow({ id: "card", dy: 10, blur: 24, opacity: 0.2 })
+  ]
+);
+```
+
+The output `.visual.json` still contains only kernel elements and timelines. Official namespaces include `shapes`, `characters`, `motions`, `effects`, `transitions`, and `scenes`.
+
 ## CLI
 
 Build first:
@@ -176,6 +210,15 @@ Generate the key-pose cyclist example:
 ```bash
 node examples/make-keypose-cycle.cjs
 node bin/sketchmark.cjs preview examples/keypose-cycle.visual.json
+```
+
+Generate preset-layer examples:
+
+```bash
+node examples/make-presets-demo.cjs
+node examples/make-preset-character-motion.cjs
+node bin/sketchmark.cjs preview examples/presets-demo.visual.json
+node bin/sketchmark.cjs preview examples/preset-character-motion.visual.json
 ```
 
 Generate heavier real-world stress scenes:
@@ -226,4 +269,6 @@ import {
 } from "sketchmark";
 ```
 
-The package intentionally exports no builders, player, project loader, deck/sequence helpers, 3D renderer, or compound compiler for now.
+The root package intentionally exports no builders, player, project loader, deck/sequence helpers, 3D renderer, or preset compiler.
+
+The official preset authoring layer is available from `sketchmark/presets`, not the root kernel entrypoint.

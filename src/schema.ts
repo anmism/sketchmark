@@ -246,7 +246,7 @@ function elementSchema(type: string, properties: JsonSchema, required: string[])
 
 function commonElementProperties(): JsonSchema {
   return {
-    id: { type: "string" },
+    id: { type: "string", pattern: "^[A-Za-z_][A-Za-z0-9_.-]*$" },
     opacity: { type: "number" },
     fill: { $ref: "#/$defs/paint" },
     stroke: { $ref: "#/$defs/paint" },

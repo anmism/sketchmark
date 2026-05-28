@@ -2,13 +2,13 @@
 
 Version: `1`
 
-Sketchmark kernel documents are a strict 2D render and animation interchange format. The kernel is not an authoring language, editor project file, AI prompt format, or compound scene graph.
+Sketchmark kernel documents are a strict 2D render and animation interchange format. The kernel is not an authoring language, editor project file, AI prompt format, or preset scene graph.
 
 The kernel's job is to be:
 
 - renderable
 - deterministic
-- validateable
+- validatable
 - easy for editors and compilers to target
 - small enough to keep stable
 
@@ -86,6 +86,8 @@ Common optional fields:
 - `mask`
 - `timeline`
 
+Element IDs must start with a letter or `_` and may contain letters, numbers, `_`, `-`, or `.`. Dot-separated IDs are allowed so authoring layers can generate readable names such as `hero.head`.
+
 Explicitly not allowed:
 
 - editor metadata
@@ -98,7 +100,7 @@ Explicitly not allowed:
 - rectangles/circles/arrows as separate types
 - `cornerRadius`
 
-Those belong in editor/project/compound layers and must compile down to kernel fields.
+Those belong in editor/project/preset layers and must compile down to kernel fields.
 
 ## Path
 
@@ -401,7 +403,7 @@ Breaking changes require a new document version. Additive features must still pr
 
 Do not add these to the kernel:
 
-- motion compounds such as `rise`, `fadeIn`, `stagger`, `dogWalk`
+- motion presets such as `rise`, `fadeIn`, `stagger`, `dogWalk`
 - project source objects such as rectangles, circles, charts, diagrams
 - editor state such as selected, locked, hidden, guides, snapping
 - AI prompts or semantic descriptions

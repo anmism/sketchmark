@@ -21,6 +21,17 @@ import {
   validateVisualDocument,
   type VisualDocument
 } from "../src";
+import {
+  applyPresetFragments,
+  characters,
+  effects,
+  motions,
+  prefixPresetFragment,
+  scenes,
+  shapes,
+  transitions,
+  type PresetFragment
+} from "../src/presets";
 
 function test(name: string, fn: () => void): void {
   try {
@@ -610,6 +621,124 @@ test("all example visual documents validate against the frozen kernel", () => {
   assert(!failures.length, failures.join("\n"));
 });
 
+test("root export stays kernel-focused and presets live under the presets entrypoint", () => {
+  const root = require("../src");
+  assert(root.shapes === undefined && root.characters === undefined && root.applyPresetFragments === undefined, "root package export should not expose preset namespaces");
+  assert(typeof shapes.rect === "function" && typeof motions.fadeIn === "function", "presets entrypoint should expose official presets");
+});
+
+test("built-in shape, character, and scene presets compile to valid kernel elements", () => {
+  const doc = applyPresetFragments(emptyPresetDocument(), [
+    shapes.rect({ id: "shape.rect", x: 20, y: 20, width: 90, height: 50, fill: "#ffffff", stroke: "#111827" }),
+    shapes.roundedRect({ id: "shape.rounded", x: 130, y: 20, width: 110, height: 50, radius: 12, fill: "#eff6ff", stroke: "#2563eb" }),
+    shapes.ellipse({ id: "shape.ellipse", cx: 310, cy: 45, rx: 48, ry: 25, fill: "#dcfce7", stroke: "#16a34a" }),
+    shapes.circle({ id: "shape.circle", cx: 400, cy: 45, radius: 24, fill: "#fef3c7", stroke: "#ca8a04" }),
+    shapes.line({ id: "shape.line", from: [20, 100], to: [140, 120], stroke: "#0f172a" }),
+    shapes.polyline({ id: "shape.polyline", points: [[170, 115], [205, 90], [240, 125]], stroke: "#7c3aed" }),
+    shapes.arrow({ id: "shape.arrow", from: [280, 110], to: [410, 95], stroke: "#dc2626" }),
+    shapes.regularPolygon({ id: "shape.polygon", cx: 500, cy: 100, radius: 30, sides: 6, fill: "#e0f2fe", stroke: "#0284c7" }),
+    shapes.star({ id: "shape.star", cx: 590, cy: 100, outerRadius: 32, fill: "#fde68a", stroke: "#92400e" }),
+    shapes.speechBubble({ id: "shape.speech", x: 650, y: 65, width: 190, height: 70, text: "Hello" }),
+    characters.stickPerson({ id: "hero", x: 40, y: 190 }),
+    characters.talkingHead({ id: "speaker", x: 170, y: 190 }),
+    characters.simpleDog({ id: "dog", x: 330, y: 220 }),
+    characters.simpleSpider({ id: "spider", x: 510, y: 200 }),
+    characters.cursorHand({ id: "cursor", x: 680, y: 210 }),
+    characters.simpleMascot({ id: "mascot", x: 790, y: 190 }),
+    scenes.titleCard({ id: "scene.title", x: 20, y: 380, width: 220, height: 110, title: "Title", subtitle: "Preset" }),
+    scenes.lowerThird({ id: "scene.lower", x: 260, y: 400, width: 210, height: 72, title: "Lower", subtitle: "Third" }),
+    scenes.captionBubble({ id: "scene.caption", x: 500, y: 405, width: 180, height: 58, text: "Caption" }),
+    scenes.comparisonSplit({ id: "scene.compare", x: 705, y: 380, width: 220, height: 110 }),
+    scenes.deviceFrame({ id: "scene.device", x: 20, y: 510, width: 120, height: 160, label: "App" }),
+    scenes.gridBackground({ id: "scene.grid", x: 170, y: 520, width: 180, height: 120, step: 30 })
+  ]);
+  const result = validateVisualDocument(doc);
+  assert(result.ok, `preset element output should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  assert(JSON.stringify(doc).includes("hero.head"), "character presets should use dot-separated namespaced ids");
+});
+
+test("built-in motion presets compile to explicit kernel timelines", () => {
+  const cases: PresetFragment[] = [
+    motions.fadeIn({ id: "card", start: 0, duration: 0.3 }),
+    motions.fadeOut({ id: "card", start: 0.4, duration: 0.3 }),
+    motions.slideIn({ id: "card", from: [-80, 20], to: [20, 20] }),
+    motions.riseIn({ id: "card", to: [20, 20] }),
+    motions.scaleIn({ id: "card" }),
+    motions.pulse({ id: "card" }),
+    motions.bob({ id: "panel", to: [180, 20] }),
+    motions.shake({ id: "card" }),
+    motions.drawOn({ id: "line" }),
+    motions.stagger({ ids: ["card", "panel"], each: 0.05 })
+  ];
+  for (const fragment of cases) {
+    assertNoLegacyEase(fragment);
+    assert(validateVisualDocument(applyPresetFragments(presetTargetDocument(), fragment)).ok, "motion preset should validate on a target document");
+  }
+});
+
+test("built-in effect presets compile to kernel effects, paint, clip, and mask tracks", () => {
+  const cases: PresetFragment[] = [
+    effects.dropShadow({ id: "card" }),
+    effects.softBlur({ id: "card", amount: 4 }),
+    effects.glow({ id: "card", color: "#38bdf8" }),
+    effects.dim({ id: "card", opacity: 0.45 }),
+    effects.tintFill({ id: "card", color: "#fee2e2" }),
+    effects.gradientSweep({ id: "card" }),
+    effects.roundedImageClip({ id: "photo", x: 320, y: 20, width: 120, height: 90, radius: 18 }),
+    effects.maskReveal({ id: "card", x: 20, y: 20, width: 120, height: 70 })
+  ];
+  for (const fragment of cases) {
+    assertNoLegacyEase(fragment);
+    const doc = applyPresetFragments(presetTargetDocument(), fragment);
+    const result = validateVisualDocument(doc);
+    assert(result.ok, `effect preset should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+    assert(!JSON.stringify(doc).includes("cornerRadius"), "rounded image clip preset must not write cornerRadius");
+  }
+});
+
+test("built-in transition presets compile to coordinated kernel timelines", () => {
+  const cases: PresetFragment[] = [
+    transitions.crossfade({ fromId: "outgoing", toId: "incoming" }),
+    transitions.pushLeft({ fromId: "outgoing", toId: "incoming" }),
+    transitions.pushRight({ fromId: "outgoing", toId: "incoming" }),
+    transitions.slideUp({ fromId: "outgoing", toId: "incoming" }),
+    transitions.wipeLeft({ fromId: "outgoing", toId: "incoming", x: 0, y: 0, width: 160, height: 90 }),
+    transitions.wipeRight({ fromId: "outgoing", toId: "incoming", x: 0, y: 0, width: 160, height: 90 }),
+    transitions.zoomCut({ fromId: "outgoing", toId: "incoming" }),
+    transitions.fadeThroughBlack({ fromId: "outgoing", toId: "incoming", width: 640, height: 360 }),
+    transitions.irisIn({ id: "incoming", x: 0, y: 0, width: 160, height: 90 }),
+    transitions.irisOut({ id: "outgoing", x: 0, y: 0, width: 160, height: 90 })
+  ];
+  for (const fragment of cases) {
+    assertNoLegacyEase(fragment);
+    const result = validateVisualDocument(applyPresetFragments(presetTargetDocument(), fragment));
+    assert(result.ok, `transition preset should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  }
+});
+
+test("preset fragment composition validates targets and can prefix ids to avoid collisions", () => {
+  const duplicateA = prefixPresetFragment(shapes.rect({ id: "box", x: 0, y: 0, width: 40, height: 40 }), "a");
+  const duplicateB = prefixPresetFragment(shapes.rect({ id: "box", x: 50, y: 0, width: 40, height: 40 }), "b");
+  const doc = applyPresetFragments(emptyPresetDocument(), [duplicateA, duplicateB]);
+  assert(validateVisualDocument(doc).ok, "prefixed duplicate fragments should validate");
+  assert(JSON.stringify(doc).includes("a.box") && JSON.stringify(doc).includes("b.box"), "prefixing should rewrite element ids");
+  let threw = false;
+  try {
+    applyPresetFragments(emptyPresetDocument(), motions.fadeIn({ id: "missing" }));
+  } catch {
+    threw = true;
+  }
+  assert(threw, "applying a timeline fragment to an unknown target should throw");
+});
+
+test("preset example visual documents validate as pure kernel output", () => {
+  for (const file of ["presets-demo.visual.json", "preset-character-motion.visual.json"]) {
+    const document = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "..", "examples", file), "utf8")) as VisualDocument;
+    const result = validateVisualDocument(document);
+    assert(result.ok, `${file} should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  }
+});
+
 console.log("All render-kernel tests passed.");
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -618,6 +747,30 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function near(left: number, right: number): boolean {
   return Math.abs(left - right) < 0.0001;
+}
+
+function emptyPresetDocument(): VisualDocument {
+  return { version: 1, canvas: { width: 960, height: 720, background: "#f8fafc", duration: 2, fps: 30 }, elements: [] };
+}
+
+function presetTargetDocument(): VisualDocument {
+  const imageSrc = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='90'%3E%3Crect width='120' height='90' fill='%23bfdbfe'/%3E%3C/svg%3E";
+  return {
+    version: 1,
+    canvas: { width: 640, height: 360, background: "#f8fafc", duration: 2, fps: 30 },
+    elements: [
+      { id: "card", type: "path", d: "M 20 20 H 140 V 90 H 20 Z", fill: "#ffffff", stroke: "#111827", strokeWidth: 2 },
+      { id: "line", type: "path", d: "M 20 130 C 80 80 150 170 230 120", fill: "none", stroke: "#2563eb", strokeWidth: 5 },
+      { id: "panel", type: "group", x: 180, y: 20, width: 100, height: 70, children: [{ id: "panel.bg", type: "path", d: "M 0 0 H 100 V 70 H 0 Z", fill: "#dcfce7" }] },
+      { id: "photo", type: "image", src: imageSrc, x: 320, y: 20, width: 120, height: 90 },
+      { id: "outgoing", type: "group", x: 40, y: 200, width: 120, height: 80, children: [{ id: "outgoing.bg", type: "path", d: "M 0 0 H 120 V 80 H 0 Z", fill: "#fee2e2" }] },
+      { id: "incoming", type: "group", x: 220, y: 200, width: 120, height: 80, opacity: 0, children: [{ id: "incoming.bg", type: "path", d: "M 0 0 H 120 V 80 H 0 Z", fill: "#dbeafe" }] }
+    ]
+  };
+}
+
+function assertNoLegacyEase(fragment: PresetFragment): void {
+  assert(!JSON.stringify(fragment).includes("\"ease\""), "preset fragments should emit explicit curves instead of legacy ease strings");
 }
 
 function stableStringify(value: unknown): string {
