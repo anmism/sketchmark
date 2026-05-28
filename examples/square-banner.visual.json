@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1080,
+    "height": 1080,
+    "background": "#fafbfd"
+  },
+  "elements": [
+    {
+      "id": "frame",
+      "type": "path",
+      "d": "M 76 36 L 1004 36 Q 1044 36 1044 76 L 1044 1004 Q 1044 1044 1004 1044 L 76 1044 Q 36 1044 36 1004 L 36 76 Q 36 36 76 36 Z",
+      "fill": "none",
+      "stroke": "#e7ebf3",
+      "strokeWidth": 1.5
+    },
+    {
+      "id": "brand-chip-bg",
+      "type": "path",
+      "d": "M 467 74 L 613 74 Q 632 74 632 93 L 632 93 Q 632 112 613 112 L 467 112 Q 448 112 448 93 L 448 93 Q 448 74 467 74 Z",
+      "fill": "#eef0ff",
+      "stroke": "none"
+    },
+    {
+      "id": "brand-chip-text",
+      "type": "text",
+      "x": 540,
+      "y": 93,
+      "text": "SKETCHMARK",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 13,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 700,
+      "letterSpacing": 1.7,
+      "fill": "#7c83ff"
+    },
+    {
+      "id": "headline",
+      "type": "text",
+      "x": 540,
+      "y": 156,
+      "text": "The world's first\nvisual language\nfor AI agents",
+      "align": "center",
+      "valign": "top",
+      "fontSize": 72,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 700,
+      "lineHeight": 1.04,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "subhead",
+      "type": "text",
+      "x": 540,
+      "y": 404,
+      "text": "Describe visuals in JSON. Keep them editable.\nAnimate them. Export them.",
+      "align": "center",
+      "valign": "top",
+      "fontSize": 24,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 400,
+      "lineHeight": 1.45,
+      "fill": "#475569",
+      "maxWidth": 760
+    },
+    {
+      "id": "chip-json-bg",
+      "type": "path",
+      "d": "M 335 502 L 445 502 Q 467 502 467 524 L 467 524 Q 467 546 445 546 L 335 546 Q 313 546 313 524 L 313 524 Q 313 502 335 502 Z",
+      "fill": "#eef0ff",
+      "stroke": "none"
+    },
+    {
+      "id": "chip-json-text",
+      "type": "text",
+      "x": 390,
+      "y": 524,
+      "text": "JSON-native",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#7c83ff"
+    },
+    {
+      "id": "chip-anim-bg",
+      "type": "path",
+      "d": "M 505 502 L 605 502 Q 627 502 627 524 L 627 524 Q 627 546 605 546 L 505 546 Q 483 546 483 524 L 483 524 Q 483 502 505 502 Z",
+      "fill": "#eaf8ff",
+      "stroke": "none"
+    },
+    {
+      "id": "chip-anim-text",
+      "type": "text",
+      "x": 555,
+      "y": 524,
+      "text": "Animatable",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#38bdf8"
+    },
+    {
+      "id": "chip-edit-bg",
+      "type": "path",
+      "d": "M 665 502 L 745 502 Q 767 502 767 524 L 767 524 Q 767 546 745 546 L 665 546 Q 643 546 643 524 L 643 524 Q 643 502 665 502 Z",
+      "fill": "#eafaf3",
+      "stroke": "none"
+    },
+    {
+      "id": "chip-edit-text",
+      "type": "text",
+      "x": 705,
+      "y": 524,
+      "text": "Editable",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 18,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#34d399"
+    },
+    {
+      "id": "workflow-shell",
+      "type": "path",
+      "d": "M 124 604 L 956 604 Q 988 604 988 636 L 988 956 Q 988 988 956 988 L 124 988 Q 92 988 92 956 L 92 636 Q 92 604 124 604 Z",
+      "fill": "#f4f7fb",
+      "stroke": "#dbe4ef",
+      "strokeWidth": 1.5,
+      "effects": {
+        "shadow": {
+          "dx": 0,
+          "dy": 18,
+          "blur": 40,
+          "color": "#b8c3d6",
+          "opacity": 0.16
+        }
+      }
+    },
+    {
+      "id": "workflow-title",
+      "type": "text",
+      "x": 132,
+      "y": 638,
+      "text": "One document. Multiple outputs.",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 20,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#64748b"
+    },
+    {
+      "id": "doc-card",
+      "type": "path",
+      "d": "M 156 694 L 412 694 Q 436 694 436 718 L 436 906 Q 436 930 412 930 L 156 930 Q 132 930 132 906 L 132 718 Q 132 694 156 694 Z",
+      "fill": "#ffffff",
+      "stroke": "#e6ebf2",
+      "strokeWidth": 1.2
+    },
+    {
+      "id": "doc-accent",
+      "type": "path",
+      "d": "M 137 694 L 431 694 Q 436 694 436 699 L 436 699 Q 436 704 431 704 L 137 704 Q 132 704 132 699 L 132 699 Q 132 694 137 694 Z",
+      "fill": "#7c83ff",
+      "stroke": "none"
+    },
+    {
+      "id": "doc-title",
+      "type": "text",
+      "x": 158,
+      "y": 726,
+      "text": "sketchmark.visual.json",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 13,
+      "fontFamily": "JetBrains Mono, Fira Code, monospace",
+      "weight": 500,
+      "fill": "#6d7cff"
+    },
+    {
+      "id": "doc-code",
+      "type": "text",
+      "x": 158,
+      "y": 764,
+      "lines": [
+        "{",
+        "  \"canvas\": { ... },",
+        "  \"elements\": [",
+        "    ...",
+        "  ],",
+        "  \"timeline\": { ... }",
+        "}"
+      ],
+      "align": "left",
+      "valign": "top",
+      "fontSize": 13,
+      "fontFamily": "JetBrains Mono, Fira Code, monospace",
+      "weight": 400,
+      "lineHeight": 1.48,
+      "fill": "#334155"
+    },
+    {
+      "id": "render-arrow-line",
+      "type": "path",
+      "d": "M 474 812 L 592 812",
+      "fill": "none",
+      "stroke": "#7c83ff",
+      "strokeWidth": 3,
+      "strokeCap": "round"
+    },
+    {
+      "id": "render-arrow-head",
+      "type": "path",
+      "d": "M 576 798 L 592 812 L 576 826",
+      "fill": "none",
+      "stroke": "#7c83ff",
+      "strokeWidth": 3,
+      "strokeCap": "round",
+      "strokeJoin": "round"
+    },
+    {
+      "id": "render-label",
+      "type": "text",
+      "x": 533,
+      "y": 780,
+      "text": "render",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 14,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#7c83ff"
+    },
+    {
+      "id": "preview-card",
+      "type": "path",
+      "d": "M 664 694 L 928 694 Q 952 694 952 718 L 952 906 Q 952 930 928 930 L 664 930 Q 640 930 640 906 L 640 718 Q 640 694 664 694 Z",
+      "fill": "#ffffff",
+      "stroke": "#e6ebf2",
+      "strokeWidth": 1.2
+    },
+    {
+      "id": "preview-accent",
+      "type": "path",
+      "d": "M 645 694 L 947 694 Q 952 694 952 699 L 952 699 Q 952 704 947 704 L 645 704 Q 640 704 640 699 L 640 699 Q 640 694 645 694 Z",
+      "fill": "#38bdf8",
+      "stroke": "none"
+    },
+    {
+      "id": "preview-title",
+      "type": "text",
+      "x": 668,
+      "y": 726,
+      "text": "Rendered output",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 13,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 600,
+      "fill": "#34d399"
+    },
+    {
+      "id": "preview-hello",
+      "type": "text",
+      "x": 668,
+      "y": 764,
+      "text": "Hello agent",
+      "align": "left",
+      "valign": "top",
+      "fontSize": 28,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 700,
+      "fill": "#0f172a"
+    },
+    {
+      "id": "preview-shape",
+      "type": "path",
+      "d": "M 774 800 L 802 800 Q 816 800 816 814 L 816 842 Q 816 856 802 856 L 774 856 Q 760 856 760 842 L 760 814 Q 760 800 774 800 Z",
+      "fill": "#7c83ff",
+      "stroke": "none",
+      "rotation": -24,
+      "origin": [
+        788,
+        828
+      ]
+    },
+    {
+      "id": "preview-wave",
+      "type": "path",
+      "d": "M 688 876 C 736 850 786 848 830 868 C 866 884 900 884 930 862",
+      "fill": "none",
+      "stroke": "#38bdf8",
+      "strokeWidth": 5,
+      "strokeCap": "round"
+    },
+    {
+      "id": "preview-dot",
+      "type": "path",
+      "d": "M 781 874 a 9 9 0 1 0 18 0 a 9 9 0 1 0 -18 0",
+      "fill": "#34d399",
+      "stroke": "none"
+    },
+    {
+      "id": "footer-copy",
+      "type": "text",
+      "x": 540,
+      "y": 1008,
+      "text": "Design once. Export SVG, PNG, or MP4.",
+      "align": "center",
+      "valign": "middle",
+      "fontSize": 20,
+      "fontFamily": "Roboto, Arial, sans-serif",
+      "weight": 500,
+      "fill": "#475569"
+    }
+  ]
+}
