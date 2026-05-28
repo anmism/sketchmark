@@ -211,7 +211,6 @@ export function generateVisualSchema(): JsonSchema {
             y: { type: "number" },
             width: { type: "number" },
             height: { type: "number" },
-            cornerRadius: { type: "number", minimum: 0 },
             fit: { $ref: "#/$defs/imageFit" },
             source: { $ref: "#/$defs/imageSource" }
           }, ["src", "x", "y", "width", "height"]),
@@ -268,8 +267,7 @@ function commonElementProperties(): JsonSchema {
     origin: { $ref: "#/$defs/point2" },
     clip: { $ref: "#/$defs/clipShape" },
     mask: { $ref: "#/$defs/maskShape" },
-    timeline: { $ref: "#/$defs/timeline" },
-    metadata: { type: "object", additionalProperties: true }
+    timeline: { $ref: "#/$defs/timeline" }
   };
 }
 

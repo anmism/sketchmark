@@ -30,6 +30,9 @@
     "dist",
     "examples",
     "schema",
+    "KERNEL_SPEC.md",
+    "ANIMATABLE_MATRIX.md",
+    "WHAT_NEEDS_IMPROVEMENT.md",
     "README.md"
   ],
   "devDependencies": {

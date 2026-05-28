@@ -114,7 +114,6 @@ export interface VisualElementBase {
   clip?: ClipShape;
   mask?: MaskShape;
   timeline?: ElementTimeline;
-  metadata?: Record<string, unknown>;
 }
 
 export interface PathElement extends VisualElementBase {
@@ -149,7 +148,6 @@ export interface ImageElement extends VisualElementBase {
   y: number;
   width: number;
   height: number;
-  cornerRadius?: number;
   fit?: ImageFit;
   source?: {
     x: number;

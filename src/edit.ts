@@ -1,4 +1,4 @@
-import type { MotionValue, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
+import type { ClipShape, ImageElement, MotionValue, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
 import { applyPropertyValue } from "./animatable";
 import { clone, isFiniteNumber } from "./utils";
 import { validateVisualDocument } from "./validate";
@@ -84,6 +84,33 @@ export function listTimelineTracks(document: VisualDocument, id: string): Array<
   }));
 }
 
+export function roundedRectClipPath(x: number, y: number, width: number, height: number, radius = 0): string {
+  const left = finiteOrZero(x);
+  const top = finiteOrZero(y);
+  const w = Math.max(0, finiteOrZero(width));
+  const h = Math.max(0, finiteOrZero(height));
+  const r = Math.min(Math.max(0, finiteOrZero(radius)), w / 2, h / 2);
+  const right = left + w;
+  const bottom = top + h;
+  if (r <= 0) return `M ${left} ${top} H ${right} V ${bottom} H ${left} Z`;
+  return [
+    `M ${left + r} ${top}`,
+    `H ${right - r}`,
+    `Q ${right} ${top} ${right} ${top + r}`,
+    `V ${bottom - r}`,
+    `Q ${right} ${bottom} ${right - r} ${bottom}`,
+    `H ${left + r}`,
+    `Q ${left} ${bottom} ${left} ${bottom - r}`,
+    `V ${top + r}`,
+    `Q ${left} ${top} ${left + r} ${top}`,
+    "Z"
+  ].join(" ");
+}
+
+export function imageRoundedClip(element: Pick<ImageElement, "x" | "y" | "width" | "height">, radius = 0): ClipShape {
+  return { type: "path", d: roundedRectClipPath(element.x, element.y, element.width, element.height, radius) };
+}
+
 function visitElements(elements: VisualElement[], visit: (element: VisualElement, path: number[], depth: number) => void, prefix: number[] = [], depth = 0): void {
   for (const [index, element] of elements.entries()) {
     const path = [...prefix, index];
@@ -133,4 +160,8 @@ function assertValid(document: VisualDocument): void {
     const first = result.issues[0];
     throw new Error(first ? `${first.path}: ${first.message}` : "Invalid visual document.");
   }
+}
+
+function finiteOrZero(value: number): number {
+  return isFiniteNumber(value) ? value : 0;
 }

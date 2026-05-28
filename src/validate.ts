@@ -44,13 +44,12 @@ const COMMON_ELEMENT_FIELDS = new Set([
   "origin",
   "clip",
   "mask",
-  "timeline",
-  "metadata"
+  "timeline"
 ]);
 const TYPE_FIELDS: Record<string, Set<string>> = {
   path: new Set(["d", "x", "y"]),
   text: new Set(["x", "y", "text", "lines", "align", "valign", "fontSize", "fontFamily", "weight", "fontStyle", "lineHeight", "letterSpacing", "maxWidth", "wrap"]),
-  image: new Set(["src", "x", "y", "width", "height", "cornerRadius", "fit", "source"]),
+  image: new Set(["src", "x", "y", "width", "height", "fit", "source"]),
   point: new Set(["x", "y"]),
   group: new Set(["x", "y", "width", "height", "children"])
 };
@@ -187,9 +186,6 @@ function validateImage(element: ImageElement, path: string, issues: ValidationIs
   requireNumber(element.y, `${path}/y`, issues);
   requireNumber(element.width, `${path}/width`, issues);
   requireNumber(element.height, `${path}/height`, issues);
-  if (element.cornerRadius !== undefined && (!isFiniteNumber(element.cornerRadius) || element.cornerRadius < 0)) {
-    issues.push(issue(`${path}/cornerRadius`, "invalid_image_corner_radius", "Image cornerRadius must be a non-negative number."));
-  }
   if (isFiniteNumber(element.width) && element.width <= 0) issues.push(issue(`${path}/width`, "invalid_image_width", "Image width must be positive."));
   if (isFiniteNumber(element.height) && element.height <= 0) issues.push(issue(`${path}/height`, "invalid_image_height", "Image height must be positive."));
   validateImageFit(element.fit, `${path}/fit`, issues);
@@ -333,7 +329,7 @@ function validateTrack(element: VisualElement, property: string, track: Timeline
   const propertySpec = animatablePropertySpec(element, property);
   if (!propertySpec) {
     const code = knownAnimatableProperty(property) ? "unsupported_timeline_track_for_element" : "unknown_timeline_track";
-    warnings.push(warning(path, code, `Timeline track '${property}' is not a supported animatable property for ${element.type} elements yet. It is kept as compatibility data.`));
+    issues.push(issue(path, code, `Timeline track '${property}' is not a supported animatable property for ${element.type} elements.`));
   }
   if (!Array.isArray(track.keyframes) || !track.keyframes.length) {
     issues.push(issue(`${path}/keyframes`, "invalid_timeline_keyframes", "Track keyframes must be a non-empty array."));

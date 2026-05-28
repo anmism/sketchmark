@@ -63,7 +63,7 @@ function renderElement(element: VisualElement, context: SvgContext): string {
 }
 
 function renderImage(element: ImageElement, attrs: CommonAttrParts, context: SvgContext): string {
-  const imageClip = imageClipAttr(element, context);
+  const imageClip = imageSourceClipAttr(element, context);
   const wrapped = !!attrs.clip;
   const imageAttrs = joinCommonAttrs(attrs, wrapped ? ["clip", "transform"] : []);
   if (element.source) {
@@ -90,8 +90,8 @@ function renderText(element: TextElement, attrs: string, fill: string): string {
   const fontStyle = element.fontStyle ? ` font-style="${escapeAttr(String(element.fontStyle))}"` : "";
   const letterSpacing = isFiniteNumber(element.letterSpacing) ? ` letter-spacing="${element.letterSpacing}"` : "";
   const firstY = textFirstLineY(element, lines.length, fontSize, lineHeight);
-  const content = lines.map((line, index) => `<tspan x="${element.x}" y="${firstY + index * lineHeight}">${escapeText(line)}</tspan>`).join("");
-  return `<text${attrs} text-anchor="${anchor}" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${weight}"${fontStyle}${letterSpacing} fill="${fill}">${content}</text>`;
+  const content = lines.map((line, index) => `<tspan x="${element.x}" y="${firstY + index * lineHeight}">${escapeTextLine(line)}</tspan>`).join("");
+  return `<text${attrs} xml:space="preserve" text-anchor="${anchor}" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${weight}"${fontStyle}${letterSpacing} fill="${fill}">${content}</text>`;
 }
 
 function resolveFontFamily(value: unknown): string {
@@ -137,7 +137,7 @@ function strokeAttrs(element: VisualElement, context: SvgContext, fallback: stri
   const hasStroke = element.stroke !== undefined || element.strokeWidth !== undefined || fallback !== "none";
   if (!hasStroke) return "";
   const stroke = paintValue(element.stroke, context, fallback);
-  const width = Number(element.strokeWidth ?? (fallback === "none" ? 0 : 1));
+  const width = Number(element.strokeWidth ?? (element.stroke !== undefined || fallback !== "none" ? 1 : 0));
   const cap = element.strokeCap ? ` stroke-linecap="${escapeAttr(element.strokeCap)}"` : "";
   const join = element.strokeJoin ? ` stroke-linejoin="${escapeAttr(element.strokeJoin)}"` : "";
   const miter = isFiniteNumber(element.miterLimit) ? ` stroke-miterlimit="${element.miterLimit}"` : "";
@@ -212,12 +212,10 @@ function clipPath(clip: ClipShape | undefined, context: SvgContext): string {
   return ` clip-path="url(#${id})"`;
 }
 
-function imageClipAttr(element: ImageElement, context: SvgContext): string {
-  const radius = clampedCornerRadius(element.cornerRadius, element.width, element.height);
-  if (!element.source && radius <= 0) return "";
+function imageSourceClipAttr(element: ImageElement, context: SvgContext): string {
+  if (!element.source) return "";
   const id = nextId(context, "image-clip");
-  const rx = radius > 0 ? ` rx="${radius}" ry="${radius}"` : "";
-  context.defs.push(`<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}"${rx}/></clipPath>`);
+  context.defs.push(`<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}"/></clipPath>`);
   return ` clip-path="url(#${id})"`;
 }
 
@@ -275,11 +273,6 @@ function imageFit(fit: ImageFit | undefined): string {
   return "none";
 }
 
-function clampedCornerRadius(value: number | undefined, width: number, height: number): number {
-  if (!isFiniteNumber(value) || value <= 0) return 0;
-  return Math.min(Number(value), Math.max(0, width) / 2, Math.max(0, height) / 2);
-}
-
 function nextId(context: SvgContext, prefix: string): string {
   const id = `sketchmark-${prefix}-${context.nextId}`;
   context.nextId += 1;
@@ -292,6 +285,10 @@ function escapeAttr(value: string): string {
 
 function escapeText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeTextLine(value: string): string {
+  return escapeText(value.replace(/\t/g, "    ")).replace(/ /g, "&#160;");
 }
 
 function clamp(value: number, min: number, max: number): number {

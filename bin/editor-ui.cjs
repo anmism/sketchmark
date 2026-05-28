@@ -102,6 +102,13 @@ let suppressClick = false;
 const FONT_FAMILY_OPTIONS = [
   { label: "Roboto (Local)", value: "Roboto, Arial, sans-serif" }
 ];
+const FONT_WEIGHT_OPTIONS = [
+  { label: "300", value: "300" },
+  { label: "400", value: "400" },
+  { label: "500", value: "500" },
+  { label: "600", value: "600" },
+  { label: "700", value: "700" }
+];
 let collapsedGroups = new Set();
 let hiddenIds = new Set();
 let lockedIds = new Set();
@@ -704,9 +711,19 @@ function renderInspector() {
       "<div class='row'><label>Dash Array<input id='propDashArray' type='text' value='" + escapeAttr(formatArrayValue(displayElement.dashArray)) + "' " + lockDisabled + "></label><div></div></div>"
     : "";
   const textTrackProperty = isTextElement ? textEditorProperty(displayElement) : "text";
+  const typographyRows = isTextElement
+    ? panelDetails(
+      "inspector-typography",
+      "Typography",
+      "<div class='row'><label>Font<select id='propFontFamily' " + lockDisabled + ">" + fontFamilyOptionsHtml(displayElement.fontFamily) + "</select></label><label>Weight<select id='propWeight' " + lockDisabled + ">" + fontWeightOptionsHtml(displayElement.weight) + "</select></label></div>" +
+      "<div class='row'><label>Font Size<input id='propFontSize' type='number' step='1' value='" + valueOr(displayElement.fontSize, 16) + "' " + lockDisabled + "></label><label>Line Height<input id='propLineHeight' type='number' step='0.05' value='" + valueOr(displayElement.lineHeight, 1.2) + "' " + lockDisabled + "></label></div>" +
+      "<div class='row'><label>Letter Spacing<input id='propLetterSpacing' type='number' step='0.1' value='" + valueOr(displayElement.letterSpacing, 0) + "' " + lockDisabled + "></label><div></div></div>",
+      { defaultOpen: false }
+    )
+    : "";
   const textRows = isTextElement
     ? "<div class='stack'><label>Text<textarea id='propText' rows='4' " + lockDisabled + "></textarea></label><div class='tiny'>Use new lines for multiline text. Elements already using lines[] keep that format.</div></div>" +
-      "<div class='row'><label>Font<select id='propFontFamily' " + lockDisabled + ">" + fontFamilyOptionsHtml(displayElement.fontFamily) + "</select></label><div></div></div>"
+      typographyRows
     : "";
   const effectsRows = supportsEffects ? renderEffectsRows(displayElement, lockDisabled) : "";
   const sourceRows = element.type === "image" ? renderImageSourceRows(displayElement, lockDisabled) : "";
@@ -745,7 +762,14 @@ function renderInspector() {
     setInput("propFill", typeof displayElement.fill === "string" ? displayElement.fill : "");
     setInput("propStroke", typeof displayElement.stroke === "string" ? displayElement.stroke : "");
   }
-  if (isTextElement) setInput("propText", textEditorValue(displayElement));
+  if (isTextElement) {
+    setInput("propText", textEditorValue(displayElement));
+    setInput("propFontFamily", valueOr(displayElement.fontFamily, defaultFontFamilyValue()));
+    setInput("propWeight", valueOr(displayElement.weight, 400));
+    setInput("propFontSize", valueOr(displayElement.fontSize, 16));
+    setInput("propLineHeight", valueOr(displayElement.lineHeight, 1.2));
+    setInput("propLetterSpacing", valueOr(displayElement.letterSpacing, 0));
+  }
   const kfTimeInput = document.getElementById("kfTime");
   if (kfTimeInput) {
     kfTimeInput.oninput = (event) => {
@@ -786,6 +810,10 @@ function renderInspector() {
     if (isTextElement) {
       bindAutoKeyframe("propText", () => scheduleSidebarTextContentKeyframe(textTrackProperty, "propText"));
       bindAutoKeyframe("propFontFamily", () => scheduleSidebarTextKeyframe("fontFamily", "propFontFamily"));
+      bindAutoKeyframe("propWeight", () => scheduleSidebarNumberOrTextKeyframe("weight", "propWeight"));
+      bindAutoKeyframe("propFontSize", () => scheduleSidebarNumberKeyframe("fontSize", "propFontSize"));
+      bindAutoKeyframe("propLineHeight", () => scheduleSidebarNumberKeyframe("lineHeight", "propLineHeight"));
+      bindAutoKeyframe("propLetterSpacing", () => scheduleSidebarNumberKeyframe("letterSpacing", "propLetterSpacing"));
     }
     bindDynamicInspectorInputs(bindAutoKeyframe);
   }
@@ -806,6 +834,33 @@ function fontFamilyOptionsHtml(currentValue) {
   }
   if (!current && options.length) {
     options[0] = options[0].replace("<option ", "<option selected ");
+  }
+  return options.join("");
+}
+
+function defaultFontFamilyValue() {
+  return FONT_FAMILY_OPTIONS[0] && FONT_FAMILY_OPTIONS[0].value ? FONT_FAMILY_OPTIONS[0].value : "";
+}
+
+function fontWeightOptionsHtml(currentValue) {
+  const current = String(valueOr(currentValue, "")).trim();
+  const seen = new Set();
+  const options = [];
+  for (const option of FONT_WEIGHT_OPTIONS) {
+    if (!option || !option.value || seen.has(option.value)) continue;
+    seen.add(option.value);
+    options.push("<option value='" + escapeAttr(option.value) + "'" + (current === option.value ? " selected" : "") + ">" + escapeText(option.label) + "</option>");
+  }
+  if (current && !seen.has(current)) {
+    options.unshift("<option value='" + escapeAttr(current) + "' selected>" + escapeText(current) + "</option>");
+  }
+  if (!current && options.length) {
+    const defaultIndex = options.findIndex((option) => option.includes("value='400'"));
+    if (defaultIndex >= 0) {
+      options[defaultIndex] = options[defaultIndex].replace("<option ", "<option selected ");
+    } else {
+      options[0] = options[0].replace("<option ", "<option selected ");
+    }
   }
   return options.join("");
 }
@@ -846,7 +901,7 @@ function renderImageSourceRows(element, disabled) {
     dynamicNumberInput("Source H", "propSourceHeight", "source.height", valueOr(source.height, element.height || 0), disabled, "1") +
     "</div>" +
     "<div class='row'>" +
-    dynamicNumberInput("Radius", "propCornerRadius", "cornerRadius", valueOr(element.cornerRadius, 0), disabled, "1", "0") +
+    dynamicClipRadiusInput("Radius", "propClipRadius", clipRadiusValue(element), disabled, "1", "0") +
     "<div></div>" +
     "</div>";
 }
@@ -883,6 +938,10 @@ function renderStructuredPaintRows(element, root, disabled) {
 
 function dynamicNumberInput(label, id, property, value, disabled, step, min, max) {
   return "<label>" + escapeText(label) + "<input id='" + id + "' type='number' data-kf-property='" + property + "' data-kf-kind='number' step='" + (step || "1") + "' " + (min === undefined ? "" : "min='" + min + "' ") + (max === undefined ? "" : "max='" + max + "' ") + "value='" + escapeAttr(value) + "' " + disabled + "></label>";
+}
+
+function dynamicClipRadiusInput(label, id, value, disabled, step, min, max) {
+  return "<label>" + escapeText(label) + "<input id='" + id + "' type='number' data-kf-property='clip.d' data-kf-kind='clipRadius' step='" + (step || "1") + "' " + (min === undefined ? "" : "min='" + min + "' ") + (max === undefined ? "" : "max='" + max + "' ") + "value='" + escapeAttr(value) + "' " + disabled + "></label>";
 }
 
 function dynamicTextInput(label, id, property, value, disabled) {
@@ -1548,6 +1607,15 @@ function scheduleSidebarTextKeyframe(property, inputId) {
   scheduleSidebarKeyframe(property, () => readTextInput(inputId));
 }
 
+function scheduleSidebarNumberOrTextKeyframe(property, inputId) {
+  scheduleSidebarKeyframe(property, () => {
+    const value = readTextInput(inputId).trim();
+    if (!value) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : value;
+  });
+}
+
 function scheduleSidebarStringArrayKeyframe(property, inputId) {
   scheduleSidebarKeyframe(property, () => {
     const value = readTextInput(inputId);
@@ -1568,7 +1636,21 @@ function scheduleSidebarDynamicKeyframe(input) {
     scheduleSidebarPointKeyframe(property, input.getAttribute("data-kf-x"), input.getAttribute("data-kf-y"));
     return;
   }
+  if (kind === "clipRadius") {
+    scheduleSidebarClipRadiusKeyframe(property, input.id);
+    return;
+  }
   scheduleSidebarTextKeyframe(property, input.id);
+}
+
+function scheduleSidebarClipRadiusKeyframe(property, inputId) {
+  scheduleSidebarKeyframe(property, () => {
+    const radius = readNumberInput(inputId);
+    if (!Number.isFinite(radius)) return null;
+    const element = findResolvedElement(selectedId) || findElement(selectedId);
+    if (!element || element.type !== "image") return null;
+    return roundedRectClipPath(Number(element.x || 0), Number(element.y || 0), Number(element.width || 0), Number(element.height || 0), radius);
+  });
 }
 
 function scheduleSidebarKeyframe(property, valueReader) {
@@ -2050,7 +2132,14 @@ function syncInspectorValues() {
   setInput("propDrawEnd", valueOr(element.drawEnd, 1));
   if (typeof element.fill === "string") setInput("propFill", element.fill);
   if (typeof element.stroke === "string") setInput("propStroke", element.stroke);
-  if (element.type === "text") setInput("propText", textEditorValue(element));
+  if (element.type === "text") {
+    setInput("propText", textEditorValue(element));
+    setInput("propFontFamily", valueOr(element.fontFamily, defaultFontFamilyValue()));
+    setInput("propWeight", valueOr(element.weight, 400));
+    setInput("propFontSize", valueOr(element.fontSize, 16));
+    setInput("propLineHeight", valueOr(element.lineHeight, 1.2));
+    setInput("propLetterSpacing", valueOr(element.letterSpacing, 0));
+  }
   syncDynamicInspectorValues(element);
   syncColorPickersInScope(inspector);
 }
@@ -2085,7 +2174,7 @@ function syncDynamicInspectorValues(element) {
     setInput("propSourceY", valueOr(source.y, 0));
     setInput("propSourceWidth", valueOr(source.width, element.width || 0));
     setInput("propSourceHeight", valueOr(source.height, element.height || 0));
-    setInput("propCornerRadius", valueOr(element.cornerRadius, 0));
+    setInput("propClipRadius", clipRadiusValue(element));
   }
   syncStructuredPaintValues(element, "fill");
   syncStructuredPaintValues(element, "stroke");
@@ -2128,6 +2217,47 @@ function originPointValue(element) {
   return [0, 0];
 }
 function valueOr(value, fallback) { return value === undefined ? fallback : value; }
+function clipRadiusValue(element) {
+  if (!element || !element.clip || typeof element.clip.d !== "string") return 0;
+  const numbers = element.clip.d.match(/-?\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?/gi);
+  if (!numbers || numbers.length < 2) return 0;
+  const x = Number(element.x || 0);
+  const y = Number(element.y || 0);
+  const width = Math.max(0, Number(element.width || 0));
+  const height = Math.max(0, Number(element.height || 0));
+  const firstX = Number(numbers[0]);
+  const firstY = Number(numbers[1]);
+  if (!Number.isFinite(firstX) || !Number.isFinite(firstY)) return 0;
+  if (Math.abs(firstX - x) < 0.001 && Math.abs(firstY - y) < 0.001) return 0;
+  const radius = Math.max(0, Math.min(firstX - x, width / 2, height / 2));
+  return Number.isFinite(radius) ? Number(radius.toFixed(2)) : 0;
+}
+function roundedRectClipPath(x, y, width, height, radius) {
+  const left = finiteNumber(x, 0);
+  const top = finiteNumber(y, 0);
+  const w = Math.max(0, finiteNumber(width, 0));
+  const h = Math.max(0, finiteNumber(height, 0));
+  const r = Math.min(Math.max(0, finiteNumber(radius, 0)), w / 2, h / 2);
+  const right = left + w;
+  const bottom = top + h;
+  if (r <= 0) return "M " + left + " " + top + " H " + right + " V " + bottom + " H " + left + " Z";
+  return [
+    "M " + (left + r) + " " + top,
+    "H " + (right - r),
+    "Q " + right + " " + top + " " + right + " " + (top + r),
+    "V " + (bottom - r),
+    "Q " + right + " " + bottom + " " + (right - r) + " " + bottom,
+    "H " + (left + r),
+    "Q " + left + " " + bottom + " " + left + " " + (bottom - r),
+    "V " + (top + r),
+    "Q " + left + " " + top + " " + (left + r) + " " + top,
+    "Z"
+  ].join(" ");
+}
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 function formatArrayValue(value) {
   return Array.isArray(value) ? value.map((item) => typeof item === "number" ? Number(item).toFixed(2).replace(/\\.00$/, "") : String(item)).join(",") : "";
 }

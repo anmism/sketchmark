@@ -12,6 +12,12 @@ The canonical JSON contains only renderable atoms:
 
 Everything else, including rectangles, circles, arrows, diagrams, charts, scenes, decks, 3D, and walking cycles, belongs in a future compound layer that compiles down to this kernel.
 
+Kernel reference docs:
+
+- [Kernel Spec](./KERNEL_SPEC.md)
+- [Animatable Property Matrix](./ANIMATABLE_MATRIX.md)
+- [What Needs Improvement](./WHAT_NEEDS_IMPROVEMENT.md)
+
 ## Kernel Document
 
 ```json
@@ -105,7 +111,9 @@ Track values may be numbers, strings, `[x,y]` points, same-length number arrays,
 
 The graph maps normalized time progress `x` to normalized value progress `y`. Kernel curves can be `graph`, `cubicBezier`, or `hold`. Segment resolution is: previous keyframe `out`, previous keyframe `interpolation`, next keyframe `in`, track `curve`, legacy `ease`, then linear. Named easing strings are still accepted as compatibility shorthands, but helpers/compounds should prefer emitting explicit curves. There are no expressions, path followers, pose drivers, scenes, or 3D in this kernel pass.
 
-Current known animatable properties include transform/layout (`position`, `x`, `y`, `rotation`, `scale`, `scaleX`, `scaleY`, `origin`, `width`, `height`, `opacity`), path drawing/style (`fill`, `stroke`, `strokeWidth`, caps/joins, `dashArray`, `dashOffset`, `drawStart`, `drawEnd`), text content/layout, image `src`/`fit`/`source.*`, clip/mask paths and opacity, filter effects (`effects.*`), and structured paint internals such as `fill.to` or `fill.stops.0.color`.
+Current known animatable properties include transform/layout (`position`, `x`, `y`, `rotation`, `scale`, `scaleX`, `scaleY`, `origin`, `width`, `height`, `opacity`), path data/drawing/style (`d`, `fill`, `stroke`, `strokeWidth`, caps/joins, `dashArray`, `dashOffset`, `drawStart`, `drawEnd`), text content/layout (`text`, `lines`, `align`, `valign`, `fontStyle`, typography sizing), image `src`/`fit`/`source.*`, clip/mask paths and opacity, filter effects (`effects.*`), whole paint switching, structured gradient internals such as `fill.to` or `fill.stops.0.color`, and pattern internals such as `fill.x`, `fill.width`, or `fill.opacity`.
+
+Unknown timeline tracks are invalid in the frozen kernel. Rounded images should be authored above the kernel and compiled to `clip.d`; `cornerRadius` and editor metadata are intentionally not kernel fields.
 
 ## Keyframe Authoring
 

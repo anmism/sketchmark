@@ -8,6 +8,7 @@ import {
   compileKeyframeStates,
   findElementById,
   generateVisualSchema,
+  imageRoundedClip,
   lintVisualDocument,
   listElementReferences,
   listTimelineTracks,
@@ -78,6 +79,34 @@ test("rejects non-kernel fields on supported elements", () => {
   assert(result.issues.some((item) => item.code === "non_kernel_element_field" && item.path.endsWith("/from")), "should reject old element fields");
 });
 
+test("rejects project/editor metadata and image cornerRadius", () => {
+  const metadataDoc = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [{ id: "dot", type: "point", x: 10, y: 10, metadata: { selected: true } }]
+  } as unknown as VisualDocument;
+  const metadata = validateVisualDocument(metadataDoc);
+  assert(!metadata.ok, "metadata should not be a kernel element field");
+  assert(metadata.issues.some((item) => item.code === "non_kernel_element_field" && item.path.endsWith("/metadata")), "metadata should be rejected");
+
+  const src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3C/svg%3E";
+  const roundedDoc = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [{ id: "photo", type: "image", src, x: 20, y: 20, width: 80, height: 50, cornerRadius: 8 }]
+  } as unknown as VisualDocument;
+  const rounded = validateVisualDocument(roundedDoc);
+  assert(!rounded.ok, "image cornerRadius should not be a kernel field");
+  assert(rounded.issues.some((item) => item.code === "non_kernel_element_field" && item.path.endsWith("/cornerRadius")), "cornerRadius should be rejected");
+
+  const clipDoc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180 },
+    elements: [{ id: "photo", type: "image", src, x: 20, y: 20, width: 80, height: 50, clip: imageRoundedClip({ x: 20, y: 20, width: 80, height: 50 }, 8) }]
+  };
+  assert(validateVisualDocument(clipDoc).ok, "rounded image clips should compile through clip.d");
+});
+
 test("renders path, text, image, and group to SVG and HTML", () => {
   const src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%232563eb'/%3E%3C/svg%3E";
   const doc: VisualDocument = {
@@ -101,7 +130,8 @@ test("renders path, text, image, and group to SVG and HTML", () => {
   };
   const svg = renderToSvg(doc);
   assert(svg.includes("<svg"), "should render SVG root");
-  assert(svg.includes("<path") && svg.includes("<image") && svg.includes("Render kernel"), "should render kernel elements");
+  assert(svg.includes("<path") && svg.includes("<image") && svg.includes("Render&#160;kernel"), "should render kernel elements");
+  assert(svg.includes('stroke-width="1"'), "path stroke should default to width 1 when stroke is set");
   assert(renderToHtml(doc).includes("Sketchmark Kernel Visual"), "should render HTML shell");
 });
 
@@ -276,7 +306,7 @@ test("resolves nested animatable property tracks", () => {
   assert(photo.source.width === 75, `image source crop should interpolate, got ${photo.source.width}`);
 });
 
-test("warns for compatibility tracks but rejects invalid known track values", () => {
+test("rejects unknown tracks and invalid known track values", () => {
   const unknownDoc: VisualDocument = {
     version: 1,
     canvas: { width: 320, height: 180 },
@@ -291,8 +321,8 @@ test("warns for compatibility tracks but rejects invalid known track values", ()
     ]
   };
   const unknown = validateVisualDocument(unknownDoc);
-  assert(unknown.ok, "unknown compatibility track should stay valid");
-  assert(unknown.warnings.some((item) => item.code === "unknown_timeline_track"), "unknown compatibility track should warn");
+  assert(!unknown.ok, "unknown compatibility track should be invalid in the frozen kernel");
+  assert(unknown.issues.some((item) => item.code === "unknown_timeline_track"), "unknown compatibility track should be rejected");
 
   const invalidKnown = {
     version: 1,
@@ -309,6 +339,83 @@ test("warns for compatibility tracks but rejects invalid known track values", ()
   const invalid = validateVisualDocument(invalidKnown);
   assert(!invalid.ok, "invalid value for a known supported property should fail");
   assert(invalid.issues.some((item) => item.code === "invalid_timeline_value_for_property"), "known property value mismatch should be reported");
+});
+
+test("resolves newly supported animatable kernel properties", () => {
+  const patternSrc = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23fff'/%3E%3C/svg%3E";
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180, duration: 1 },
+    elements: [
+      {
+        id: "path",
+        type: "path",
+        d: "M 0 0 L 20 0",
+        stroke: "#000000",
+        timeline: {
+          tracks: {
+            d: { keyframes: [[0, "M 0 0 L 20 0"], [1, "M 0 0 L 40 40"]] }
+          }
+        }
+      },
+      {
+        id: "text",
+        type: "text",
+        text: "A",
+        x: 10,
+        y: 20,
+        align: "left",
+        valign: "top",
+        timeline: {
+          tracks: {
+            align: { keyframes: [[0, "left"], [1, "right"]] },
+            valign: { keyframes: [[0, "top"], [1, "bottom"]] },
+            fontStyle: { keyframes: [[0, "normal"], [1, "italic"]] }
+          }
+        }
+      },
+      {
+        id: "pattern",
+        type: "path",
+        d: "M 0 0 H 100 V 100 H 0 Z",
+        fill: { type: "pattern", src: patternSrc, x: 0, y: 0, width: 10, height: 10, opacity: 1 },
+        timeline: {
+          tracks: {
+            "fill.x": { keyframes: [[0, 0], [1, 12]] },
+            "fill.width": { keyframes: [[0, 10], [1, 20]] },
+            "fill.opacity": { keyframes: [[0, 1], [1, 0.5]] }
+          }
+        }
+      },
+      {
+        id: "paint",
+        type: "path",
+        d: "M 0 0 H 10 V 10 H 0 Z",
+        fill: "#000000",
+        timeline: {
+          tracks: {
+            fill: {
+              keyframes: [
+                [0, "#000000"],
+                [1, { type: "linearGradient", from: [0, 0], to: [10, 0], stops: [[0, "#000000"], [1, "#ffffff"]] }]
+              ]
+            }
+          }
+        }
+      }
+    ]
+  };
+  const result = validateVisualDocument(doc);
+  assert(result.ok, `new animatable properties should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  const midPath = resolveVisualFrame(doc, 0.5).elements.find((item) => item.id === "path") as any;
+  assert(midPath.d === "M 0 0 L 20 0", `path.d should be discrete before the target keyframe, got ${midPath.d}`);
+  const end = resolveVisualFrame(doc, 1);
+  const text = end.elements.find((item) => item.id === "text") as any;
+  const pattern = end.elements.find((item) => item.id === "pattern") as any;
+  const paint = end.elements.find((item) => item.id === "paint") as any;
+  assert(text.align === "right" && text.valign === "bottom" && text.fontStyle === "italic", "text layout/style tracks should resolve discretely");
+  assert(pattern.fill.x === 12 && pattern.fill.width === 20 && pattern.fill.opacity === 0.5, "pattern internals should resolve");
+  assert(paint.fill.type === "linearGradient", "whole paint tracks should switch structured paints");
 });
 
 test("warns about overlapping timeline representations", () => {
@@ -484,6 +591,23 @@ test("generated schema matches the committed schema artifact", () => {
   const schemaPath = path.resolve(__dirname, "..", "..", "schema", "visual.schema.json");
   const committed = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
   assert(stableStringify(generateVisualSchema()) === stableStringify(committed), "committed visual.schema.json should match generated schema");
+});
+
+test("all example visual documents validate against the frozen kernel", () => {
+  const examplesDir = path.resolve(__dirname, "..", "..", "examples");
+  const files = fs.readdirSync(examplesDir).filter((file: string) => file.endsWith(".visual.json")).sort();
+  assert(files.length > 0, "expected at least one example visual document");
+  const failures: string[] = [];
+  for (const file of files) {
+    const fullPath = path.join(examplesDir, file);
+    const document = JSON.parse(fs.readFileSync(fullPath, "utf8")) as VisualDocument;
+    const result = validateVisualDocument(document);
+    if (!result.ok) {
+      const details = result.issues.map((item) => `${item.path} ${item.code}: ${item.message}`).join("; ");
+      failures.push(`${file}: ${details}`);
+    }
+  }
+  assert(!failures.length, failures.join("\n"));
 });
 
 console.log("All render-kernel tests passed.");

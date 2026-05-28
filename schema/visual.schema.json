@@ -588,10 +588,6 @@
             "timeline": {
               "$ref": "#/$defs/timeline"
             },
-            "metadata": {
-              "type": "object",
-              "additionalProperties": true
-            },
             "type": {
               "const": "path"
             },
@@ -691,10 +687,6 @@
             },
             "timeline": {
               "$ref": "#/$defs/timeline"
-            },
-            "metadata": {
-              "type": "object",
-              "additionalProperties": true
             },
             "type": {
               "const": "text"
@@ -850,10 +842,6 @@
             "timeline": {
               "$ref": "#/$defs/timeline"
             },
-            "metadata": {
-              "type": "object",
-              "additionalProperties": true
-            },
             "type": {
               "const": "image"
             },
@@ -966,10 +954,6 @@
             "timeline": {
               "$ref": "#/$defs/timeline"
             },
-            "metadata": {
-              "type": "object",
-              "additionalProperties": true
-            },
             "type": {
               "const": "point"
             },
@@ -1067,10 +1051,6 @@
             },
             "timeline": {
               "$ref": "#/$defs/timeline"
-            },
-            "metadata": {
-              "type": "object",
-              "additionalProperties": true
             },
             "type": {
               "const": "group"

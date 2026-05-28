@@ -1,7 +1,7 @@
 import type { MotionValue, Paint, Point2, VisualElement } from "./types";
 import { clone, isFiniteNumber, isPoint2 } from "./utils";
 
-export type AnimatableValueKind = "number" | "string" | "numberOrString" | "point2" | "numberArray" | "stringArray" | "object";
+export type AnimatableValueKind = "number" | "string" | "numberOrString" | "paint" | "point2" | "numberArray" | "stringArray" | "object";
 export type AnimatableInterpolation = "number" | "color" | "point2" | "numberArray" | "discrete";
 
 export interface AnimatablePropertySpec {
@@ -15,6 +15,7 @@ export interface AnimatablePropertySpec {
 
 const POSITION_TYPES = ["path", "point", "text", "image", "group"] as const;
 const VISIBLE_TYPES = ["path", "text", "image", "group"] as const;
+const COMMON_TYPES = ["path", "point", "text", "image", "group"] as const;
 const PAINT_FILL_TYPES = ["path", "text"] as const;
 const PATH_TYPES = ["path"] as const;
 const TEXT_TYPES = ["text"] as const;
@@ -29,9 +30,10 @@ const BASE_SPECS: AnimatablePropertySpec[] = [
   { property: "scaleX", valueKind: "number", interpolation: "number", elementTypes: VISIBLE_TYPES, defaultValue: 1 },
   { property: "scaleY", valueKind: "number", interpolation: "number", elementTypes: VISIBLE_TYPES, defaultValue: 1 },
   { property: "origin", valueKind: "point2", interpolation: "point2", elementTypes: VISIBLE_TYPES },
-  { property: "opacity", valueKind: "number", interpolation: "number", elementTypes: VISIBLE_TYPES, defaultValue: 1 },
-  { property: "fill", valueKind: "string", interpolation: "color", elementTypes: PAINT_FILL_TYPES },
-  { property: "stroke", valueKind: "string", interpolation: "color", elementTypes: PATH_TYPES },
+  { property: "opacity", valueKind: "number", interpolation: "number", elementTypes: COMMON_TYPES, defaultValue: 1 },
+  { property: "d", valueKind: "string", interpolation: "discrete", elementTypes: PATH_TYPES },
+  { property: "fill", valueKind: "paint", interpolation: "color", elementTypes: PAINT_FILL_TYPES },
+  { property: "stroke", valueKind: "paint", interpolation: "color", elementTypes: PATH_TYPES },
   { property: "strokeWidth", valueKind: "number", interpolation: "number", elementTypes: PATH_TYPES, defaultValue: 1 },
   { property: "strokeCap", valueKind: "string", interpolation: "discrete", elementTypes: PATH_TYPES },
   { property: "strokeJoin", valueKind: "string", interpolation: "discrete", elementTypes: PATH_TYPES },
@@ -42,7 +44,10 @@ const BASE_SPECS: AnimatablePropertySpec[] = [
   { property: "drawEnd", valueKind: "number", interpolation: "number", elementTypes: PATH_TYPES, defaultValue: 1 },
   { property: "text", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
   { property: "lines", valueKind: "stringArray", interpolation: "discrete", elementTypes: TEXT_TYPES },
+  { property: "align", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
+  { property: "valign", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
   { property: "fontFamily", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
+  { property: "fontStyle", valueKind: "string", interpolation: "discrete", elementTypes: TEXT_TYPES },
   { property: "fontSize", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 16 },
   { property: "lineHeight", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 1.2 },
   { property: "letterSpacing", valueKind: "number", interpolation: "number", elementTypes: TEXT_TYPES, defaultValue: 0 },
@@ -50,7 +55,6 @@ const BASE_SPECS: AnimatablePropertySpec[] = [
   { property: "weight", valueKind: "numberOrString", interpolation: "discrete", elementTypes: TEXT_TYPES, defaultValue: 400 },
   { property: "width", valueKind: "number", interpolation: "number", elementTypes: ["image", "group"], defaultValue: 0 },
   { property: "height", valueKind: "number", interpolation: "number", elementTypes: ["image", "group"], defaultValue: 0 },
-  { property: "cornerRadius", valueKind: "number", interpolation: "number", elementTypes: IMAGE_TYPES, defaultValue: 0 },
   { property: "src", valueKind: "string", interpolation: "discrete", elementTypes: IMAGE_TYPES },
   { property: "fit", valueKind: "string", interpolation: "discrete", elementTypes: IMAGE_TYPES },
   { property: "blendMode", valueKind: "string", interpolation: "discrete", elementTypes: VISIBLE_TYPES },
@@ -64,7 +68,7 @@ const BASE_BY_PROPERTY = new Map(BASE_SPECS.map((spec) => [spec.property, spec])
 export function animatablePropertySpec(element: VisualElement, property: string): AnimatablePropertySpec | undefined {
   const base = BASE_BY_PROPERTY.get(property);
   if (base) return supportsType(base, element.type) ? base : undefined;
-  const dynamic = dynamicPropertySpec(property);
+  const dynamic = dynamicPropertySpec(property, element);
   return dynamic && supportsType(dynamic, element.type) ? dynamic : undefined;
 }
 
@@ -89,6 +93,8 @@ export function validateMotionValueForProperty(spec: AnimatablePropertySpec, val
       return typeof value === "string";
     case "numberOrString":
       return isFiniteNumber(value) || typeof value === "string";
+    case "paint":
+      return isPaintValue(value);
     case "point2":
       return isPoint2(value);
     case "numberArray":
@@ -139,7 +145,7 @@ export function applyPropertyValue(element: VisualElement, property: string, val
   }
   const path = parsePropertyPath(property);
   if (path.length > 1) {
-    setPathValue(element as unknown as Record<string, unknown>, path, clone(value), !!spec);
+    setPathValue(element as unknown as Record<string, unknown>, path, clone(value), !!spec?.ensure);
     return;
   }
   (element as unknown as Record<string, unknown>)[property] = clone(value);
@@ -160,8 +166,8 @@ export function conflictWarningsForTracks(trackNames: string[]): string[] {
   return warnings;
 }
 
-function dynamicPropertySpec(property: string): AnimatablePropertySpec | undefined {
-  const gradient = parseGradientProperty(property);
+function dynamicPropertySpec(property: string, element?: VisualElement): AnimatablePropertySpec | undefined {
+  const gradient = parsePaintProperty(property, element);
   if (gradient) return gradient;
   if (/^effects\.(blur|brightness|contrast|saturate|hueRotate)$/.test(property)) {
     return { property, valueKind: "number", interpolation: "number", elementTypes: VISIBLE_TYPES, defaultValue: effectDefault(property), ensure: ensureEffects };
@@ -178,27 +184,35 @@ function dynamicPropertySpec(property: string): AnimatablePropertySpec | undefin
   return undefined;
 }
 
-function parseGradientProperty(property: string): AnimatablePropertySpec | undefined {
+function parsePaintProperty(property: string, element?: VisualElement): AnimatablePropertySpec | undefined {
+  const pattern = /^(fill|stroke)\.(x|y|width|height|opacity)$/.exec(property);
+  if (pattern) {
+    if (element && !isPaintType(element, pattern[1]!, "pattern")) return undefined;
+    return { property, valueKind: "number", interpolation: "number", elementTypes: paintElementTypes(pattern[1]!) };
+  }
   const rootMatch = /^(fill|stroke)\.(from|to)$/.exec(property);
   if (rootMatch) {
-    return { property, valueKind: "point2", interpolation: "point2", elementTypes: paintElementTypes(rootMatch[1]!), ensure: ensureLinearPaint };
+    if (element && !isPaintType(element, rootMatch[1]!, "linearGradient")) return undefined;
+    return { property, valueKind: "point2", interpolation: "point2", elementTypes: paintElementTypes(rootMatch[1]!) };
   }
   const radialPoint = /^(fill|stroke)\.(center|focus)$/.exec(property);
   if (radialPoint) {
-    return { property, valueKind: "point2", interpolation: "point2", elementTypes: paintElementTypes(radialPoint[1]!), ensure: ensureRadialPaint };
+    if (element && !isPaintType(element, radialPoint[1]!, "radialGradient")) return undefined;
+    return { property, valueKind: "point2", interpolation: "point2", elementTypes: paintElementTypes(radialPoint[1]!) };
   }
   const radialRadius = /^(fill|stroke)\.radius$/.exec(property);
   if (radialRadius) {
-    return { property, valueKind: "number", interpolation: "number", elementTypes: paintElementTypes(radialRadius[1]!), defaultValue: 40, ensure: ensureRadialPaint };
+    if (element && !isPaintType(element, radialRadius[1]!, "radialGradient")) return undefined;
+    return { property, valueKind: "number", interpolation: "number", elementTypes: paintElementTypes(radialRadius[1]!), defaultValue: 40 };
   }
   const stop = parseGradientStopProperty(property);
   if (!stop) return undefined;
+  if (element && !hasGradientStop(element, stop)) return undefined;
   return {
     property,
     valueKind: stop.channel === "offset" ? "number" : "string",
     interpolation: stop.channel === "offset" ? "number" : "color",
-    elementTypes: paintElementTypes(stop.root),
-    ensure: ensureGradientStops
+    elementTypes: paintElementTypes(stop.root)
   };
 }
 
@@ -219,6 +233,7 @@ function dynamicPropertiesForElement(element: VisualElement): string[] {
   for (const root of ["fill", "stroke"] as const) {
     if (!supportsType({ elementTypes: paintElementTypes(root) } as AnimatablePropertySpec, element.type)) continue;
     const paint = (element as unknown as Record<string, unknown>)[root] as Paint | undefined;
+    if (isPatternPaint(paint)) out.push(`${root}.x`, `${root}.y`, `${root}.width`, `${root}.height`, `${root}.opacity`);
     if (isStructuredPaint(paint)) {
       if (paint.type === "linearGradient") out.push(`${root}.from`, `${root}.to`);
       if (paint.type === "radialGradient") out.push(`${root}.center`, `${root}.focus`, `${root}.radius`);
@@ -347,44 +362,6 @@ function ensureMask(element: VisualElement): void {
   if (!element.mask) element.mask = { type: "path", d: fullPlanePath(), opacity: 1 };
 }
 
-function ensureLinearPaint(element: VisualElement, property: string): void {
-  const root = property.startsWith("stroke.") ? "stroke" : "fill";
-  const record = element as unknown as Record<string, unknown>;
-  const current = record[root] as Paint | undefined;
-  if (isStructuredPaint(current) && current.type === "linearGradient") return;
-  record[root] = { type: "linearGradient", from: [0, 0], to: [100, 0], stops: fallbackStops(current) };
-}
-
-function ensureRadialPaint(element: VisualElement, property: string): void {
-  const root = property.startsWith("stroke.") ? "stroke" : "fill";
-  const record = element as unknown as Record<string, unknown>;
-  const current = record[root] as Paint | undefined;
-  if (isStructuredPaint(current) && current.type === "radialGradient") return;
-  record[root] = { type: "radialGradient", center: [50, 50], radius: 50, focus: [50, 50], stops: fallbackStops(current) };
-}
-
-function ensureGradientStops(element: VisualElement, property: string): void {
-  const stop = parseGradientStopProperty(property);
-  if (!stop) return;
-  const record = element as unknown as Record<string, unknown>;
-  const current = record[stop.root] as Paint | undefined;
-  if (!isStructuredPaint(current)) record[stop.root] = { type: "linearGradient", from: [0, 0], to: [100, 0], stops: fallbackStops(current) };
-  const paint = record[stop.root] as Extract<Paint, { stops: unknown[] }>;
-  const minimum = Math.max(2, stop.index + 1);
-  while (paint.stops.length < minimum) {
-    const offset = paint.stops.length / Math.max(1, minimum - 1);
-    paint.stops.push({ offset, color: paint.stops.length === 0 ? "#000000" : "#ffffff" });
-  }
-}
-
-function fallbackStops(paint: Paint | undefined): Array<[number, string]> {
-  if (isStructuredPaint(paint)) {
-    return paint.stops.map((stop) => Array.isArray(stop) ? [Number(stop[0]), String(stop[1])] : [Number(stop.offset), String(stop.color)]);
-  }
-  if (typeof paint === "string") return [[0, paint], [1, paint]];
-  return [[0, "#000000"], [1, "#ffffff"]];
-}
-
 function effectDefault(property: string): number {
   if (property === "effects.brightness" || property === "effects.contrast" || property === "effects.saturate") return 1;
   return 0;
@@ -409,6 +386,36 @@ function fullPlanePath(): string {
 
 function isStructuredPaint(value: unknown): value is Extract<Paint, { stops: unknown[] }> {
   return isRecord(value) && typeof value.type === "string" && Array.isArray(value.stops);
+}
+
+function isPatternPaint(value: unknown): value is Extract<Paint, { type: "pattern" }> {
+  return isRecord(value) && value.type === "pattern";
+}
+
+function isPaintType(element: VisualElement, root: string, type: string): boolean {
+  const paint = (element as unknown as Record<string, unknown>)[root];
+  return isRecord(paint) && paint.type === type;
+}
+
+function hasGradientStop(element: VisualElement, stopPath: GradientStopPath): boolean {
+  const paint = (element as unknown as Record<string, unknown>)[stopPath.root] as Paint | undefined;
+  return isStructuredPaint(paint) && !!paint.stops[stopPath.index];
+}
+
+function isPaintValue(value: unknown): value is Paint {
+  if (typeof value === "string") return true;
+  if (!isRecord(value) || typeof value.type !== "string") return false;
+  if (value.type === "linearGradient") return isPoint2(value.from) && isPoint2(value.to) && isGradientStops(value.stops);
+  if (value.type === "radialGradient") return isPoint2(value.center) && isFiniteNumber(value.radius) && (value.focus === undefined || isPoint2(value.focus)) && isGradientStops(value.stops);
+  if (value.type === "pattern") return typeof value.src === "string" && isFiniteNumber(value.width) && isFiniteNumber(value.height);
+  return false;
+}
+
+function isGradientStops(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 2 && value.every((stop) => {
+    if (Array.isArray(stop)) return isFiniteNumber(stop[0]) && typeof stop[1] === "string";
+    return isRecord(stop) && isFiniteNumber(stop.offset) && typeof stop.color === "string";
+  });
 }
 
 function isNumberArray(value: unknown): value is number[] {
