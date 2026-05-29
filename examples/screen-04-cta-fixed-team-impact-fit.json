@@ -1,0 +1,1313 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "background": "#ffffff",
+    "duration": 12,
+    "fps": 30
+  },
+  "elements": [
+    {
+      "id": "hook",
+      "type": "group",
+      "x": 0,
+      "y": 0,
+      "children": [
+        {
+          "id": "hook.kicker",
+          "type": "text",
+          "x": 90,
+          "y": 110,
+          "text": "SCREEN 04 / STRONG CLOSE",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 28,
+          "weight": 600,
+          "letterSpacing": 2,
+          "lineHeight": 1.2,
+          "fill": "#111111",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.2,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 1,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0.2,
+                    "value": 128,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 1,
+                    "value": 110
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "hook.title",
+          "type": "text",
+          "x": 90,
+          "y": 200,
+          "text": "From agent output\nto executive-ready\nvisuals in minutes.",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 96,
+          "weight": 700,
+          "letterSpacing": -1.1,
+          "lineHeight": 1.02,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.7,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 2,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0.7,
+                    "value": 228,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 2,
+                    "value": 200
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "hook.sub",
+          "type": "text",
+          "x": 90,
+          "y": 620,
+          "text": "No waiting on slide handoffs.\nNo messy formatting loops.\nJust clear decisions, faster.",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 34,
+          "weight": 500,
+          "lineHeight": 1.24,
+          "letterSpacing": 0,
+          "fill": "#1a1a1a",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 1.9,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 2.9,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 1.9,
+                    "value": 640,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 2.9,
+                    "value": 620
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "proofFlow",
+      "type": "group",
+      "x": 90,
+      "y": 760,
+      "children": [
+        {
+          "id": "proofFlow.frame",
+          "type": "path",
+          "d": "M 24 0 H 876 Q 900 0 900 24 V 356 Q 900 380 876 380 H 24 Q 0 380 0 356 V 24 Q 0 0 24 0 Z",
+          "fill": "#ffffff",
+          "stroke": "#111111",
+          "strokeWidth": 2,
+          "drawEnd": 0,
+          "timeline": {
+            "tracks": {
+              "drawEnd": {
+                "keyframes": [
+                  {
+                    "time": 2.8,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 3.5,
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.left.box",
+          "type": "path",
+          "d": "M 52 86 H 372 Q 390 86 390 104 V 298 Q 390 316 372 316 H 52 Q 34 316 34 298 V 104 Q 34 86 52 86 Z",
+          "fill": "#f8f8f8",
+          "stroke": "#000000",
+          "strokeWidth": 2,
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 3.3,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 3.3,
+                    "value": 16,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4,
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.left.title",
+          "type": "text",
+          "x": 212,
+          "y": 132,
+          "text": "RAW AGENT OUTPUT",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 22,
+          "weight": 700,
+          "letterSpacing": 1.1,
+          "lineHeight": 1.2,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 3.5,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.1,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 3.5,
+                    "value": 144,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.1,
+                    "value": 132
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.left.copy",
+          "type": "text",
+          "x": 212,
+          "y": 222,
+          "text": "Dense notes\nScattered points\nNo clear hierarchy",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 34,
+          "weight": 600,
+          "lineHeight": 1.08,
+          "letterSpacing": -0.2,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 3.7,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.3,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 3.7,
+                    "value": 234,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.3,
+                    "value": 222
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.right.box",
+          "type": "path",
+          "d": "M 528 86 H 848 Q 866 86 866 104 V 298 Q 866 316 848 316 H 528 Q 510 316 510 298 V 104 Q 510 86 528 86 Z",
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 2,
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 4,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 4,
+                    "value": 16,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.right.title",
+          "type": "text",
+          "x": 688,
+          "y": 132,
+          "text": "SKETCHMARK LAYER",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 22,
+          "weight": 700,
+          "letterSpacing": 1.1,
+          "lineHeight": 1.2,
+          "fill": "#ffffff",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 4.2,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.8,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 4.2,
+                    "value": 144,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.8,
+                    "value": 132
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.right.copy",
+          "type": "text",
+          "x": 688,
+          "y": 222,
+          "text": "Structured story\nVisual clarity\nReady to present",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 34,
+          "weight": 700,
+          "lineHeight": 1.08,
+          "letterSpacing": -0.2,
+          "fill": "#ffffff",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 4.4,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 5,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 4.4,
+                    "value": 234,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 5,
+                    "value": 222
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.arrow.line",
+          "type": "path",
+          "d": "M 408 201 L 492 201",
+          "stroke": "#000000",
+          "strokeWidth": 3,
+          "fill": "none",
+          "drawEnd": 0,
+          "timeline": {
+            "tracks": {
+              "drawEnd": {
+                "keyframes": [
+                  {
+                    "time": 4.55,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 4.9,
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "proofFlow.arrow.head",
+          "type": "path",
+          "d": "M 492 201 L 480 192.6 L 480 209.4 Z",
+          "fill": "#000000",
+          "opacity": 0,
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 4.82,
+                    "value": 0
+                  },
+                  {
+                    "time": 5,
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "highlight",
+      "type": "group",
+      "x": 90,
+      "y": 1195,
+      "children": [
+        {
+          "id": "highlight.box",
+          "type": "path",
+          "d": "M 24 0 H 876 Q 900 0 900 24 V 296 Q 900 320 876 320 H 24 Q 0 320 0 296 V 24 Q 0 0 24 0 Z",
+          "fill": "#f7f7f7",
+          "stroke": "#000000",
+          "strokeWidth": 2,
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 6.1,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 6.8999999999999995,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 6.1,
+                    "value": 18,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 6.8999999999999995,
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "highlight.kicker",
+          "type": "text",
+          "x": 56,
+          "y": 44,
+          "text": "TEAM IMPACT",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 24,
+          "weight": 700,
+          "letterSpacing": 1.2,
+          "lineHeight": 1.2,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 6.35,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 6.949999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 6.35,
+                    "value": 54,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 6.949999999999999,
+                    "value": 44
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "highlight.copy",
+          "type": "text",
+          "x": 56,
+          "y": 102,
+          "text": "\"From first prompt\nto board-ready narrative\nin one focused workflow.\"",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 52,
+          "weight": 700,
+          "letterSpacing": -0.5,
+          "lineHeight": 1.05,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 6.6,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 7.6,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 6.6,
+                    "value": 116,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 7.6,
+                    "value": 102
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "type": "group",
+      "x": 90,
+      "y": 1540,
+      "origin": [
+        450,
+        145
+      ],
+      "timeline": {
+        "tracks": {
+          "scale": {
+            "keyframes": [
+              {
+                "time": 8.5,
+                "value": 0.98,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.22,
+                  "y1": 1,
+                  "x2": 0.36,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 9.1,
+                "value": 1
+              },
+              {
+                "time": 11.2,
+                "value": 1,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.22,
+                  "y1": 1,
+                  "x2": 0.36,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 11.6,
+                "value": 1.03,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.22,
+                  "y1": 1,
+                  "x2": 0.36,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 12,
+                "value": 1
+              }
+            ]
+          },
+          "opacity": {
+            "keyframes": [
+              {
+                "time": 8.5,
+                "value": 0,
+                "out": {
+                  "type": "cubicBezier",
+                  "x1": 0.22,
+                  "y1": 1,
+                  "x2": 0.36,
+                  "y2": 1
+                }
+              },
+              {
+                "time": 9.1,
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "cta.panel",
+          "type": "path",
+          "d": "M 28 0 H 872 Q 900 0 900 28 V 262 Q 900 290 872 290 H 28 Q 0 290 0 262 V 28 Q 0 0 28 0 Z",
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 2
+        },
+        {
+          "id": "cta.title",
+          "type": "text",
+          "x": 450,
+          "y": 84,
+          "text": "Make your next insight impossible to ignore.",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 44,
+          "weight": 700,
+          "lineHeight": 1.1,
+          "letterSpacing": -0.4,
+          "fill": "#ffffff",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 9.2,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 9.899999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 9.2,
+                    "value": 94,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 9.899999999999999,
+                    "value": 84
+                  }
+                ]
+              },
+              "text": {
+                "keyframes": [
+                  {
+                    "time": 10.451300000000002,
+                    "value": "Make your next insight \nimpossible to ignore.",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  },
+                  {
+                    "time": 11.765,
+                    "value": "Make your next insight \nimpossible to ignore.",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              },
+              "position": {
+                "keyframes": [
+                  {
+                    "time": 10.5,
+                    "value": [
+                      450,
+                      104
+                    ],
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "cta.button",
+          "type": "path",
+          "d": "M 293 158 H 607 Q 652 158 652 203 V 203 Q 652 248 607 248 H 293 Q 248 248 248 203 V 203 Q 248 158 293 158 Z",
+          "fill": "#ffffff",
+          "stroke": "#ffffff",
+          "strokeWidth": 2,
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 9.45,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 10.149999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 9.45,
+                    "value": 168,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 10.149999999999999,
+                    "value": 158
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "cta.button.text",
+          "type": "text",
+          "x": 450,
+          "y": 203,
+          "text": "START WITH SKETCHMARK",
+          "align": "center",
+          "valign": "middle",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 30,
+          "weight": 800,
+          "letterSpacing": 1.2,
+          "lineHeight": 1,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 9.6,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 10.299999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 9.6,
+                    "value": 211,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 10.299999999999999,
+                    "value": 203
+                  }
+                ]
+              },
+              "text": {
+                "keyframes": [
+                  {
+                    "time": 11.765,
+                    "value": "START WITH SKETCHMARK",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              },
+              "fill": {
+                "keyframes": [
+                  {
+                    "time": 10.451300000000002,
+                    "value": "#ffa8a8",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  },
+                  {
+                    "time": 11.765,
+                    "value": "#ec1818",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "footer",
+      "type": "group",
+      "x": 90,
+      "y": 1856,
+      "children": [
+        {
+          "id": "footer.rule",
+          "type": "path",
+          "d": "M 0 0 L 900 0",
+          "stroke": "#000000",
+          "strokeWidth": 2,
+          "fill": "none",
+          "drawEnd": 0,
+          "timeline": {
+            "tracks": {
+              "drawEnd": {
+                "keyframes": [
+                  {
+                    "time": 10.2,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 10.9,
+                    "value": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "footer.brand",
+          "type": "text",
+          "x": 0,
+          "y": 26,
+          "text": "SKETCHMARK",
+          "align": "left",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 30,
+          "weight": 700,
+          "letterSpacing": 1.6,
+          "lineHeight": 1.2,
+          "fill": "#000000",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 10.6,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 11.299999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 10.6,
+                    "value": 36,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 11.299999999999999,
+                    "value": 26
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "footer.meta",
+          "type": "text",
+          "x": 900,
+          "y": 26,
+          "text": "screen 04 / cta",
+          "align": "right",
+          "valign": "top",
+          "fontFamily": "Helvetica Neue, Arial, sans-serif",
+          "fontSize": 24,
+          "weight": 500,
+          "letterSpacing": 0.2,
+          "lineHeight": 1.2,
+          "fill": "#111111",
+          "timeline": {
+            "tracks": {
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 10.85,
+                    "value": 0,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 11.549999999999999,
+                    "value": 1
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 10.85,
+                    "value": 36,
+                    "out": {
+                      "type": "cubicBezier",
+                      "x1": 0.22,
+                      "y1": 1,
+                      "x2": 0.36,
+                      "y2": 1
+                    }
+                  },
+                  {
+                    "time": 11.549999999999999,
+                    "value": 26
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

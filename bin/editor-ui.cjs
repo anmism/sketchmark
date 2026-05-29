@@ -686,7 +686,7 @@ function renderInspector() {
   const element = findElement(selectedId);
   const exportPanel = renderExportPanel();
   if (!element) {
-    inspector.innerHTML = exportPanel + "<div class='muted'>Select an element.</div>";
+    inspector.innerHTML = "<div class='muted'>Select an element.</div>" + exportPanel;
     bindPanelStates(inspector);
     bindExportButtons();
     return;
@@ -759,14 +759,14 @@ function renderInspector() {
     "<p class='tiny'>Interpolation curves are edited from timeline badges.</p>" +
     "<p class='tiny'>Drag to move. Use the square to scale and the round handle to rotate.</p>";
   inspector.innerHTML =
-    exportPanel +
     panelDetails("inspector-selected", "Selected", selectedRows, { defaultOpen: true, meta: element.type }) +
     panelDetails("inspector-transform", "Transform", transformRows, { defaultOpen: false }) +
     panelDetails("inspector-appearance", "Appearance", appearanceRows, { defaultOpen: false }) +
     (contentRows ? panelDetails("inspector-content", "Path / Content", contentRows, { defaultOpen: false }) : "") +
     (supportsEffects ? panelDetails("inspector-effects", "Effects", effectsRows, { defaultOpen: false }) : "") +
     (structuredPaintRows ? panelDetails("inspector-structured-paint", "Structured Paint", structuredPaintRows, { defaultOpen: false }) : "") +
-    panelDetails("inspector-keyframe", "Keyframe", keyframeRows, { defaultOpen: false });
+    panelDetails("inspector-keyframe", "Keyframe", keyframeRows, { defaultOpen: false }) +
+    exportPanel;
   bindPanelStates(inspector);
   bindExportButtons();
   if (supportsPaint) {

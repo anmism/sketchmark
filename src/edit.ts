@@ -1,5 +1,6 @@
 import type { ClipShape, ImageElement, MotionValue, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
 import { applyPropertyValue } from "./animatable";
+import { timelineCurvePreset } from "./keyframes";
 import { clone, isFiniteNumber } from "./utils";
 import { validateVisualDocument } from "./validate";
 
@@ -36,6 +37,7 @@ export function findElementById(document: VisualDocument, id: string): VisualEle
 
 export function setElementProperty(document: VisualDocument, id: string, property: string, value: MotionValue): VisualDocument {
   const next = clone(document);
+  repairLegacyTimelineCurves(next);
   const element = requireElement(next, id);
   applyProperty(element, property, value);
   assertValid(next);
@@ -45,6 +47,7 @@ export function setElementProperty(document: VisualDocument, id: string, propert
 export function setTimelineKeyframe(document: VisualDocument, id: string, property: string, time: number, value: MotionValue, options: SetKeyframeOptions = {}): VisualDocument {
   if (!isFiniteNumber(time) || time < 0) throw new Error("Keyframe time must be a non-negative finite number.");
   const next = clone(document);
+  repairLegacyTimelineCurves(next);
   const element = requireElement(next, id);
   element.timeline ??= {};
   element.timeline.tracks ??= {};
@@ -160,6 +163,39 @@ function assertValid(document: VisualDocument): void {
     const first = result.issues[0];
     throw new Error(first ? `${first.path}: ${first.message}` : "Invalid visual document.");
   }
+}
+
+function repairLegacyTimelineCurves(document: VisualDocument): void {
+  visitElements(document.elements ?? [], (element) => {
+    for (const track of Object.values(element.timeline?.tracks ?? {})) {
+      repairTrackCurve(track);
+      for (const frame of track.keyframes ?? []) repairKeyframeCurve(frame);
+    }
+  });
+}
+
+function repairTrackCurve(track: TimelineTrack): void {
+  const record = track as unknown as Record<string, unknown>;
+  if (typeof record.curve === "string") {
+    const curve = legacyCurve(record.curve);
+    if (curve) record.curve = curve;
+    else delete record.curve;
+  }
+}
+
+function repairKeyframeCurve(frame: TimelineKeyframe): void {
+  if (Array.isArray(frame)) return;
+  const record = frame as unknown as Record<string, unknown>;
+  for (const key of ["in", "out", "interpolation"] as const) {
+    if (typeof record[key] !== "string") continue;
+    const curve = legacyCurve(record[key]);
+    if (curve) record[key] = curve;
+    else delete record[key];
+  }
+}
+
+function legacyCurve(value: string): TimelineCurve | undefined {
+  return timelineCurvePreset(value);
 }
 
 function finiteOrZero(value: number): number {
