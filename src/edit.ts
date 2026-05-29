@@ -1,4 +1,4 @@
-import type { ClipShape, ImageElement, MotionValue, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
+import type { ClipShape, ImageElement, MotionValue, Point2, TimelineCurve, TimelineKeyframe, TimelineTrack, VisualDocument, VisualElement } from "./types";
 import { applyPropertyValue } from "./animatable";
 import { timelineCurvePreset } from "./keyframes";
 import { clone, isFiniteNumber } from "./utils";
@@ -144,13 +144,19 @@ function makeKeyframe(time: number, value: MotionValue, options: SetKeyframeOpti
 
 function mergeKeyframe(existing: TimelineKeyframe, next: Extract<TimelineKeyframe, { time: number }>): Extract<TimelineKeyframe, { time: number }> {
   if (Array.isArray(existing)) return next;
-  return {
+  const merged: Extract<TimelineKeyframe, { time: number }> = {
     ...existing,
-    ...next,
-    in: next.in ?? existing.in,
-    out: next.out ?? existing.out,
-    interpolation: next.interpolation ?? existing.interpolation
+    ...next
   };
+  mergeCurveValue(merged, "in", next.in ?? existing.in);
+  mergeCurveValue(merged, "out", next.out ?? existing.out);
+  mergeCurveValue(merged, "interpolation", next.interpolation ?? existing.interpolation);
+  return merged;
+}
+
+function mergeCurveValue(frame: Extract<TimelineKeyframe, { time: number }>, key: "in" | "out" | "interpolation", value: TimelineCurve | undefined): void {
+  if (value) frame[key] = value;
+  else delete frame[key];
 }
 
 function keyframeTime(frame: TimelineKeyframe): number {
@@ -176,26 +182,79 @@ function repairLegacyTimelineCurves(document: VisualDocument): void {
 
 function repairTrackCurve(track: TimelineTrack): void {
   const record = track as unknown as Record<string, unknown>;
-  if (typeof record.curve === "string") {
-    const curve = legacyCurve(record.curve);
-    if (curve) record.curve = curve;
-    else delete record.curve;
-  }
+  repairCurveField(record, "curve");
 }
 
 function repairKeyframeCurve(frame: TimelineKeyframe): void {
   if (Array.isArray(frame)) return;
   const record = frame as unknown as Record<string, unknown>;
-  for (const key of ["in", "out", "interpolation"] as const) {
-    if (typeof record[key] !== "string") continue;
-    const curve = legacyCurve(record[key]);
-    if (curve) record[key] = curve;
-    else delete record[key];
+  for (const key of ["in", "out", "interpolation"] as const) repairCurveField(record, key);
+}
+
+function repairCurveField(record: Record<string, unknown>, key: string): void {
+  if (!(key in record)) return;
+  const curve = coerceTimelineCurve(record[key]);
+  if (curve) record[key] = curve;
+  else delete record[key];
+}
+
+function coerceTimelineCurve(value: unknown): TimelineCurve | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "string") return legacyCurve(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.type === "hold") return { type: "hold" };
+  if (record.type === "cubicBezier") {
+    const x1 = finiteNumber(record.x1);
+    const y1 = finiteNumber(record.y1);
+    const x2 = finiteNumber(record.x2);
+    const y2 = finiteNumber(record.y2);
+    if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) return undefined;
+    if (x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) return undefined;
+    return { type: "cubicBezier", x1, y1, x2, y2 };
   }
+  if (record.type === "graph") {
+    const points = Array.isArray(record.points)
+      ? record.points.map(coerceCurvePoint).filter((point): point is Point2 => Boolean(point))
+      : [];
+    if (points.length < 2) return undefined;
+    let previousX = Number.NEGATIVE_INFINITY;
+    for (const point of points) {
+      if (point[0] < 0 || point[0] > 1 || point[0] <= previousX) return undefined;
+      previousX = point[0];
+    }
+    if (points[0]?.[0] !== 0 || points[points.length - 1]?.[0] !== 1) return undefined;
+    return { type: "graph", points };
+  }
+  return undefined;
+}
+
+function coerceCurvePoint(value: unknown): Point2 | undefined {
+  if (!Array.isArray(value) || value.length < 2) return undefined;
+  const x = finiteNumber(value[0]);
+  const y = finiteNumber(value[1]);
+  return x === undefined || y === undefined ? undefined : [x, y];
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
 }
 
 function legacyCurve(value: string): TimelineCurve | undefined {
-  return timelineCurvePreset(value);
+  switch (value.trim()) {
+    case "ease":
+    case "easeInOut":
+    case "ease-inout":
+    case "easeInout":
+      return timelineCurvePreset("ease-in-out");
+    case "easeIn":
+      return timelineCurvePreset("ease-in");
+    case "easeOut":
+      return timelineCurvePreset("ease-out");
+    default:
+      return timelineCurvePreset(value);
+  }
 }
 
 function finiteOrZero(value: number): number {

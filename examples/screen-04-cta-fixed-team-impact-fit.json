@@ -942,6 +942,23 @@
                     }
                   },
                   {
+                    "time": 11.019101999999982,
+                    "value": "Make your next insight \nimpossible to \nignore.",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  },
+                  {
                     "time": 11.765,
                     "value": "Make your next insight \nimpossible to ignore.",
                     "out": {
@@ -1094,6 +1111,23 @@
               "text": {
                 "keyframes": [
                   {
+                    "time": 11.019101999999982,
+                    "value": "START WITH SKETCHMARK",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  },
+                  {
                     "time": 11.765,
                     "value": "START WITH SKETCHMARK",
                     "out": {
@@ -1134,6 +1168,30 @@
                   {
                     "time": 11.765,
                     "value": "#ec1818",
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              },
+              "position": {
+                "keyframes": [
+                  {
+                    "time": 11.019101999999982,
+                    "value": [
+                      271,
+                      194
+                    ],
                     "out": {
                       "type": "graph",
                       "points": [

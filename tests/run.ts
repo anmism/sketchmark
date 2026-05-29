@@ -538,6 +538,40 @@ test("edits nested element properties and timeline keyframes", () => {
   assert(!listTimelineTracks(cleaned, "nested").length, "timeline keyframe removal should prune empty tracks");
 });
 
+test("editor helpers repair malformed timeline curve fields before validating", () => {
+  const doc = {
+    version: 1,
+    canvas: { width: 320, height: 180, duration: 2 },
+    elements: [
+      {
+        id: "dot",
+        type: "point",
+        x: 0,
+        y: 0,
+        timeline: {
+          tracks: {
+            position: {
+              curve: "easeOut",
+              keyframes: [
+                { time: 0, value: [0, 0], in: null, interpolation: ["linear"] },
+                { time: 1, value: [100, 0] }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  } as unknown as VisualDocument;
+  const repaired = setTimelineKeyframe(doc, "dot", "position", 0, [0, 0], { out: { type: "hold" } });
+  const result = validateVisualDocument(repaired);
+  assert(result.ok, `repaired edit document should validate: ${result.issues.map((item) => item.message).join("; ")}`);
+  const track = (repaired.elements?.[0] as any).timeline.tracks.position;
+  const first = track.keyframes[0];
+  assert(track.curve.type === "cubicBezier", "legacy camel-case track curve should be canonicalized");
+  assert(first.out.type === "hold", "new keyframe curve should be applied");
+  assert(!("in" in first) && !("interpolation" in first), "malformed keyframe curves should be removed");
+});
+
 test("edits and renders path position offsets", () => {
   const doc: VisualDocument = {
     version: 1,

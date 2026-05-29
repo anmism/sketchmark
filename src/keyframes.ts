@@ -205,13 +205,19 @@ function makeKeyframe(time: number, value: MotionValue, options: { in?: Timeline
 
 function mergeKeyframe(existing: TimelineTrack["keyframes"][number], next: ReturnType<typeof makeKeyframe>): ReturnType<typeof makeKeyframe> {
   if (Array.isArray(existing)) return next;
-  return {
+  const merged: ReturnType<typeof makeKeyframe> = {
     ...existing,
-    ...next,
-    in: next.in ?? existing.in,
-    out: next.out ?? existing.out,
-    interpolation: next.interpolation ?? existing.interpolation
+    ...next
   };
+  mergeCurveValue(merged, "in", next.in ?? existing.in);
+  mergeCurveValue(merged, "out", next.out ?? existing.out);
+  mergeCurveValue(merged, "interpolation", next.interpolation ?? existing.interpolation);
+  return merged;
+}
+
+function mergeCurveValue(frame: ReturnType<typeof makeKeyframe>, key: "in" | "out" | "interpolation", value: TimelineCurve | undefined): void {
+  if (value) frame[key] = value;
+  else delete frame[key];
 }
 
 function keyframeTime(frame: TimelineTrack["keyframes"][number]): number {
