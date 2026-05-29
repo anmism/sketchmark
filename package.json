@@ -1,6 +1,6 @@
 {
   "name": "sketchmark",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Render kernel for Sketchmark visual documents.",
   "license": "MIT",
   "type": "commonjs",
