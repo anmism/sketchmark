@@ -1,0 +1,588 @@
+{
+  "version": 1,
+  "canvas": {
+    "width": 960,
+    "height": 540,
+    "duration": 2,
+    "fps": 30,
+    "background": "#f7f3ea"
+  },
+  "elements": [
+    {
+      "id": "ground",
+      "type": "path",
+      "d": "M 160 420 L 800 420",
+      "stroke": "#d4c8b8",
+      "strokeWidth": 8,
+      "strokeCap": "round",
+      "fill": "none"
+    },
+    {
+      "id": "stickman",
+      "type": "group",
+      "x": 240,
+      "y": 0,
+      "timeline": {
+        "tracks": {
+          "position": {
+            "keyframes": [
+              {
+                "time": 0,
+                "value": [
+                  240,
+                  0
+                ]
+              },
+              {
+                "time": 0.5,
+                "value": [
+                  360,
+                  0
+                ]
+              },
+              {
+                "time": 1,
+                "value": [
+                  480,
+                  0
+                ]
+              },
+              {
+                "time": 1.5,
+                "value": [
+                  600,
+                  0
+                ]
+              },
+              {
+                "time": 2,
+                "value": [
+                  720,
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "stickman.body",
+          "type": "group",
+          "x": 0,
+          "y": 0,
+          "origin": [
+            0,
+            0
+          ],
+          "timeline": {
+            "tracks": {
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 0.25,
+                    "value": -4
+                  },
+                  {
+                    "time": 0.5,
+                    "value": 0
+                  },
+                  {
+                    "time": 0.75,
+                    "value": -4
+                  },
+                  {
+                    "time": 1,
+                    "value": 0
+                  },
+                  {
+                    "time": 1.25,
+                    "value": -4
+                  },
+                  {
+                    "time": 1.5,
+                    "value": 0
+                  },
+                  {
+                    "time": 1.75,
+                    "value": -4
+                  },
+                  {
+                    "time": 2,
+                    "value": 0
+                  }
+                ]
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "stickman.head",
+              "type": "path",
+              "d": "M -22 280 A 22 22 0 1 0 22 280 A 22 22 0 1 0 -22 280",
+              "stroke": "#222222",
+              "strokeWidth": 6,
+              "fill": "none"
+            },
+            {
+              "id": "stickman.neck",
+              "type": "path",
+              "d": "M 0 302 L 0 312",
+              "stroke": "#222222",
+              "strokeWidth": 6,
+              "strokeCap": "round",
+              "strokeJoin": "round",
+              "fill": "none"
+            },
+            {
+              "id": "stickman.spine",
+              "type": "path",
+              "d": "M 0 312 L 0 360",
+              "stroke": "#222222",
+              "strokeWidth": 6,
+              "strokeCap": "round",
+              "strokeJoin": "round",
+              "fill": "none"
+            },
+            {
+              "id": "stickman.armFront",
+              "type": "group",
+              "x": 2,
+              "y": 316,
+              "children": [
+                {
+                  "id": "stickman.armFront.bone",
+                  "type": "group",
+                  "x": 0,
+                  "y": 0,
+                  "origin": [
+                    0,
+                    0
+                  ],
+                  "timeline": {
+                    "tracks": {
+                      "rotation": {
+                        "keyframes": [
+                          {
+                            "time": 0,
+                            "value": 24
+                          },
+                          {
+                            "time": 0.5,
+                            "value": -24
+                          },
+                          {
+                            "time": 1,
+                            "value": 24
+                          },
+                          {
+                            "time": 1.5,
+                            "value": -24
+                          },
+                          {
+                            "time": 2,
+                            "value": 24
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "stickman.armFront.upper.line",
+                      "type": "path",
+                      "d": "M 0 0 L 0 28",
+                      "stroke": "#222222",
+                      "strokeWidth": 6,
+                      "strokeCap": "round",
+                      "strokeJoin": "round",
+                      "fill": "none"
+                    },
+                    {
+                      "id": "stickman.armFront.lower",
+                      "type": "group",
+                      "x": 0,
+                      "y": 28,
+                      "origin": [
+                        0,
+                        0
+                      ],
+                      "timeline": {
+                        "tracks": {
+                          "rotation": {
+                            "keyframes": [
+                              {
+                                "time": 0,
+                                "value": -12
+                              },
+                              {
+                                "time": 0.5,
+                                "value": 12
+                              },
+                              {
+                                "time": 1,
+                                "value": -12
+                              },
+                              {
+                                "time": 1.5,
+                                "value": 12
+                              },
+                              {
+                                "time": 2,
+                                "value": -12
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "stickman.armFront.lower.line",
+                          "type": "path",
+                          "d": "M 0 0 L 0 22",
+                          "stroke": "#222222",
+                          "strokeWidth": 6,
+                          "strokeCap": "round",
+                          "strokeJoin": "round",
+                          "fill": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "stickman.armBack",
+              "type": "group",
+              "x": -2,
+              "y": 316,
+              "children": [
+                {
+                  "id": "stickman.armBack.bone",
+                  "type": "group",
+                  "x": 0,
+                  "y": 0,
+                  "origin": [
+                    0,
+                    0
+                  ],
+                  "timeline": {
+                    "tracks": {
+                      "rotation": {
+                        "keyframes": [
+                          {
+                            "time": 0,
+                            "value": -24
+                          },
+                          {
+                            "time": 0.5,
+                            "value": 24
+                          },
+                          {
+                            "time": 1,
+                            "value": -24
+                          },
+                          {
+                            "time": 1.5,
+                            "value": 24
+                          },
+                          {
+                            "time": 2,
+                            "value": -24
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "stickman.armBack.upper.line",
+                      "type": "path",
+                      "d": "M 0 0 L 0 28",
+                      "stroke": "#222222",
+                      "strokeWidth": 6,
+                      "strokeCap": "round",
+                      "strokeJoin": "round",
+                      "fill": "none"
+                    },
+                    {
+                      "id": "stickman.armBack.lower",
+                      "type": "group",
+                      "x": 0,
+                      "y": 28,
+                      "origin": [
+                        0,
+                        0
+                      ],
+                      "timeline": {
+                        "tracks": {
+                          "rotation": {
+                            "keyframes": [
+                              {
+                                "time": 0,
+                                "value": 12
+                              },
+                              {
+                                "time": 0.5,
+                                "value": -12
+                              },
+                              {
+                                "time": 1,
+                                "value": 12
+                              },
+                              {
+                                "time": 1.5,
+                                "value": -12
+                              },
+                              {
+                                "time": 2,
+                                "value": 12
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "stickman.armBack.lower.line",
+                          "type": "path",
+                          "d": "M 0 0 L 0 22",
+                          "stroke": "#222222",
+                          "strokeWidth": 6,
+                          "strokeCap": "round",
+                          "strokeJoin": "round",
+                          "fill": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "stickman.legFront",
+              "type": "group",
+              "x": 2,
+              "y": 360,
+              "children": [
+                {
+                  "id": "stickman.legFront.bone",
+                  "type": "group",
+                  "x": 0,
+                  "y": 0,
+                  "origin": [
+                    0,
+                    0
+                  ],
+                  "timeline": {
+                    "tracks": {
+                      "rotation": {
+                        "keyframes": [
+                          {
+                            "time": 0,
+                            "value": -20
+                          },
+                          {
+                            "time": 0.5,
+                            "value": 20
+                          },
+                          {
+                            "time": 1,
+                            "value": -20
+                          },
+                          {
+                            "time": 1.5,
+                            "value": 20
+                          },
+                          {
+                            "time": 2,
+                            "value": -20
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "stickman.legFront.upper.line",
+                      "type": "path",
+                      "d": "M 0 0 L 0 34",
+                      "stroke": "#222222",
+                      "strokeWidth": 6,
+                      "strokeCap": "round",
+                      "strokeJoin": "round",
+                      "fill": "none"
+                    },
+                    {
+                      "id": "stickman.legFront.lower",
+                      "type": "group",
+                      "x": 0,
+                      "y": 34,
+                      "origin": [
+                        0,
+                        0
+                      ],
+                      "timeline": {
+                        "tracks": {
+                          "rotation": {
+                            "keyframes": [
+                              {
+                                "time": 0,
+                                "value": 14
+                              },
+                              {
+                                "time": 0.5,
+                                "value": -14
+                              },
+                              {
+                                "time": 1,
+                                "value": 14
+                              },
+                              {
+                                "time": 1.5,
+                                "value": -14
+                              },
+                              {
+                                "time": 2,
+                                "value": 14
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "stickman.legFront.lower.line",
+                          "type": "path",
+                          "d": "M 0 0 L 0 26",
+                          "stroke": "#222222",
+                          "strokeWidth": 6,
+                          "strokeCap": "round",
+                          "strokeJoin": "round",
+                          "fill": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "stickman.legBack",
+              "type": "group",
+              "x": -2,
+              "y": 360,
+              "children": [
+                {
+                  "id": "stickman.legBack.bone",
+                  "type": "group",
+                  "x": 0,
+                  "y": 0,
+                  "origin": [
+                    0,
+                    0
+                  ],
+                  "timeline": {
+                    "tracks": {
+                      "rotation": {
+                        "keyframes": [
+                          {
+                            "time": 0,
+                            "value": 20
+                          },
+                          {
+                            "time": 0.5,
+                            "value": -20
+                          },
+                          {
+                            "time": 1,
+                            "value": 20
+                          },
+                          {
+                            "time": 1.5,
+                            "value": -20
+                          },
+                          {
+                            "time": 2,
+                            "value": 20
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "stickman.legBack.upper.line",
+                      "type": "path",
+                      "d": "M 0 0 L 0 34",
+                      "stroke": "#222222",
+                      "strokeWidth": 6,
+                      "strokeCap": "round",
+                      "strokeJoin": "round",
+                      "fill": "none"
+                    },
+                    {
+                      "id": "stickman.legBack.lower",
+                      "type": "group",
+                      "x": 0,
+                      "y": 34,
+                      "origin": [
+                        0,
+                        0
+                      ],
+                      "timeline": {
+                        "tracks": {
+                          "rotation": {
+                            "keyframes": [
+                              {
+                                "time": 0,
+                                "value": -14
+                              },
+                              {
+                                "time": 0.5,
+                                "value": 14
+                              },
+                              {
+                                "time": 1,
+                                "value": -14
+                              },
+                              {
+                                "time": 1.5,
+                                "value": 14
+                              },
+                              {
+                                "time": 2,
+                                "value": -14
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "stickman.legBack.lower.line",
+                          "type": "path",
+                          "d": "M 0 0 L 0 26",
+                          "stroke": "#222222",
+                          "strokeWidth": 6,
+                          "strokeCap": "round",
+                          "strokeJoin": "round",
+                          "fill": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
