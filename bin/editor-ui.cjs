@@ -8,6 +8,9 @@ function editorHtml(title, options = {}) {
   const mp4MuxerUrl = options.mp4MuxerUrl || "";
   const mp4MuxerSource = mp4MuxerUrl ? "" : resolveMp4MuxerSource(options.mp4MuxerSource);
   const serverExportFallback = options.serverExportFallback !== false;
+  const canvasStageRender = options.canvasStageRender === true;
+  const localDocumentControls = options.localDocumentControls === true;
+  const bootstrapScript = typeof options.bootstrapScript === "string" ? options.bootstrapScript : "";
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sketchmark Editor - ${escapeHtml(title)}</title><style>
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Light.ttf') format('truetype');font-weight:300;font-style:normal;font-display:swap}
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
@@ -22,8 +25,20 @@ textarea{min-height:88px;padding:4px;resize:vertical}
 #tree{grid-row:1/3}
 #stageWrap{position:relative;display:grid;place-items:center;min-width:0;min-height:0;padding:0;background:#fff;overflow:hidden;cursor:default}
 #stageWrap.panning{cursor:grabbing}
-#stage{display:grid;place-items:center;min-width:0;min-height:0}
+#stage{display:grid;place-items:center;min-width:0;min-height:0;position:relative}
 #stage svg{max-width:100%;max-height:calc(100vh - 190px);background:white;border:1px solid #333;overflow:visible}
+${canvasStageRender ? `#stage.sketchmarkCanvasStage{display:block;position:relative;line-height:0;background:white;border:1px solid #333;box-sizing:content-box}
+#stageCanvas{display:block;background:white}
+#stage.sketchmarkCanvasStage>svg{position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;border:0;box-sizing:border-box;z-index:2;pointer-events:auto}
+#stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg)>*:not(defs):not(#__sketchmark_handles):not(#__sketchmark_drag_preview){opacity:0}
+#stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg) #__sketchmark_handles,#stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg) #__sketchmark_drag_preview{opacity:1}
+#stage.sketchmarkCanvasStage>#stageLiveSvg{display:none;position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;border:0;box-sizing:border-box;z-index:1;pointer-events:none;overflow:visible}
+#stage.sketchmarkCanvasStage.liveSvgDrag>#stageCanvas{visibility:hidden}
+#stage.sketchmarkCanvasStage.liveSvgDrag>#stageLiveSvg{display:block}` : ""}
+${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
+.browserFileActions{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.browserFileInput{font-size:12px}
+.browserStatus{font-size:11px;color:#374151;min-height:14px}` : ""}
 #viewportHud{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:6px;background:rgba(238,238,238,.95);border:1px solid #8f96a3;z-index:3}
 #viewportHud button{padding:1px 8px;min-width:42px}
 #zoomLabel{min-width:42px;text-align:center;font-weight:bold;color:#111827}
@@ -77,7 +92,7 @@ textarea{min-height:88px;padding:4px;resize:vertical}
 .exportButtons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .exportButtons button{width:100%;text-align:left;padding:4px 6px}
 .exportButtons button.exportWide{grid-column:1/3}
-</style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div><script>
+</style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div>${bootstrapScript ? `<script>\n${bootstrapScript}\n</script>` : ""}<script>
 const tree = document.getElementById("tree");
 const stageWrap = document.getElementById("stageWrap");
 const stage = document.getElementById("stage");
@@ -131,7 +146,236 @@ const EDITOR_TITLE = ${scriptJson(title || "sketchmark")};
 const MP4_MUXER_URL = ${scriptJson(mp4MuxerUrl)};
 const MP4_MUXER_SOURCE = ${scriptJson(mp4MuxerSource)};
 const SERVER_EXPORT_FALLBACK = ${scriptJson(serverExportFallback)};
+const CANVAS_STAGE_RENDER = ${scriptJson(canvasStageRender)};
+const LOCAL_DOCUMENT_CONTROLS = ${scriptJson(localDocumentControls)};
 let mp4MuxerObjectUrl = "";
+
+let canvasStageRenderToken = 0;
+let canvasStageRenderScheduled = false;
+let pendingCanvasStageCanvas = null;
+let liveDragPreviewPendingClear = false;
+
+function requestVisibleCanvasStageRender(canvas) {
+  if (!CANVAS_STAGE_RENDER || !canvas) return;
+  pendingCanvasStageCanvas = canvas;
+  syncCanvasStageLayout(canvas);
+  if (canvasStageRenderScheduled) return;
+  canvasStageRenderScheduled = true;
+  requestAnimationFrame(() => {
+    canvasStageRenderScheduled = false;
+    renderVisibleCanvasStage(pendingCanvasStageCanvas);
+  });
+}
+
+function setStageOverlaySvg(svgMarkup) {
+  const template = document.createElement("template");
+  template.innerHTML = String(svgMarkup || "").trim();
+  const nextSvg = template.content.querySelector("svg");
+  if (!nextSvg) {
+    stage.innerHTML = String(svgMarkup || "");
+    return;
+  }
+  const previousSvg = stage.querySelector("svg:not(#stageLiveSvg)");
+  if (previousSvg) {
+    previousSvg.replaceWith(nextSvg);
+    return;
+  }
+  const stageCanvas = document.getElementById("stageCanvas");
+  if (stageCanvas && stageCanvas.parentElement === stage) stageCanvas.after(nextSvg);
+  else stage.appendChild(nextSvg);
+}
+
+function syncCanvasStageLayout(canvas) {
+  const svg = currentSvg();
+  if (!CANVAS_STAGE_RENDER || !svg || !canvas) return null;
+  const size = canvasSize(canvas);
+  let stageCanvas = document.getElementById("stageCanvas");
+  if (!stageCanvas || stageCanvas.parentElement !== stage) {
+    stageCanvas = document.createElement("canvas");
+    stageCanvas.id = "stageCanvas";
+    stage.insertBefore(stageCanvas, svg);
+  } else if (stageCanvas.nextSibling !== svg) {
+    stage.insertBefore(stageCanvas, svg);
+  }
+  stage.classList.add("sketchmarkCanvasStage");
+  const display = canvasStageDisplaySize(size);
+  stage.style.width = display.width + "px";
+  stage.style.height = display.height + "px";
+  stageCanvas.style.width = display.width + "px";
+  stageCanvas.style.height = display.height + "px";
+  svg.style.width = display.width + "px";
+  svg.style.height = display.height + "px";
+  svg.style.maxWidth = "none";
+  svg.style.maxHeight = "none";
+  const liveSvg = document.getElementById("stageLiveSvg");
+  if (liveSvg && liveSvg.parentElement === stage) {
+    liveSvg.style.width = display.width + "px";
+    liveSvg.style.height = display.height + "px";
+    liveSvg.style.maxWidth = "none";
+    liveSvg.style.maxHeight = "none";
+  }
+  const pixelRatio = Math.max(1, Math.min(3, Number(window.devicePixelRatio || 1)));
+  const pixelWidth = Math.max(1, Math.round(display.width * pixelRatio));
+  const pixelHeight = Math.max(1, Math.round(display.height * pixelRatio));
+  return { svg, stageCanvas, display, pixelRatio, pixelWidth, pixelHeight };
+}
+
+function renderVisibleCanvasStage(canvas) {
+  const layout = syncCanvasStageLayout(canvas);
+  if (!layout) return;
+  const { svg, stageCanvas, display, pixelRatio, pixelWidth, pixelHeight } = layout;
+  const context = stageCanvas.getContext("2d");
+  if (!context) return;
+  const serialized = serializeStageSvgForCanvas(svg);
+  const token = ++canvasStageRenderToken;
+  const image = new Image();
+  const url = URL.createObjectURL(new Blob([serialized], { type: "image/svg+xml;charset=utf-8" }));
+  image.onload = () => {
+    URL.revokeObjectURL(url);
+    if (token !== canvasStageRenderToken || !stage.contains(stageCanvas)) return;
+    if (stageCanvas.width !== pixelWidth) stageCanvas.width = pixelWidth;
+    if (stageCanvas.height !== pixelHeight) stageCanvas.height = pixelHeight;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, display.width, display.height);
+    context.drawImage(image, 0, 0, display.width, display.height);
+    if (liveDragPreviewPendingClear && !drag) clearLiveDragPreview();
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+  };
+  image.src = url;
+}
+
+function canvasStageDisplaySize(size) {
+  const availableWidth = Math.max(1, Number(stageWrap && stageWrap.clientWidth || size.width) - 2);
+  const availableHeight = Math.max(1, Number(stageWrap && stageWrap.clientHeight || size.height) - 2);
+  const scale = Math.min(1, availableWidth / size.width, availableHeight / size.height);
+  return {
+    width: Math.max(1, Math.round(size.width * scale)),
+    height: Math.max(1, Math.round(size.height * scale))
+  };
+}
+
+function serializeStageSvgForCanvas(svg) {
+  const clone = svg.cloneNode(true);
+  const handles = clone.querySelector("#__sketchmark_handles");
+  if (handles) handles.remove();
+  const preview = clone.querySelector("#__sketchmark_drag_preview");
+  if (preview) preview.remove();
+  if (drag && drag.id) {
+    const dragged = clone.querySelector("#" + cssId(drag.id));
+    if (dragged) dragged.remove();
+  }
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  return new XMLSerializer().serializeToString(clone);
+}
+
+function showLiveDragPreview(target) {
+  if (!CANVAS_STAGE_RENDER || !target) return;
+  const svg = target.ownerSVGElement;
+  if (!svg) return;
+  syncLiveDragSvg(svg);
+  stage.classList.add("liveSvgDrag");
+  liveDragPreviewPendingClear = false;
+}
+
+function syncLiveDragSvg(svg) {
+  const clone = svg.cloneNode(true);
+  const handles = clone.querySelector("#__sketchmark_handles");
+  if (handles) handles.remove();
+  const preview = clone.querySelector("#__sketchmark_drag_preview");
+  if (preview) preview.remove();
+  clone.setAttribute("id", "stageLiveSvg");
+  clone.setAttribute("aria-hidden", "true");
+  let liveSvg = document.getElementById("stageLiveSvg");
+  if (liveSvg) liveSvg.replaceWith(clone);
+  else svg.after(clone);
+  clone.style.width = svg.style.width;
+  clone.style.height = svg.style.height;
+  clone.style.maxWidth = "none";
+  clone.style.maxHeight = "none";
+}
+
+function releaseLiveDragPreview(waitForDraw) {
+  if (!CANVAS_STAGE_RENDER || !stage.classList.contains("liveSvgDrag")) return;
+  liveDragPreviewPendingClear = true;
+  if (waitForDraw) requestDraw();
+  else requestVisibleCanvasStageRender(doc && doc.canvas);
+}
+
+function clearLiveDragPreview() {
+  const preview = stage.querySelector("#__sketchmark_drag_preview");
+  if (preview) preview.remove();
+  const liveSvg = document.getElementById("stageLiveSvg");
+  if (liveSvg) liveSvg.remove();
+  stage.classList.remove("liveSvgDrag");
+  liveDragPreviewPendingClear = false;
+}
+
+function browserStoragePanel() {
+  if (!LOCAL_DOCUMENT_CONTROLS) return "";
+  const api = window.__SKETCHMARK_BROWSER_API__;
+  const status = api && api.storageStatus ? api.storageStatus() : "Browser-local document";
+  const body =
+    "<div class='browserFileGrid'>" +
+    "<input id='browserImportFile' class='browserFileInput' type='file' accept='.json,.visual.json,application/json'>" +
+    "<div class='browserFileActions'><button id='browserSaveLocal' type='button'>Save local</button><button id='browserResetDocument' type='button'>Reset</button></div>" +
+    "<div id='browserStatus' class='browserStatus'>" + escapeText(status) + "</div>" +
+    "</div>";
+  return panelDetails("tree-browser", "Browser", body, { defaultOpen: true, meta: "local" });
+}
+
+function bindBrowserStoragePanel() {
+  if (!LOCAL_DOCUMENT_CONTROLS) return;
+  const api = window.__SKETCHMARK_BROWSER_API__;
+  const file = document.getElementById("browserImportFile");
+  if (file) {
+    file.onchange = async () => {
+      const selectedFile = file.files && file.files[0];
+      if (!selectedFile || !api || !api.replaceDocument) return;
+      try {
+        const text = await selectedFile.text();
+        await Promise.resolve(api.replaceDocument(JSON.parse(text), selectedFile.name.replace(/\\.visual\\.json$/i, "").replace(/\\.json$/i, "")));
+        selectedId = "";
+        currentTime = 0;
+        await load();
+      } catch (error) {
+        showError(error);
+      } finally {
+        file.value = "";
+      }
+    };
+  }
+  const save = document.getElementById("browserSaveLocal");
+  if (save) {
+    save.onclick = () => {
+      if (api && api.saveDocument) api.saveDocument();
+      showBrowserStorageStatus();
+    };
+  }
+  const reset = document.getElementById("browserResetDocument");
+  if (reset) {
+    reset.onclick = async () => {
+      if (!api || !api.resetDocument) return;
+      if (!window.confirm("Reset the local Sketchmark document?")) return;
+      try {
+        await Promise.resolve(api.resetDocument());
+        selectedId = "";
+        currentTime = 0;
+        await load();
+      } catch (error) {
+        showError(error);
+      }
+    };
+  }
+  showBrowserStorageStatus();
+}
+
+function showBrowserStorageStatus() {
+  const api = window.__SKETCHMARK_BROWSER_API__;
+  const box = document.getElementById("browserStatus");
+  if (box && api && api.storageStatus) box.textContent = api.storageStatus();
+}
 
 function apiPath(path) {
   return API_BASE + path;
@@ -176,15 +420,16 @@ async function draw() {
   try {
     const data = await api(apiPath("/frame") + "?time=" + encodeURIComponent(time));
     resolvedDoc = data.resolved || null;
-    stage.innerHTML = data.svg;
-    const svg = stage.querySelector("svg");
+    if (CANVAS_STAGE_RENDER) setStageOverlaySvg(data.svg);
+    else stage.innerHTML = data.svg;
+    const svg = currentSvg();
     if (svg) {
       svg.style.overflow = "visible";
+      applyEditorFlagsToStage();
       applyViewportToSvg(svg, data.canvas || (doc && doc.canvas));
     } else {
       updateZoomLabel();
     }
-    applyEditorFlagsToStage();
     const selected = selectedId ? stage.querySelector("#" + cssId(selectedId)) : null;
     if (selected && !isElementHidden(selectedId) && !isElementLocked(selectedId)) {
       drawHandles(selected);
@@ -243,6 +488,7 @@ function applyViewportToSvg(svg, canvas) {
   svg.setAttribute("viewBox", viewport.x.toFixed(3) + " " + viewport.y.toFixed(3) + " " + viewport.width.toFixed(3) + " " + viewport.height.toFixed(3));
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   updateZoomLabel();
+  requestVisibleCanvasStageRender(canvas);
 }
 
 function updateZoomLabel() {
@@ -283,7 +529,7 @@ function zoomFactorFromWheel(event) {
 }
 
 function currentSvg() {
-  return stage.querySelector("svg");
+  return stage.querySelector("svg:not(#stageLiveSvg)") || stage.querySelector("svg");
 }
 
 function svgPointFromClient(svg, clientX, clientY) {
@@ -438,10 +684,12 @@ function renderTree() {
     "<div class='row'><label>Duration<input id='canvasDuration' type='number' step='0.1' min='0' value='" + escapeAttr(valueOr(canvas.duration, "")) + "'></label><label>FPS<input id='canvasFps' type='number' step='1' min='1' value='" + escapeAttr(valueOr(canvas.fps, "")) + "'></label></div>" +
     "<div id='canvasError' class='canvasError'></div>";
   tree.innerHTML =
+    browserStoragePanel() +
     panelDetails("tree-canvas", "Canvas", canvasBody, { defaultOpen: false, meta: canvasSummary }) +
     panelDetails("tree-elements", "Elements", "<div id='elementsTree'></div>", { defaultOpen: false, meta: refs.length + " items" });
   bindPanelStates(tree);
   bindCanvasInputs();
+  bindBrowserStoragePanel();
   const treeRoot = document.getElementById("elementsTree");
   if (!treeRoot) return;
   for (const ref of refs) {
@@ -2058,8 +2306,18 @@ async function finishDrag() {
   const snapshot = drag;
   drag = null;
   suppressClick = true;
-  if (snapshot.changed) {
-    await commitDrag(snapshot);
+  let committed = false;
+  try {
+    if (snapshot.changed) {
+      await commitDrag(snapshot);
+      committed = true;
+    }
+  } finally {
+    if (snapshot.changed && !committed && snapshot.target) {
+      if (snapshot.transform) snapshot.target.setAttribute("transform", snapshot.transform);
+      else snapshot.target.removeAttribute("transform");
+    }
+    releaseLiveDragPreview(committed);
   }
 }
 
@@ -2085,6 +2343,8 @@ function startDrag(event, target, mode) {
   event.preventDefault();
   event.stopPropagation();
   stage.setPointerCapture?.(event.pointerId);
+  showLiveDragPreview(target);
+  requestVisibleCanvasStageRender(doc && doc.canvas);
 }
 
 async function commitDrag(snapshot) {
@@ -2184,6 +2444,7 @@ function parentPoint(event, target) {
 function previewDraggedTransform(prefix) {
   if (!drag || !drag.target) return;
   drag.target.setAttribute("transform", prefix + (drag.transform ? " " + drag.transform : ""));
+  showLiveDragPreview(drag.target);
 }
 function selectedTarget() {
   if (!selectedId || isElementHidden(selectedId) || isElementLocked(selectedId)) return null;
@@ -2218,7 +2479,8 @@ function drawHandles(target) {
   const bottomRight = matrixPoint(svg, matrix, box.x + box.width, box.y + box.height);
   const bottomLeft = matrixPoint(svg, matrix, box.x, box.y + box.height);
   const center = matrixPoint(svg, matrix, box.x + box.width / 2, box.y + box.height / 2);
-  const rotate = matrixPoint(svg, matrix, box.x + box.width / 2, box.y - 32);
+  const topCenter = midpoint(topLeft, topRight);
+  const rotate = offsetFromPoint(center, topCenter, 32);
   const scale = matrixPoint(svg, matrix, box.x + box.width, box.y + box.height);
   const group = svgNode("g");
   group.setAttribute("id", "__sketchmark_handles");
@@ -2291,6 +2553,16 @@ function matrixPoint(svg, matrix, x, y) {
   point.x = x;
   point.y = y;
   return point.matrixTransform(matrix);
+}
+function midpoint(a, b) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+function offsetFromPoint(origin, edge, distance) {
+  const dx = edge.x - origin.x;
+  const dy = edge.y - origin.y;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  if (!Number.isFinite(length) || length < 0.000001) return { x: edge.x, y: edge.y - distance };
+  return { x: edge.x + (dx / length) * distance, y: edge.y + (dy / length) * distance };
 }
 function svgNode(name) {
   return document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -2514,7 +2786,7 @@ function mp4MuxerSourceCandidates() {
   } catch {
     // Dependency may be bundled differently by the host app.
   }
-  candidates.push(path.join(process.cwd(), "node_modules", "mp4-muxer", "build", "mp4-muxer.mjs"));
+  candidates.push(path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "mp4-muxer", "build", "mp4-muxer.mjs"));
   return candidates;
 }
 

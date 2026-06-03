@@ -36,6 +36,10 @@
   },
   "scripts": {
     "build": "node scripts/build.cjs",
+    "build:exe": "node scripts/build-bun-executable.cjs",
+    "build:exe:win": "node scripts/build-bun-executable.cjs --target bun-windows-x64-baseline --outfile dist-bin/sketchmark.exe",
+    "build:exe:mac": "node scripts/build-bun-executable.cjs --target bun-darwin-arm64 --outfile dist-bin/sketchmark-macos-arm64",
+    "build:exe:linux": "node scripts/build-bun-executable.cjs --target bun-linux-x64-baseline --outfile dist-bin/sketchmark-linux-x64",
     "render": "node bin/sketchmark.cjs render",
     "test": "npm run build && node dist/tests/run.js",
     "prepublishOnly": "npm test"

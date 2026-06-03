@@ -5,6 +5,9 @@ export function editorHtml(
     mp4MuxerUrl?: string;
     mp4MuxerSource?: string | false;
     serverExportFallback?: boolean;
+    canvasStageRender?: boolean;
+    localDocumentControls?: boolean;
+    bootstrapScript?: string;
   }
 ): string;
 
