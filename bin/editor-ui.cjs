@@ -32,9 +32,13 @@ ${canvasStageRender ? `#stage.sketchmarkCanvasStage{display:block;position:relat
 #stage.sketchmarkCanvasStage>svg{position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;border:0;box-sizing:border-box;z-index:2;pointer-events:auto}
 #stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg)>*:not(defs):not(#__sketchmark_handles):not(#__sketchmark_drag_preview){opacity:0}
 #stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg) #__sketchmark_handles,#stage.sketchmarkCanvasStage>svg:not(#stageLiveSvg) #__sketchmark_drag_preview{opacity:1}
+#stage.sketchmarkCanvasStage.canvasStageRendering>svg:not(#stageLiveSvg) #__sketchmark_handles,#stage.sketchmarkCanvasStage.canvasStageRendering>svg:not(#stageLiveSvg) #__sketchmark_drag_preview{opacity:0}
 #stage.sketchmarkCanvasStage>#stageLiveSvg{display:none;position:absolute;left:0;top:0;width:100%;height:100%;max-width:none;max-height:none;background:transparent;border:0;box-sizing:border-box;z-index:1;pointer-events:none;overflow:visible}
 #stage.sketchmarkCanvasStage.liveSvgDrag>#stageCanvas{visibility:hidden}
-#stage.sketchmarkCanvasStage.liveSvgDrag>#stageLiveSvg{display:block}` : ""}
+#stage.sketchmarkCanvasStage.liveSvgDrag>#stageLiveSvg{display:block}
+#stage.sketchmarkCanvasStage.liveSvgScrub>#stageCanvas{visibility:hidden}
+#stage.sketchmarkCanvasStage.liveSvgScrub>svg:not(#stageLiveSvg)>*:not(defs):not(#__sketchmark_handles):not(#__sketchmark_drag_preview){opacity:1}
+#stage.sketchmarkCanvasStage.liveSvgScrub>svg:not(#stageLiveSvg) #__sketchmark_handles,#stage.sketchmarkCanvasStage.liveSvgScrub>svg:not(#stageLiveSvg) #__sketchmark_drag_preview{opacity:1}` : ""}
 ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 .browserFileActions{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .browserFileInput{font-size:12px}
@@ -117,6 +121,7 @@ let resolvedDoc = null;
 let drawScheduled = false;
 let drawInFlight = false;
 let drawQueued = false;
+let drawRequestId = 0;
 let drag = null;
 let suppressClick = false;
 const FONT_FAMILY_OPTIONS = [
@@ -154,11 +159,18 @@ let canvasStageRenderToken = 0;
 let canvasStageRenderScheduled = false;
 let pendingCanvasStageCanvas = null;
 let liveDragPreviewPendingClear = false;
+let canvasStageRenderedViewport = null;
+let canvasStageSourceSvg = "";
+let canvasStageSourceImage = null;
+let scrubPreviewActive = false;
+let scrubPointerActive = false;
+let scrubPreviewTimer = 0;
 
 function requestVisibleCanvasStageRender(canvas) {
   if (!CANVAS_STAGE_RENDER || !canvas) return;
   pendingCanvasStageCanvas = canvas;
   syncCanvasStageLayout(canvas);
+  if (scrubPreviewActive) return;
   if (canvasStageRenderScheduled) return;
   canvasStageRenderScheduled = true;
   requestAnimationFrame(() => {
@@ -203,6 +215,7 @@ function syncCanvasStageLayout(canvas) {
   stage.style.height = display.height + "px";
   stageCanvas.style.width = display.width + "px";
   stageCanvas.style.height = display.height + "px";
+  stageCanvas.style.transformOrigin = "0 0";
   svg.style.width = display.width + "px";
   svg.style.height = display.height + "px";
   svg.style.maxWidth = "none";
@@ -214,36 +227,170 @@ function syncCanvasStageLayout(canvas) {
     liveSvg.style.maxWidth = "none";
     liveSvg.style.maxHeight = "none";
   }
-  const pixelRatio = Math.max(1, Math.min(3, Number(window.devicePixelRatio || 1)));
+  const pixelRatio = canvasStageRenderPixelRatio(display);
   const pixelWidth = Math.max(1, Math.round(display.width * pixelRatio));
   const pixelHeight = Math.max(1, Math.round(display.height * pixelRatio));
   return { svg, stageCanvas, display, pixelRatio, pixelWidth, pixelHeight };
 }
 
+function canvasStageRenderPixelRatio(display) {
+  const deviceRatio = Math.max(1, Number(window.devicePixelRatio || 1));
+  const zoomRatio = viewport && viewport.initialized && viewport.width > 0
+    ? Math.max(1, viewport.baseWidth / viewport.width)
+    : 1;
+  const desired = deviceRatio * zoomRatio;
+  const maxDimensionRatio = Math.min(8192 / Math.max(1, display.width), 8192 / Math.max(1, display.height));
+  const maxPixelRatio = Math.sqrt(20000000 / Math.max(1, display.width * display.height));
+  return Math.max(1, Math.min(desired, maxDimensionRatio, maxPixelRatio, 8));
+}
+
 function renderVisibleCanvasStage(canvas) {
   const layout = syncCanvasStageLayout(canvas);
-  if (!layout) return;
-  const { svg, stageCanvas, display, pixelRatio, pixelWidth, pixelHeight } = layout;
-  const context = stageCanvas.getContext("2d");
-  if (!context) return;
+  if (!layout) {
+    stage.classList.remove("canvasStageRendering");
+    return;
+  }
+  const { svg } = layout;
   const serialized = serializeStageSvgForCanvas(svg);
+  const renderViewport = viewportSnapshot();
   const token = ++canvasStageRenderToken;
+  if (canvasStageSourceImage && canvasStageSourceImage.complete && serialized === canvasStageSourceSvg) {
+    drawCanvasStageImage(layout, canvasStageSourceImage, renderViewport, token);
+    return;
+  }
   const image = new Image();
   const url = URL.createObjectURL(new Blob([serialized], { type: "image/svg+xml;charset=utf-8" }));
   image.onload = () => {
     URL.revokeObjectURL(url);
+    canvasStageSourceSvg = serialized;
+    canvasStageSourceImage = image;
+    drawCanvasStageImage(layout, image, renderViewport, token);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    stage.classList.remove("canvasStageRendering");
+  };
+  image.src = url;
+}
+
+function drawCanvasStageImage(layout, image, renderViewport, token) {
+  const { stageCanvas, display, pixelRatio, pixelWidth, pixelHeight } = layout;
+  const context = stageCanvas.getContext("2d");
+  if (!context) {
+    stage.classList.remove("canvasStageRendering");
+    return;
+  }
     if (token !== canvasStageRenderToken || !stage.contains(stageCanvas)) return;
     if (stageCanvas.width !== pixelWidth) stageCanvas.width = pixelWidth;
     if (stageCanvas.height !== pixelHeight) stageCanvas.height = pixelHeight;
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in context) context.imageSmoothingQuality = "high";
     context.clearRect(0, 0, display.width, display.height);
     context.drawImage(image, 0, 0, display.width, display.height);
+    canvasStageRenderedViewport = renderViewport;
+    stage.classList.remove("canvasStageRendering");
+    if (!scrubPreviewActive) stage.classList.remove("liveSvgScrub");
     if (liveDragPreviewPendingClear && !drag) clearLiveDragPreview();
+}
+
+function beginScrubPreview() {
+  if (!CANVAS_STAGE_RENDER) return;
+  scrubPreviewActive = true;
+  clearTimeout(scrubPreviewTimer);
+  stage.classList.add("liveSvgScrub");
+}
+
+function scheduleEndScrubPreview() {
+  if (!CANVAS_STAGE_RENDER) return;
+  if (scrubPointerActive) return;
+  clearTimeout(scrubPreviewTimer);
+  scrubPreviewTimer = setTimeout(endScrubPreview, 120);
+}
+
+function endScrubPreview() {
+  if (!CANVAS_STAGE_RENDER) return;
+  scrubPointerActive = false;
+  clearTimeout(scrubPreviewTimer);
+  scrubPreviewActive = false;
+  requestVisibleCanvasStageRender(doc && doc.canvas);
+}
+
+function beginScrubPointerPreview() {
+  scrubPointerActive = true;
+  beginScrubPreview();
+}
+
+function applyCanvasStageViewportPreview(canvas) {
+  if (!CANVAS_STAGE_RENDER || !canvasStageRenderedViewport) return;
+  const layout = syncCanvasStageLayout(canvas);
+  if (!layout) return;
+  const next = viewportSnapshot();
+  const previous = canvasStageRenderedViewport;
+  if (!next || !previous || previous.baseWidth !== next.baseWidth || previous.baseHeight !== next.baseHeight) {
+    layout.stageCanvas.style.transform = "";
+    layout.stageCanvas.style.willChange = "";
+    return;
+  }
+  const scaleX = previous.width / next.width;
+  const scaleY = previous.height / next.height;
+  const translateX = ((previous.x - next.x) / next.width) * layout.display.width;
+  const translateY = ((previous.y - next.y) / next.height) * layout.display.height;
+  if (
+    Math.abs(scaleX - 1) < 0.0001 &&
+    Math.abs(scaleY - 1) < 0.0001 &&
+    Math.abs(translateX) < 0.05 &&
+    Math.abs(translateY) < 0.05
+  ) {
+    layout.stageCanvas.style.transform = "";
+    layout.stageCanvas.style.willChange = "";
+    return;
+  }
+  layout.stageCanvas.style.willChange = "transform";
+  layout.stageCanvas.style.transform = "translate(" + translateX.toFixed(3) + "px," + translateY.toFixed(3) + "px) scale(" + scaleX.toFixed(6) + "," + scaleY.toFixed(6) + ")";
+}
+
+function applyCanvasStageViewportTransform(canvas) {
+  if (!CANVAS_STAGE_RENDER || !canvas) return;
+  const layout = syncCanvasStageLayout(canvas);
+  const next = viewportSnapshot();
+  if (!layout || !next) return;
+  const scaleX = next.baseWidth / next.width;
+  const scaleY = next.baseHeight / next.height;
+  const translateX = -(next.x / next.baseWidth) * layout.display.width * scaleX;
+  const translateY = -(next.y / next.baseHeight) * layout.display.height * scaleY;
+  const isIdentity =
+    Math.abs(scaleX - 1) < 0.0001 &&
+    Math.abs(scaleY - 1) < 0.0001 &&
+    Math.abs(translateX) < 0.05 &&
+    Math.abs(translateY) < 0.05;
+  const transform = isIdentity
+    ? ""
+    : "translate(" + translateX.toFixed(3) + "px," + translateY.toFixed(3) + "px) scale(" + scaleX.toFixed(6) + "," + scaleY.toFixed(6) + ")";
+  const willChange = transform ? "transform" : "";
+  applyCanvasStageTransform(layout.stageCanvas, transform, willChange);
+  applyCanvasStageTransform(layout.svg, transform, willChange);
+  const liveSvg = document.getElementById("stageLiveSvg");
+  if (liveSvg) applyCanvasStageTransform(liveSvg, transform, willChange);
+}
+
+function applyCanvasStageTransform(node, transform, willChange) {
+  if (!node || !node.style) return;
+  node.style.transformOrigin = "0 0";
+  node.style.transform = transform;
+  node.style.willChange = willChange;
+}
+
+function viewportSnapshot() {
+  if (!viewport || !viewport.initialized) return null;
+  return {
+    baseWidth: viewport.baseWidth,
+    baseHeight: viewport.baseHeight,
+    x: viewport.x,
+    y: viewport.y,
+    width: viewport.width,
+    height: viewport.height
   };
-  image.onerror = () => {
-    URL.revokeObjectURL(url);
-  };
-  image.src = url;
 }
 
 function canvasStageDisplaySize(size) {
@@ -258,6 +405,10 @@ function canvasStageDisplaySize(size) {
 
 function serializeStageSvgForCanvas(svg) {
   const clone = svg.cloneNode(true);
+  if (clone.style) {
+    clone.style.transform = "";
+    clone.style.willChange = "";
+  }
   const handles = clone.querySelector("#__sketchmark_handles");
   if (handles) handles.remove();
   const preview = clone.querySelector("#__sketchmark_drag_preview");
@@ -410,15 +561,21 @@ async function load() {
   requestDraw();
 }
 
-async function draw() {
+async function draw(requestId) {
   if (drawInFlight) {
     drawQueued = true;
     return;
   }
   drawInFlight = true;
+  requestId = Number(requestId || drawRequestId);
   const time = currentTime;
   try {
     const data = await api(apiPath("/frame") + "?time=" + encodeURIComponent(time));
+    const rejectStaleFrame = CANVAS_STAGE_RENDER && !scrubPreviewActive && stage.classList.contains("liveSvgScrub");
+    if (rejectStaleFrame && (requestId !== drawRequestId || Math.abs(time - currentTime) > 0.0005)) {
+      drawQueued = true;
+      return;
+    }
     resolvedDoc = data.resolved || null;
     if (CANVAS_STAGE_RENDER) setStageOverlaySvg(data.svg);
     else stage.innerHTML = data.svg;
@@ -447,6 +604,7 @@ async function draw() {
 }
 
 function requestDraw() {
+  drawRequestId += 1;
   if (drawInFlight) {
     drawQueued = true;
     return;
@@ -455,7 +613,7 @@ function requestDraw() {
   drawScheduled = true;
   requestAnimationFrame(() => {
     drawScheduled = false;
-    draw().catch(showError);
+    draw(drawRequestId).catch(showError);
   });
 }
 
@@ -485,6 +643,15 @@ function ensureViewportState(canvas, forceReset) {
 function applyViewportToSvg(svg, canvas) {
   if (!svg) return;
   ensureViewportState(canvas, false);
+  if (CANVAS_STAGE_RENDER && canvas) {
+    const size = canvasSize(canvas);
+    svg.setAttribute("viewBox", "0 0 " + size.width + " " + size.height);
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    updateZoomLabel();
+    applyCanvasStageViewportTransform(canvas);
+    requestVisibleCanvasStageRender(canvas);
+    return;
+  }
   svg.setAttribute("viewBox", viewport.x.toFixed(3) + " " + viewport.y.toFixed(3) + " " + viewport.width.toFixed(3) + " " + viewport.height.toFixed(3));
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   updateZoomLabel();
@@ -1326,9 +1493,15 @@ function renderTimeline() {
   timeline.innerHTML = "<div class='toolbar'><button id='play'>" + (playing ? "Pause" : "Play") + "</button><input id='scrub' type='range' min='0' max='" + Math.max(Number(doc.canvas.duration || 0), 0.01) + "' step='0.005' value='" + currentTime + "'><strong id='timeLabel'>" + currentTime.toFixed(2) + "s</strong><button id='refresh'>Refresh</button></div>";
   document.getElementById("play").onclick = togglePlay;
   document.getElementById("refresh").onclick = load;
-  document.getElementById("scrub").oninput = (event) => {
-    setCurrentTime(event.target.value);
+  const scrub = document.getElementById("scrub");
+  scrub.onpointerdown = beginScrubPointerPreview;
+  scrub.oninput = (event) => {
+    setCurrentTime(event.target.value, { scrubbing: true });
   };
+  scrub.onchange = () => endScrubPreview();
+  scrub.onpointerup = () => endScrubPreview();
+  scrub.onpointercancel = () => endScrubPreview();
+  scrub.onkeyup = () => endScrubPreview();
   const properties = Object.keys(tracks);
   if (!properties.length) {
     selectedSegment = null;
@@ -1974,7 +2147,9 @@ async function applySegmentCurve(property, segmentIndex, curve) {
   );
 }
 
-function setCurrentTime(time) {
+function setCurrentTime(time, options) {
+  const scrubbing = Boolean(options && options.scrubbing);
+  if (scrubbing) beginScrubPreview();
   const duration = Math.max(Number(doc && doc.canvas && doc.canvas.duration || 0), 0.01);
   const next = Math.max(0, Math.min(Number(time || 0), duration));
   currentTime = next;
@@ -1985,6 +2160,7 @@ function setCurrentTime(time) {
   const kfTime = document.getElementById("kfTime");
   if (kfTime) kfTime.value = next.toFixed(2);
   requestDraw();
+  if (scrubbing) scheduleEndScrubPreview();
 }
 
 function clearSidebarCommitTimers() {

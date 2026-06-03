@@ -249,8 +249,8 @@
                   {
                     "time": 0,
                     "value": [
-                      71,
-                      83
+                      -13,
+                      11
                     ],
                     "out": {
                       "type": "graph",
@@ -285,6 +285,26 @@
                         ]
                       ]
                     }
+                  },
+                  {
+                    "time": 2.072335999999988,
+                    "value": [
+                      -70,
+                      -14
+                    ],
+                    "out": {
+                      "type": "graph",
+                      "points": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          1
+                        ]
+                      ]
+                    }
                   }
                 ]
               },
@@ -292,7 +312,7 @@
                 "keyframes": [
                   {
                     "time": 0,
-                    "value": 1.64,
+                    "value": 7.12,
                     "out": {
                       "type": "graph",
                       "points": [
@@ -313,7 +333,7 @@
                 "keyframes": [
                   {
                     "time": 0,
-                    "value": -5.05,
+                    "value": 87.32,
                     "out": {
                       "type": "graph",
                       "points": [
@@ -377,9 +397,51 @@
                       {
                         "time": 0,
                         "value": [
-                          -298,
-                          -38
+                          -167,
+                          -2
                         ],
+                        "out": {
+                          "type": "graph",
+                          "points": [
+                            [
+                              0,
+                              0
+                            ],
+                            [
+                              1,
+                              1
+                            ]
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "rotation": {
+                    "keyframes": [
+                      {
+                        "time": 0,
+                        "value": 56.44,
+                        "out": {
+                          "type": "graph",
+                          "points": [
+                            [
+                              0,
+                              0
+                            ],
+                            [
+                              1,
+                              1
+                            ]
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "keyframes": [
+                      {
+                        "time": 0,
+                        "value": 5.97,
                         "out": {
                           "type": "graph",
                           "points": [
