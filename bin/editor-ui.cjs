@@ -15,14 +15,18 @@ function editorHtml(title, options = {}) {
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Roboto';src:url('/fonts/Roboto-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
 html,body{margin:0;width:100%;height:100%;font:13px Roboto,Arial,sans-serif;background:#c0c0c0;color:#000;overflow:hidden}
-body{display:grid;grid-template-columns:240px 1fr 300px;grid-template-rows:1fr 165px;min-width:900px;overflow:hidden}
+body{--tree-width:240px;display:grid;grid-template-columns:var(--tree-width) 6px minmax(0,1fr) 300px;grid-template-rows:1fr 165px;min-width:900px;overflow:hidden}
+body.resizingSidebar{cursor:col-resize;user-select:none}
 button,input,select,textarea{font:13px Roboto,Arial,sans-serif}
 button{padding:3px 8px}
 input,select,textarea{box-sizing:border-box;width:100%}
 textarea{min-height:88px;padding:4px;resize:vertical}
 #tree,#inspector,#timeline{background:#f3f4f6;border:1px solid #c6ccd6;overflow:auto;padding:6px;scrollbar-width:none;-ms-overflow-style:none}
-#tree{grid-row:1/3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#tree{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#treeResizeHandle{grid-column:2;grid-row:1/3;background:#d1d5db;border-left:1px solid #aab2bf;border-right:1px solid #aab2bf;cursor:col-resize;z-index:5}
+#treeResizeHandle:hover,body.resizingSidebar #treeResizeHandle{background:#9ca3af}
 #stageWrap{position:relative;display:grid;place-items:center;min-width:0;min-height:0;padding:0;background:#fff;overflow:hidden;cursor:default}
+#stageWrap{grid-column:3;grid-row:1}
 #stageWrap.panning{cursor:grabbing}
 #stage{display:grid;place-items:center;min-width:0;min-height:0;position:relative}
 #stage svg{max-width:100%;max-height:calc(100vh - 190px);background:white;border:1px solid #333;overflow:visible}
@@ -33,7 +37,8 @@ ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 #viewportHud{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:6px;background:rgba(238,238,238,.95);border:1px solid #8f96a3;z-index:3}
 #viewportHud button{padding:1px 8px;min-width:42px}
 #zoomLabel{min-width:42px;text-align:center;font-weight:bold;color:#111827}
-#timeline{grid-column:2/4}
+#inspector{grid-column:4;grid-row:1}
+#timeline{grid-column:3/5;grid-row:2}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0}
 .row label{display:block}
 .colorField{display:grid;grid-template-columns:34px 1fr;gap:6px;align-items:center}
@@ -103,8 +108,9 @@ ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 .exportButtons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .exportButtons button{width:100%;text-align:left;padding:4px 6px}
 .exportButtons button.exportWide{grid-column:1/3}
-</style></head><body><aside id="tree"></aside><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div>${bootstrapScript ? `<script>\n${bootstrapScript}\n</script>` : ""}<script>
+</style></head><body><aside id="tree"></aside><div id="treeResizeHandle" title="Resize elements panel"></div><main id="stageWrap"><div id="stage"></div><div id="viewportHud"><button id="zoomOut" type="button" title="Zoom out">-</button><button id="zoomIn" type="button" title="Zoom in">+</button><button id="zoomFit" type="button" title="Reset zoom and pan">Fit</button><span id="zoomLabel">100%</span></div></main><aside id="inspector"></aside><section id="timeline"></section><div id="curveModalBackdrop" class="modalBackdrop hidden"><div id="curveModal" class="curveModal" role="dialog" aria-modal="true" aria-label="Interpolation Graph"><div class="curveModalBar"><strong>Interpolation Graph</strong><button id="curveModalClose" type="button">Close</button></div><div id="curveModalContent" class="curveModalContent"></div></div></div>${bootstrapScript ? `<script>\n${bootstrapScript}\n</script>` : ""}<script>
 const tree = document.getElementById("tree");
+const treeResizeHandle = document.getElementById("treeResizeHandle");
 const stageWrap = document.getElementById("stageWrap");
 const stage = document.getElementById("stage");
 const zoomOut = document.getElementById("zoomOut");
@@ -170,7 +176,12 @@ const MP4_MUXER_URL = ${scriptJson(mp4MuxerUrl)};
 const MP4_MUXER_SOURCE = ${scriptJson(mp4MuxerSource)};
 const SERVER_EXPORT_FALLBACK = ${scriptJson(serverExportFallback)};
 const LOCAL_DOCUMENT_CONTROLS = ${scriptJson(localDocumentControls)};
+const TREE_WIDTH_KEY = "sketchmark.editor.treeWidth";
+const DEFAULT_TREE_WIDTH = 240;
+const MIN_TREE_WIDTH = 180;
+const MAX_TREE_WIDTH = 620;
 let mp4MuxerObjectUrl = "";
+let sidebarResize = null;
 
 function browserStoragePanel() {
   if (!LOCAL_DOCUMENT_CONTROLS) return "";
@@ -235,6 +246,63 @@ function showBrowserStorageStatus() {
   const api = window.__SKETCHMARK_BROWSER_API__;
   const box = document.getElementById("browserStatus");
   if (box && api && api.storageStatus) box.textContent = api.storageStatus();
+}
+
+function initTreeResize() {
+  setTreeWidth(loadTreeWidth(), false);
+  if (!treeResizeHandle) return;
+  treeResizeHandle.addEventListener("pointerdown", beginTreeResize);
+  treeResizeHandle.addEventListener("dblclick", () => setTreeWidth(DEFAULT_TREE_WIDTH, true));
+}
+
+function beginTreeResize(event) {
+  sidebarResize = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startWidth: tree.getBoundingClientRect().width
+  };
+  document.body.classList.add("resizingSidebar");
+  treeResizeHandle.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function updateTreeResize(event) {
+  if (!sidebarResize) return;
+  setTreeWidth(sidebarResize.startWidth + event.clientX - sidebarResize.startX, false);
+}
+
+function endTreeResize() {
+  if (!sidebarResize) return;
+  sidebarResize = null;
+  document.body.classList.remove("resizingSidebar");
+  setTreeWidth(tree.getBoundingClientRect().width, true);
+}
+
+function loadTreeWidth() {
+  try {
+    const stored = Number(window.localStorage.getItem(TREE_WIDTH_KEY));
+    return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_TREE_WIDTH;
+  } catch {
+    return DEFAULT_TREE_WIDTH;
+  }
+}
+
+function setTreeWidth(width, persist) {
+  const next = clampTreeWidth(width);
+  document.body.style.setProperty("--tree-width", next + "px");
+  if (persist) {
+    try {
+      window.localStorage.setItem(TREE_WIDTH_KEY, String(Math.round(next)));
+    } catch {}
+  }
+  resizeElementsTree();
+}
+
+function clampTreeWidth(width) {
+  const value = Number(width);
+  const availableMax = Math.max(MIN_TREE_WIDTH, window.innerWidth - 520);
+  const max = Math.min(MAX_TREE_WIDTH, availableMax);
+  return Math.max(MIN_TREE_WIDTH, Math.min(max, Number.isFinite(value) ? value : DEFAULT_TREE_WIDTH));
 }
 
 function apiPath(path) {
@@ -2243,7 +2311,13 @@ window.addEventListener("blur", () => {
   endViewportPan();
 });
 
-window.addEventListener("resize", resizeElementsTree);
+window.addEventListener("resize", () => {
+  setTreeWidth(tree.getBoundingClientRect().width || loadTreeWidth(), false);
+  resizeElementsTree();
+});
+window.addEventListener("pointermove", updateTreeResize);
+window.addEventListener("pointerup", endTreeResize);
+window.addEventListener("pointercancel", endTreeResize);
 
 stage.addEventListener("pointerdown", (event) => {
   const handle = event.target.closest("[data-handle]");
@@ -2746,6 +2820,7 @@ function cssId(id) { return String(id).replace(/([ !"#$%&'()*+,./:;<=>?@[\\\\\\]
 function escapeText(value) { return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function escapeAttr(value) { return escapeText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function showError(error) { const box = document.getElementById("error"); if (box) box.textContent = error.message || String(error); }
+initTreeResize();
 load().catch(showError);
 </script></body></html>`;
 }
