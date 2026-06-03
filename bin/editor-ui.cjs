@@ -47,10 +47,16 @@ ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 .panelGroup > summary .summaryMeta{font-size:11px;color:#4b5563;font-weight:normal;margin-left:auto}
 .panelBody{padding:6px 8px;border-top:1px solid #d8dee8}
 .subhead{display:block;font-size:11px;font-weight:bold;color:#374151;margin:6px 0 2px}
-.treeRow{display:grid;grid-template-columns:16px 20px 20px 1fr;gap:3px;align-items:center;margin:1px 0}
-.treePad{display:block;width:16px;height:20px}
+.treeRow{display:grid;grid-template-columns:18px 20px 20px 20px 1fr;gap:3px;align-items:center;margin:1px 0}
+.treePad{display:block;width:18px;height:20px}
 .treeCtl{height:20px;padding:0;border:1px solid #9aa1ad;background:#f8fafc;cursor:pointer;line-height:18px;font-size:11px}
 .treeCtl.active{background:#003399;color:#fff;border-color:#003399}
+.treeFold{position:relative;border-color:transparent;background:transparent}
+.treeFold:hover{background:#e5e7eb;border-color:#cbd5e1}
+.treeFold::before{content:"";position:absolute;left:6px;top:5px;border-style:solid;border-width:5px 0 5px 7px;border-color:transparent transparent transparent #374151}
+.treeFold.expanded::before{left:4px;top:7px;border-width:7px 5px 0 5px;border-color:#374151 transparent transparent transparent}
+.insertBar{display:grid;grid-template-columns:1fr 34px;gap:4px;margin-bottom:6px}
+.treeEmpty{font-size:11px;color:#555;padding:4px 6px}
 .canvasError{color:#900;font-size:11px;min-height:14px}
 .treeBtn{display:block;width:100%;text-align:left;margin:0;border:1px solid transparent;background:#f8fafc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px}
 .treeBtn.dim{opacity:0.6}
@@ -120,6 +126,15 @@ const FONT_WEIGHT_OPTIONS = [
   { label: "600", value: "600" },
   { label: "700", value: "700" }
 ];
+const ELEMENT_PRESET_OPTIONS = [
+  { label: "Text", value: "text" },
+  { label: "Rectangle", value: "rectangle" },
+  { label: "Circle", value: "circle" },
+  { label: "Line", value: "line" },
+  { label: "Path", value: "path" },
+  { label: "Point", value: "point" },
+  { label: "Group", value: "group" }
+];
 let collapsedGroups = new Set();
 let hiddenIds = new Set();
 let lockedIds = new Set();
@@ -129,6 +144,7 @@ let typeById = Object.create(null);
 let sidebarCommitTimers = Object.create(null);
 let selectedSegment = null;
 let panelOpenState = Object.create(null);
+let insertPresetKind = "rectangle";
 let viewport = { initialized: false, baseWidth: 1, baseHeight: 1, x: 0, y: 0, width: 1, height: 1 };
 let viewportPan = null;
 let spacePanActive = false;
@@ -501,6 +517,44 @@ function bindPanelStates(scope) {
   }
 }
 
+function elementInsertPanel() {
+  return "<div class='insertBar'><select id='insertPreset'>" + ELEMENT_PRESET_OPTIONS.map((item) =>
+    "<option value='" + escapeAttr(item.value) + "'" + (item.value === insertPresetKind ? " selected" : "") + ">" + escapeText(item.label) + "</option>"
+  ).join("") + "</select><button id='insertTopElement' type='button' title='Add element'>+</button></div>";
+}
+
+function bindElementInsertControls() {
+  const preset = document.getElementById("insertPreset");
+  if (preset) {
+    preset.onchange = () => {
+      insertPresetKind = String(preset.value || "rectangle");
+    };
+  }
+  const add = document.getElementById("insertTopElement");
+  if (add) add.onclick = () => insertElement("");
+}
+
+async function insertElement(parentId) {
+  try {
+    const data = await api(apiPath("/element"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ preset: insertPresetKind, parentId: parentId || null })
+    });
+    doc = data.document;
+    refs = data.elements;
+    rebuildElementIndex();
+    if (parentId) collapsedGroups.delete(parentId);
+    selectedId = typeof data.insertedId === "string" ? data.insertedId : selectedId;
+    renderTree();
+    renderInspector();
+    renderTimeline();
+    requestDraw();
+  } catch (error) {
+    showError(error);
+  }
+}
+
 function renderTree() {
   const canvas = doc && doc.canvas ? doc.canvas : {};
   const canvasSummary = Math.round(valueOr(canvas.width, 1)) + "x" + Math.round(valueOr(canvas.height, 1));
@@ -512,12 +566,19 @@ function renderTree() {
   tree.innerHTML =
     browserStoragePanel() +
     panelDetails("tree-canvas", "Canvas", canvasBody, { defaultOpen: false, meta: canvasSummary }) +
-    panelDetails("tree-elements", "Elements", "<div id='elementsTree'></div>", { defaultOpen: false, meta: refs.length + " items" });
+    panelDetails("tree-elements", "Elements", elementInsertPanel() + "<div id='elementsTree'></div>", { defaultOpen: false, meta: refs.length + " items" });
   bindPanelStates(tree);
   bindCanvasInputs();
   bindBrowserStoragePanel();
+  bindElementInsertControls();
   const treeRoot = document.getElementById("elementsTree");
   if (!treeRoot) return;
+  if (!refs.length) {
+    const empty = document.createElement("div");
+    empty.className = "treeEmpty";
+    empty.textContent = "No elements yet.";
+    treeRoot.appendChild(empty);
+  }
   for (const ref of refs) {
     if (isInCollapsedBranch(ref.id)) continue;
     const row = document.createElement("div");
@@ -525,10 +586,11 @@ function renderTree() {
     row.style.paddingLeft = 8 + ref.depth * 14 + "px";
     const hasChildren = hasTreeChildren(ref.id) && typeById[ref.id] === "group";
     if (hasChildren) {
+      const isCollapsed = collapsedGroups.has(ref.id);
       const fold = document.createElement("button");
-      fold.className = "treeCtl";
-      fold.textContent = collapsedGroups.has(ref.id) ? "+" : "-";
-      fold.title = collapsedGroups.has(ref.id) ? "Expand group" : "Collapse group";
+      fold.className = "treeCtl treeFold" + (isCollapsed ? " collapsed" : " expanded");
+      fold.title = isCollapsed ? "Expand group" : "Collapse group";
+      fold.setAttribute("aria-label", fold.title);
       fold.onclick = (event) => {
         event.stopPropagation();
         toggleCollapse(ref.id);
@@ -557,6 +619,21 @@ function renderTree() {
       toggleLocked(ref.id);
     };
     row.appendChild(lock);
+    if (ref.type === "group") {
+      const add = document.createElement("button");
+      add.className = "treeCtl";
+      add.textContent = "+";
+      add.title = "Add element to group";
+      add.onclick = (event) => {
+        event.stopPropagation();
+        insertElement(ref.id);
+      };
+      row.appendChild(add);
+    } else {
+      const pad = document.createElement("span");
+      pad.className = "treePad";
+      row.appendChild(pad);
+    }
     const button = document.createElement("button");
     button.className = "treeBtn" + (ref.id === selectedId ? " selected" : "") + (isElementHidden(ref.id) ? " dim" : "");
     button.textContent = ref.id + "  " + ref.type;

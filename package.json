@@ -25,6 +25,11 @@
       "require": "./dist/src/browser-export.js",
       "default": "./dist/src/browser-export.js"
     },
+    "./edit": {
+      "types": "./dist/src/edit.d.ts",
+      "require": "./dist/src/edit.js",
+      "default": "./dist/src/edit.js"
+    },
     "./editor": {
       "types": "./bin/editor-ui.d.ts",
       "require": "./bin/editor-ui.cjs",

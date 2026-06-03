@@ -9,6 +9,7 @@ import {
   findElementById,
   generateVisualSchema,
   imageRoundedClip,
+  insertElementPreset,
   lintVisualDocument,
   listElementReferences,
   listTimelineTracks,
@@ -510,6 +511,23 @@ test("compiles per-property curves and timing offsets", () => {
   assert(keyframes[0].time === 0 && keyframes[0].out.type === "hold", "base keyframe should receive the property curve");
   assert(keyframes[1].time === 1.5, `global and property offsets should shift the target keyframe, got ${keyframes[1].time}`);
   assert(near((resolveVisualFrame(animated, 1).elements[0] as any).x, 0), "hold curve should keep the point at the base value before the target");
+});
+
+test("inserts element presets at root and inside groups", () => {
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180, duration: 2 },
+    elements: [{ id: "group", type: "group", x: 20, y: 30, width: 120, height: 80, children: [] }]
+  };
+  const rootInsert = insertElementPreset(doc, "rectangle");
+  assert(rootInsert.element.id === "rectangle", "root preset should use the preset name as id");
+  assert(validateVisualDocument(rootInsert.document).ok, "root preset insert should validate");
+  assert((findElementById(rootInsert.document, "rectangle") as any).type === "path", "rectangle preset should be a path");
+  const nestedInsert = insertElementPreset(rootInsert.document, "text", { parentId: "group" });
+  assert(nestedInsert.parentId === "group", "nested insert should report parent id");
+  assert((findElementById(nestedInsert.document, "group") as any).children.some((item: any) => item.id === "text"), "nested preset should be added to group children");
+  const duplicate = insertElementPreset(nestedInsert.document, "text", { parentId: "group" });
+  assert(duplicate.element.id === "text_2", "duplicate preset ids should be made unique");
 });
 
 test("edits nested element properties and timeline keyframes", () => {

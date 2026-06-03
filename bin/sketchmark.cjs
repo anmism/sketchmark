@@ -145,6 +145,21 @@ async function edit(args, options = {}) {
         sendJson(response, 200, editorDocumentPayload(doc));
         return;
       }
+      if (request.method === "POST" && url.pathname === "/api/element") {
+        if (options.readOnly) {
+          sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
+          return;
+        }
+        const payload = await readJson(request);
+        const result = core.insertElementPreset(loadDocument(inputPath), requiredString(payload.preset, "preset"), {
+          parentId: optionalString(payload.parentId),
+          id: optionalString(payload.id),
+          index: optionalNumber(payload.index)
+        });
+        saveDocument(inputPath, result.document);
+        sendJson(response, 200, { ...editorDocumentPayload(result.document), insertedId: result.element.id, parentId: result.parentId || "" });
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/keyframe") {
         if (options.readOnly) {
           sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
@@ -543,10 +558,20 @@ function requiredString(value, name) {
   return value;
 }
 
+function optionalString(value) {
+  return typeof value === "string" && value ? value : undefined;
+}
+
 function requiredNumber(value, name) {
   const number = Number(value);
   if (!Number.isFinite(number)) throw new Error(`${name} must be a finite number.`);
   return number;
+}
+
+function optionalNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
 }
 
 function applyCanvasPatch(document, payload) {
