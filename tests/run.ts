@@ -6,6 +6,7 @@ const path = require("node:path");
 
 import {
   compileKeyframeStates,
+  deleteElement,
   findElementById,
   generateVisualSchema,
   imageRoundedClip,
@@ -16,6 +17,7 @@ import {
   renderToHtml,
   renderToSvg,
   removeTimelineKeyframe,
+  reorderElement,
   resolveVisualFrame,
   setElementProperty,
   setTimelineKeyframe,
@@ -528,6 +530,43 @@ test("inserts element presets at root and inside groups", () => {
   assert((findElementById(nestedInsert.document, "group") as any).children.some((item: any) => item.id === "text"), "nested preset should be added to group children");
   const duplicate = insertElementPreset(nestedInsert.document, "text", { parentId: "group" });
   assert(duplicate.element.id === "text_2", "duplicate preset ids should be made unique");
+});
+
+test("reorders and deletes elements inside their sibling layer", () => {
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 320, height: 180, duration: 2 },
+    elements: [
+      { id: "a", type: "point", x: 0, y: 0 },
+      { id: "b", type: "point", x: 10, y: 0 },
+      {
+        id: "group",
+        type: "group",
+        x: 20,
+        y: 30,
+        width: 120,
+        height: 80,
+        children: [
+          { id: "child1", type: "point", x: 0, y: 0 },
+          { id: "child2", type: "point", x: 10, y: 0 }
+        ]
+      }
+    ]
+  };
+  const front = reorderElement(doc, "a", { direction: "front" });
+  assert(front.previousIndex === 0 && front.index === 2, "root reorder should report old and new indexes");
+  assert((front.document.elements ?? []).map((item) => item.id).join(",") === "b,group,a", "front should move the element to the end of root order");
+  const backward = reorderElement(front.document, "a", { direction: "backward" });
+  assert((backward.document.elements ?? []).map((item) => item.id).join(",") === "b,a,group", "backward should move one layer down");
+  const nested = reorderElement(backward.document, "child1", { direction: "front" });
+  assert(nested.parentId === "group", "nested reorder should report parent id");
+  assert(((findElementById(nested.document, "group") as any).children as any[]).map((item) => item.id).join(",") === "child2,child1", "nested reorder should only affect group children");
+  const deleted = deleteElement(nested.document, "child2");
+  assert(deleted.parentId === "group", "nested delete should report parent id");
+  assert(!findElementById(deleted.document, "child2"), "deleted child should be removed");
+  assert(((findElementById(deleted.document, "group") as any).children as any[]).map((item) => item.id).join(",") === "child1", "delete should preserve remaining siblings");
+  const deletedGroup = deleteElement(deleted.document, "group");
+  assert(!findElementById(deletedGroup.document, "group") && !findElementById(deletedGroup.document, "child1"), "deleting a group should remove its children");
 });
 
 test("edits nested element properties and timeline keyframes", () => {

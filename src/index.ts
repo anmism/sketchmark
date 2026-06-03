@@ -5,7 +5,7 @@ export * from "./diagnostics";
 export * from "./schema";
 export * from "./keyframes";
 export * from "./edit";
-export { insertElementPreset } from "./edit";
+export { deleteElement, insertElementPreset, reorderElement } from "./edit";
 export * from "./animatable";
 export * from "./render/svg";
 export * from "./render/html";

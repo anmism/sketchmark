@@ -21,7 +21,7 @@ button{padding:3px 8px}
 input,select,textarea{box-sizing:border-box;width:100%}
 textarea{min-height:88px;padding:4px;resize:vertical}
 #tree,#inspector,#timeline{background:#f3f4f6;border:1px solid #c6ccd6;overflow:auto;padding:6px;scrollbar-width:none;-ms-overflow-style:none}
-#tree{grid-row:1/3}
+#tree{grid-row:1/3;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 #stageWrap{position:relative;display:grid;place-items:center;min-width:0;min-height:0;padding:0;background:#fff;overflow:hidden;cursor:default}
 #stageWrap.panning{cursor:grabbing}
 #stage{display:grid;place-items:center;min-width:0;min-height:0;position:relative}
@@ -46,15 +46,29 @@ ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 .panelGroup[open] > summary::after{content:"-"}
 .panelGroup > summary .summaryMeta{font-size:11px;color:#4b5563;font-weight:normal;margin-left:auto}
 .panelBody{padding:6px 8px;border-top:1px solid #d8dee8}
+#tree > .panelGroup{flex:0 0 auto}
+#tree > .panelGroup[data-panel='tree-elements']{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin-bottom:0}
+#tree > .panelGroup[data-panel='tree-elements']:not([open]){flex:0 0 auto}
+#tree > .panelGroup[data-panel='tree-elements'] > summary{flex:0 0 auto}
+#tree > .panelGroup[data-panel='tree-elements'] > .panelBody{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
+.elementsFixed{flex:0 0 auto}
+.elementsTreeList{flex:1 1 auto;min-height:0;overflow:auto;padding-right:2px;scrollbar-width:none;-ms-overflow-style:none}
 .subhead{display:block;font-size:11px;font-weight:bold;color:#374151;margin:6px 0 2px}
 .treeRow{display:grid;grid-template-columns:18px 20px 20px 20px 1fr;gap:3px;align-items:center;margin:1px 0}
 .treePad{display:block;width:18px;height:20px}
 .treeCtl{height:20px;padding:0;border:1px solid #9aa1ad;background:#f8fafc;cursor:pointer;line-height:18px;font-size:11px}
 .treeCtl.active{background:#003399;color:#fff;border-color:#003399}
+.treeCtl:disabled{opacity:.35;cursor:default}
 .treeFold{position:relative;border-color:transparent;background:transparent}
 .treeFold:hover{background:#e5e7eb;border-color:#cbd5e1}
 .treeFold::before{content:"";position:absolute;left:6px;top:5px;border-style:solid;border-width:5px 0 5px 7px;border-color:transparent transparent transparent #374151}
 .treeFold.expanded::before{left:4px;top:7px;border-width:7px 5px 0 5px;border-color:#374151 transparent transparent transparent}
+.layerBar{display:grid;gap:4px;margin:0 0 6px;padding:5px;border:1px solid #cbd5e1;background:#fff}
+.layerMeta{font-size:11px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layerActions{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.layerActions button{padding:2px 0;min-width:0}
+.treeDanger{color:#9f1239}
+.treeDanger:hover:not(:disabled){background:#fee2e2;border-color:#f43f5e}
 .insertBar{display:grid;grid-template-columns:1fr 34px;gap:4px;margin-bottom:6px}
 .treeEmpty{font-size:11px;color:#555;padding:4px 6px}
 .canvasError{color:#900;font-size:11px;min-height:14px}
@@ -84,7 +98,7 @@ ${localDocumentControls ? `.browserFileGrid{display:grid;gap:6px}
 .curveModal{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border:2px outset #ddd;background:#ececec;padding:8px;scrollbar-width:none;-ms-overflow-style:none}
 .curveModalBar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
 .curveModalContent .curvePanel{margin-top:0}
-#tree::-webkit-scrollbar,#inspector::-webkit-scrollbar,#timeline::-webkit-scrollbar,.curveModal::-webkit-scrollbar{width:0;height:0}
+#tree::-webkit-scrollbar,#elementsTree::-webkit-scrollbar,#inspector::-webkit-scrollbar,#timeline::-webkit-scrollbar,.curveModal::-webkit-scrollbar{width:0;height:0}
 #error{color:#900;min-height:18px;margin-top:6px}.tiny{font-size:11px;color:#444}.toolbar{display:grid;grid-template-columns:auto 1fr auto auto;gap:6px;align-items:center}
 .exportButtons{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .exportButtons button{width:100%;text-align:left;padding:4px 6px}
@@ -140,6 +154,8 @@ let hiddenIds = new Set();
 let lockedIds = new Set();
 let parentById = Object.create(null);
 let childIdsById = Object.create(null);
+let layerIndexById = Object.create(null);
+let layerCountById = Object.create(null);
 let typeById = Object.create(null);
 let sidebarCommitTimers = Object.create(null);
 let selectedSegment = null;
@@ -513,6 +529,7 @@ function bindPanelStates(scope) {
     panelOpenState[panelId] = panel.open;
     panel.ontoggle = () => {
       panelOpenState[panelId] = panel.open;
+      resizeElementsTree();
     };
   }
 }
@@ -520,7 +537,7 @@ function bindPanelStates(scope) {
 function elementInsertPanel() {
   return "<div class='insertBar'><select id='insertPreset'>" + ELEMENT_PRESET_OPTIONS.map((item) =>
     "<option value='" + escapeAttr(item.value) + "'" + (item.value === insertPresetKind ? " selected" : "") + ">" + escapeText(item.label) + "</option>"
-  ).join("") + "</select><button id='insertTopElement' type='button' title='Add element'>+</button></div>";
+  ).join("") + "</select><button id='insertTopElement' type='button' title='Add element'>+</button></div>" + selectedLayerPanel();
 }
 
 function bindElementInsertControls() {
@@ -532,6 +549,14 @@ function bindElementInsertControls() {
   }
   const add = document.getElementById("insertTopElement");
   if (add) add.onclick = () => insertElement("");
+  bindLayerButton("layerBack", "back");
+  bindLayerButton("layerBackward", "backward");
+  bindLayerButton("layerForward", "forward");
+  bindLayerButton("layerFront", "front");
+  const remove = document.getElementById("layerDelete");
+  if (remove) remove.onclick = () => {
+    if (selectedId) deleteTreeElement(selectedId);
+  };
 }
 
 async function insertElement(parentId) {
@@ -555,6 +580,56 @@ async function insertElement(parentId) {
   }
 }
 
+function selectedLayerPanel() {
+  const id = selectedId && findElement(selectedId) ? selectedId : "";
+  const index = id ? Number(layerIndexById[id]) : -1;
+  const count = id ? Number(layerCountById[id]) : 0;
+  const locked = id ? isElementLocked(id) : true;
+  const canMove = Boolean(id) && !locked && Number.isFinite(index) && Number.isFinite(count) && count > 1;
+  const label = id ? "Layer: " + id : "Layer";
+  return "<div class='layerBar'>" +
+    "<div class='layerMeta' title='" + escapeAttr(label) + "'>" + escapeText(label) + "</div>" +
+    "<div class='layerActions'>" +
+    layerActionButton("layerBack", "<<", "Send to back", !canMove || index <= 0) +
+    layerActionButton("layerBackward", "<", "Send backward", !canMove || index <= 0) +
+    layerActionButton("layerForward", ">", "Bring forward", !canMove || index >= count - 1) +
+    layerActionButton("layerFront", ">>", "Bring to front", !canMove || index >= count - 1) +
+    layerActionButton("layerDelete", "X", "Delete element/group", !id || locked, " treeDanger") +
+    "</div></div>";
+}
+
+function layerActionButton(id, label, title, disabled, className) {
+  return "<button id='" + escapeAttr(id) + "' class='treeCtl" + (className || "") + "' type='button' title='" + escapeAttr(title) + "'" + (disabled ? " disabled" : "") + ">" + escapeText(label) + "</button>";
+}
+
+function bindLayerButton(id, direction) {
+  const button = document.getElementById(id);
+  if (button) button.onclick = () => {
+    if (selectedId) reorderLayer(selectedId, direction);
+  };
+}
+
+async function reorderLayer(id, direction) {
+  try {
+    if (!ensureElementEditable(id)) return;
+    await mutate(apiPath("/reorder"), { id, direction }, { refreshTimeline: false });
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function deleteTreeElement(id) {
+  try {
+    if (!ensureElementEditable(id)) return;
+    const isGroup = typeById[id] === "group";
+    const message = "Delete '" + id + "'" + (isGroup ? " and its children" : "") + "?";
+    if (!window.confirm(message)) return;
+    await mutate(apiPath("/delete-element"), { id });
+  } catch (error) {
+    showError(error);
+  }
+}
+
 function renderTree() {
   const canvas = doc && doc.canvas ? doc.canvas : {};
   const canvasSummary = Math.round(valueOr(canvas.width, 1)) + "x" + Math.round(valueOr(canvas.height, 1));
@@ -566,7 +641,7 @@ function renderTree() {
   tree.innerHTML =
     browserStoragePanel() +
     panelDetails("tree-canvas", "Canvas", canvasBody, { defaultOpen: false, meta: canvasSummary }) +
-    panelDetails("tree-elements", "Elements", elementInsertPanel() + "<div id='elementsTree'></div>", { defaultOpen: false, meta: refs.length + " items" });
+    panelDetails("tree-elements", "Elements", "<div class='elementsFixed'>" + elementInsertPanel() + "</div><div id='elementsTree' class='elementsTreeList'></div>", { defaultOpen: false, meta: refs.length + " items" });
   bindPanelStates(tree);
   bindCanvasInputs();
   bindBrowserStoragePanel();
@@ -641,6 +716,23 @@ function renderTree() {
     row.appendChild(button);
     treeRoot.appendChild(row);
   }
+  resizeElementsTree();
+}
+
+function resizeElementsTree() {
+  const treeRoot = document.getElementById("elementsTree");
+  const panel = document.querySelector("[data-panel='tree-elements']");
+  if (!treeRoot || !panel || !panel.open) return;
+  const body = panel.querySelector(".panelBody");
+  const fixed = panel.querySelector(".elementsFixed");
+  if (!body || !fixed) return;
+  const treeRect = tree.getBoundingClientRect();
+  const bodyRect = body.getBoundingClientRect();
+  const fixedRect = fixed.getBoundingClientRect();
+  const styles = window.getComputedStyle(body);
+  const paddingBottom = Number.parseFloat(styles.paddingBottom || "0") || 0;
+  const available = treeRect.bottom - bodyRect.top - fixedRect.height - paddingBottom - 6;
+  treeRoot.style.maxHeight = Math.max(72, Math.floor(available)) + "px";
 }
 
 function bindCanvasInputs() {
@@ -708,14 +800,20 @@ function showCanvasError(message) {
 function rebuildElementIndex() {
   parentById = Object.create(null);
   childIdsById = Object.create(null);
+  layerIndexById = Object.create(null);
+  layerCountById = Object.create(null);
   typeById = Object.create(null);
   const visit = (elements, parentId) => {
-    for (const element of elements || []) {
+    const list = elements || [];
+    for (let index = 0; index < list.length; index += 1) {
+      const element = list[index];
       const id = element && element.id;
       const nextParent = id || parentId;
       if (id) {
         typeById[id] = element.type;
         parentById[id] = parentId || "";
+        layerIndexById[id] = index;
+        layerCountById[id] = list.length;
         childIdsById[id] = childIdsById[id] || [];
         if (parentId) {
           childIdsById[parentId] = childIdsById[parentId] || [];
@@ -2144,6 +2242,8 @@ window.addEventListener("blur", () => {
   spacePanActive = false;
   endViewportPan();
 });
+
+window.addEventListener("resize", resizeElementsTree);
 
 stage.addEventListener("pointerdown", (event) => {
   const handle = event.target.closest("[data-handle]");

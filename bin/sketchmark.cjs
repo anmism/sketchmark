@@ -160,6 +160,37 @@ async function edit(args, options = {}) {
         sendJson(response, 200, { ...editorDocumentPayload(result.document), insertedId: result.element.id, parentId: result.parentId || "" });
         return;
       }
+      if (request.method === "POST" && url.pathname === "/api/reorder") {
+        if (options.readOnly) {
+          sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
+          return;
+        }
+        const payload = await readJson(request);
+        const result = core.reorderElement(loadDocument(inputPath), requiredString(payload.id, "id"), {
+          direction: optionalString(payload.direction),
+          toIndex: optionalNumber(payload.index)
+        });
+        saveDocument(inputPath, result.document);
+        sendJson(response, 200, {
+          ...editorDocumentPayload(result.document),
+          reorderedId: result.id,
+          parentId: result.parentId || "",
+          layerIndex: result.index,
+          previousLayerIndex: result.previousIndex
+        });
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/delete-element") {
+        if (options.readOnly) {
+          sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });
+          return;
+        }
+        const payload = await readJson(request);
+        const result = core.deleteElement(loadDocument(inputPath), requiredString(payload.id, "id"));
+        saveDocument(inputPath, result.document);
+        sendJson(response, 200, { ...editorDocumentPayload(result.document), deletedId: result.id, parentId: result.parentId || "" });
+        return;
+      }
       if (request.method === "POST" && url.pathname === "/api/keyframe") {
         if (options.readOnly) {
           sendJson(response, 403, { ok: false, error: "Preview mode is read-only." });

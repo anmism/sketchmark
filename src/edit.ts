@@ -33,6 +33,29 @@ export interface InsertElementPresetResult {
   parentId?: string;
 }
 
+export type ReorderElementDirection = "backward" | "forward" | "back" | "front";
+
+export interface ReorderElementOptions {
+  direction?: ReorderElementDirection | string;
+  toIndex?: number;
+}
+
+export interface ReorderElementResult {
+  document: VisualDocument;
+  id: string;
+  index: number;
+  previousIndex: number;
+  parentId?: string;
+}
+
+export interface DeleteElementResult {
+  document: VisualDocument;
+  element: VisualElement;
+  id: string;
+  index: number;
+  parentId?: string;
+}
+
 export function listElementReferences(document: VisualDocument): ElementReference[] {
   const out: ElementReference[] = [];
   visitElements(document.elements ?? [], (element, path, depth) => {
@@ -62,6 +85,48 @@ export function insertElementPreset(document: VisualDocument, preset: ElementPre
   insertAt(target, element, options.index);
   assertValid(next);
   return { document: next, element: clone(element), ...(parentId ? { parentId } : {}) };
+}
+
+export function reorderElement(document: VisualDocument, id: string, options: ReorderElementOptions = {}): ReorderElementResult {
+  if (!id) throw new Error("id must be a non-empty string.");
+  const next = clone(document);
+  repairLegacyTimelineCurves(next);
+  next.elements ??= [];
+  const slot = findElementSlot(next.elements, id);
+  if (!slot) throw new Error(`Unknown element '${id}'.`);
+  const previousIndex = slot.index;
+  const nextIndex = layerTargetIndex(slot.index, slot.elements.length, options);
+  if (nextIndex !== slot.index) {
+    const [element] = slot.elements.splice(slot.index, 1);
+    if (element) slot.elements.splice(nextIndex, 0, element);
+  }
+  assertValid(next);
+  return {
+    document: next,
+    id,
+    previousIndex,
+    index: nextIndex,
+    ...(slot.parentId ? { parentId: slot.parentId } : {})
+  };
+}
+
+export function deleteElement(document: VisualDocument, id: string): DeleteElementResult {
+  if (!id) throw new Error("id must be a non-empty string.");
+  const next = clone(document);
+  repairLegacyTimelineCurves(next);
+  next.elements ??= [];
+  const slot = findElementSlot(next.elements, id);
+  if (!slot) throw new Error(`Unknown element '${id}'.`);
+  const [element] = slot.elements.splice(slot.index, 1);
+  if (!element) throw new Error(`Unknown element '${id}'.`);
+  assertValid(next);
+  return {
+    document: next,
+    element: clone(element),
+    id,
+    index: slot.index,
+    ...(slot.parentId ? { parentId: slot.parentId } : {})
+  };
 }
 
 export function setElementProperty(document: VisualDocument, id: string, property: string, value: MotionValue): VisualDocument {
@@ -155,6 +220,39 @@ function requireElement(document: VisualDocument, id: string): VisualElement {
   const element = findElementById(document, id);
   if (!element) throw new Error(`Unknown element '${id}'.`);
   return element;
+}
+
+function findElementSlot(elements: VisualElement[], id: string, parentId = ""): { elements: VisualElement[]; index: number; parentId: string } | undefined {
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (!element) continue;
+    if (element.id === id) return { elements, index, parentId };
+    if (element.type === "group") {
+      const found = findElementSlot(element.children, id, element.id || parentId);
+      if (found) return found;
+    }
+  }
+}
+
+function layerTargetIndex(index: number, length: number, options: ReorderElementOptions): number {
+  if (length <= 1) return index;
+  if (options.toIndex !== undefined) {
+    const nextIndex = Math.round(Number(options.toIndex));
+    if (!Number.isFinite(nextIndex)) throw new Error("toIndex must be a finite number.");
+    return Math.max(0, Math.min(length - 1, nextIndex));
+  }
+  switch (options.direction || "forward") {
+    case "backward":
+      return Math.max(0, index - 1);
+    case "forward":
+      return Math.min(length - 1, index + 1);
+    case "back":
+      return 0;
+    case "front":
+      return length - 1;
+    default:
+      throw new Error(`Unknown reorder direction '${options.direction}'.`);
+  }
 }
 
 function createPresetElement(preset: ElementPresetKind | string, id: string, point: Point2): VisualElement {
