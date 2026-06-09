@@ -2,9 +2,13 @@
 
 Use this for validating, rendering, editing, previewing, exporting, and debugging Sketchmark files.
 If the goal is a reusable preview another UI or AI agent can mount directly, prefer a self-contained embed HTML over a one-off SVG frame.
+Package-facing docs may use generic placeholder paths, but inside this repository the default authoring workflow is generator-first: create or update `examples/make-*.cjs` or `.js`, then regenerate the derived `.visual.json` or `.embed.html` artifacts.
+Do not default to hand-writing only a generated `.visual.json` file for a new repo example unless the user explicitly asks for raw JSON only.
 
 ## Files
 
+- Repo convention for examples: `examples/make-name.cjs` -> `examples/name.visual.json`
+- Repo convention for embed demos: `examples/make-name.cjs` -> `examples/name.embed.html` and optional `examples/name.host.html`
 - Kernel document: `path/to/document.visual.json`
 - Optional generator script: `path/to/generator.cjs`
 - Optional standalone embed output: `path/to/preview.embed.html`
@@ -21,6 +25,15 @@ If the project uses a generator script, build first when needed and run that scr
 npm run build
 node path/to/generator.cjs
 ```
+
+Inside this repo, prefer this pattern for new examples:
+
+```bash
+npm run build
+node examples/make-name.cjs
+```
+
+That generator should usually be the source of truth, with `.visual.json`, `.embed.html`, or `.host.html` checked in as generated artifacts when the repo already follows that pattern.
 
 ## Validate
 
@@ -91,6 +104,12 @@ For large edits:
 2. Regenerate the `.visual.json`.
 3. Validate.
 4. Render preview frames.
+
+For new repo examples:
+
+1. Add `examples/make-name.cjs` or update an existing generator.
+2. Generate the derived `.visual.json` and any embed demo artifacts.
+3. Validate and spot-check the rendered result.
 
 ## Preview
 

@@ -13,3 +13,4 @@ Use the smallest file needed:
 - `render.md`: validate, render, edit, preview, export, and debug workflow.
 
 Keep `.visual.json` output pure kernel: `version`, `canvas`, and `elements`.
+When working inside this repository, prefer example generator scripts such as `examples/make-*.cjs` over hand-authoring only generated `.visual.json` files.
