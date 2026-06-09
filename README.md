@@ -246,6 +246,7 @@ const html = renderToEmbedHtml(doc, {
 
 `renderToEmbedHtml()` inlines sampled SVG frames so the preview can play without a server route. Use `maxFrames` to trade file size for smoother motion.
 The embed chrome defaults to a transparent outer background and uses light/dark-aware translucent controls so it can sit inside either theme more naturally.
+For broad embed-host compatibility, prefer self-contained HTML with inline scripts/styles, avoid CDN dependencies, avoid dynamic module imports from blob/object URLs, and avoid using blob URLs for runtime-loaded assets when a `data:` URL or other inline form will work.
 The embed export menu includes MP4 when the browser supports WebCodecs, so Chrome and Edge are the safest targets for video export.
 
 The root package intentionally exports no builders, player, project loader, deck/sequence helpers, 3D renderer, or preset compiler.

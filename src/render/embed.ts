@@ -30,6 +30,7 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
   const initialFrameIndex = frameIndexForTime(initialTime, frameTimes);
   const initialFrame = frames[initialFrameIndex] ?? frames[0] ?? renderToSvg(document, options);
   const chromeBackground = escapeHtml(String(options.chromeBackground ?? "transparent"));
+  const mp4MuxerRuntimeSource = inlineMp4MuxerRuntime(MP4_MUXER_SOURCE);
   const statusLabel = escapeHtml(title || "Sketchmark embed");
   const payload = {
     title,
@@ -238,8 +239,10 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
     <div id="meta">${statusLabel}</div>
   </div>
   <script>
+    ${mp4MuxerRuntimeSource}
+  </script>
+  <script>
     const payload = ${serializeForScript(payload)};
-    const mp4MuxerSource = ${serializeForScript(MP4_MUXER_SOURCE)};
     const stage = document.getElementById("stage");
     const playButton = document.getElementById("play");
     const slider = document.getElementById("time");
@@ -256,7 +259,6 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
     };
     let metaTimer = 0;
     let exportBusy = false;
-    let mp4MuxerModulePromise = null;
 
     function clampTime(value) {
       if (!payload.duration) return 0;
@@ -384,9 +386,7 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
     }
 
     function loadSvgImage(svg) {
-      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      return loadImage(url).finally(() => URL.revokeObjectURL(url));
+      return loadImage(svgDataUrl(svg));
     }
 
     function loadImage(url) {
@@ -396,6 +396,10 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
         image.onerror = () => reject(new Error("Could not rasterize the current SVG frame."));
         image.src = url;
       });
+    }
+
+    function svgDataUrl(svg) {
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
     }
 
     function canvasToBlob(canvas, type, quality) {
@@ -443,17 +447,9 @@ export function renderToEmbedHtml(document: VisualDocument, options: EmbedHtmlOp
     }
 
     async function loadMp4Muxer() {
-      if (!mp4MuxerModulePromise) {
-        const blob = new Blob([mp4MuxerSource], { type: "text/javascript;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        mp4MuxerModulePromise = import(url)
-          .catch((error) => {
-            mp4MuxerModulePromise = null;
-            throw error;
-          })
-          .finally(() => URL.revokeObjectURL(url));
-      }
-      return mp4MuxerModulePromise;
+      const module = globalThis.__SKETCHMARK_MP4_MUXER__;
+      if (module && module.Muxer && module.ArrayBufferTarget) return module;
+      throw new Error("MP4 runtime could not be initialized in this host.");
     }
 
     async function rasterBlob(format) {
@@ -700,4 +696,20 @@ function serializeForScript(value: unknown): string {
     .replace(/&/g, "\\u0026")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
+}
+
+function inlineMp4MuxerRuntime(source: string): string {
+  const withoutExportBlock = source.replace(/\s*export\s*\{[\s\S]*?\}\s*;?\s*$/, "");
+  const runtime = `${withoutExportBlock}
+globalThis.__SKETCHMARK_MP4_MUXER__ = {
+  ArrayBufferTarget,
+  FileSystemWritableFileStreamTarget,
+  Muxer,
+  StreamTarget
+};`;
+  return escapeInlineScript(runtime);
+}
+
+function escapeInlineScript(value: string): string {
+  return value.replace(/<\/script/gi, "<\\/script").replace(/<!--/g, "<\\!--");
 }

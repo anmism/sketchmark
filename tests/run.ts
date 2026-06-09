@@ -177,7 +177,9 @@ test("renders a self-contained interactive embed HTML shell", () => {
   assert(html.includes('data-export-format="svg"'), "should include export controls");
   assert(html.includes('data-export-format="mp4"'), "should include mp4 export");
   assert(html.includes("__SKETCHMARK_EMBED__"), "should expose a runtime controller");
-  assert(html.includes("loadMp4Muxer"), "should inline mp4 export runtime");
+  assert(html.includes("__SKETCHMARK_MP4_MUXER__"), "should inline the mp4 muxer runtime");
+  assert(!html.includes("import(url)"), "should avoid blob-based dynamic module imports");
+  assert(html.includes("data:image/svg+xml;charset=utf-8,"), "should use data URLs for SVG rasterization inside embed hosts");
   assert(html.includes("sketchmark-rendered"), "should notify host frames when ready");
 });
 

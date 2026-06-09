@@ -97,6 +97,11 @@ For large edits:
 - SVG frame preview checks geometry, text, and paint.
 - HTML preview checks animation playback when available.
 - Embed preview is the preferred agent-friendly output: one HTML string, no server route, play/pause UI, scrubber, and export buttons.
+- For host-agnostic embeds, keep the HTML self-contained: inline scripts, inline styles, and no CDN or runtime network dependency.
+- Avoid module-script or blob/object-URL imports inside the embed. Some hosts rewrite or block blob URLs.
+- Avoid relying on `URL.createObjectURL()` for runtime-loaded assets like SVG frame rasterization. Prefer `data:` URLs or other inline forms.
+- Assume the embed may run inside `iframe`, `srcdoc`, webview, sandboxed previews, or artifact hosts that intercept downloads and messaging.
+- Keep host integration generic: optional `postMessage` events are fine, but the embed should not require Claude-specific globals or a custom parent API to render.
 - Embed chrome defaults to a transparent outer background with light/dark-aware translucent controls, so it sits more naturally inside host UIs.
 - Current embed exports are `svg`, `png`, `jpg`, `html`, `json`, and `mp4`.
 - Mount embed HTML in an `iframe` with `srcdoc` or the equivalent host API.
