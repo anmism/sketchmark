@@ -9,3 +9,4 @@ export { deleteElement, insertElementPreset, reorderElement } from "./edit";
 export * from "./animatable";
 export * from "./render/svg";
 export * from "./render/html";
+export * from "./render/embed";

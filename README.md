@@ -183,7 +183,7 @@ The output `.visual.json` still contains only kernel elements and timelines. Off
 
 ## CLI
 
-Build first:
+If you're working from a source checkout, build first:
 
 ```bash
 npm run build
@@ -192,65 +192,28 @@ npm run build
 Render:
 
 ```bash
-node bin/sketchmark.cjs render examples/basic.visual.json out.svg
-node bin/sketchmark.cjs render examples/timeline.visual.json out.html --time 1
-node bin/sketchmark.cjs render examples/timeline.visual.json out.mp4
-node bin/sketchmark.cjs render examples/timeline.visual.json out.webm --fps 30
+node bin/sketchmark.cjs render path/to/diagram.visual.json out.svg
+node bin/sketchmark.cjs render path/to/diagram.visual.json out.html --time 1
+node bin/sketchmark.cjs render path/to/diagram.visual.json out.mp4
+node bin/sketchmark.cjs render path/to/diagram.visual.json out.webm --fps 30
 ```
-
-Generate the key-pose walking example:
-
-```bash
-node examples/make-keypose-walk.cjs
-node bin/sketchmark.cjs preview examples/keypose-walk.visual.json
-```
-
-Generate the key-pose cyclist example:
-
-```bash
-node examples/make-keypose-cycle.cjs
-node bin/sketchmark.cjs preview examples/keypose-cycle.visual.json
-```
-
-Generate preset-layer examples:
-
-```bash
-node examples/make-presets-demo.cjs
-node examples/make-preset-character-motion.cjs
-node bin/sketchmark.cjs preview examples/presets-demo.visual.json
-node bin/sketchmark.cjs preview examples/preset-character-motion.visual.json
-```
-
-Generate heavier real-world stress scenes:
-
-```bash
-node examples/make-stress-city-traffic.cjs
-node examples/make-stress-ops-dashboard.cjs
-node examples/make-stress-airport-radar.cjs
-
-node bin/sketchmark.cjs preview examples/stress-city-traffic.visual.json
-node bin/sketchmark.cjs preview examples/stress-ops-dashboard.visual.json
-node bin/sketchmark.cjs preview examples/stress-airport-radar.visual.json
-```
-
-These are intentionally dense (many elements/keyframes) to pressure test preview responsiveness.
 
 Preview animated timelines in the browser:
 
 ```bash
-node bin/sketchmark.cjs preview examples/timeline.visual.json
+node bin/sketchmark.cjs preview path/to/diagram.visual.json
 ```
 
 Open the tiny editor:
 
 ```bash
-node bin/sketchmark.cjs edit examples/keypose-walk.visual.json
+node bin/sketchmark.cjs edit path/to/diagram.visual.json
 ```
 
 Lint:
 
 ```bash
-node bin/sketchmark.cjs lint examples/basic.visual.json
+node bin/sketchmark.cjs lint path/to/diagram.visual.json
 ```
 
 Video export is an adapter, not a kernel feature. It samples the document timeline into SVG frames, rasterizes those frames, and hands them to `ffmpeg`. It requires `sharp` and `ffmpeg` to be available in the local environment.
@@ -263,11 +226,27 @@ import {
   compileKeyframeStates,
   timelineCurvePreset,
   resolveVisualFrame,
+  renderToEmbedHtml,
   renderToSvg,
   renderToHtml,
   lintVisualDocument
 } from "sketchmark";
 ```
+
+For a reusable browser preview with play/pause and export controls, generate a self-contained HTML embed and mount it in an `iframe` via `srcDoc`:
+
+```ts
+import { renderToEmbedHtml } from "sketchmark";
+
+const html = renderToEmbedHtml(doc, {
+  title: "Login Flow",
+  maxFrames: 180
+});
+```
+
+`renderToEmbedHtml()` inlines sampled SVG frames so the preview can play without a server route. Use `maxFrames` to trade file size for smoother motion.
+The embed chrome defaults to a transparent outer background and uses light/dark-aware translucent controls so it can sit inside either theme more naturally.
+The embed export menu includes MP4 when the browser supports WebCodecs, so Chrome and Edge are the safest targets for video export.
 
 The root package intentionally exports no builders, player, project loader, deck/sequence helpers, 3D renderer, or preset compiler.
 

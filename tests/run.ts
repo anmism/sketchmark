@@ -14,6 +14,7 @@ import {
   lintVisualDocument,
   listElementReferences,
   listTimelineTracks,
+  renderToEmbedHtml,
   renderToHtml,
   renderToSvg,
   removeTimelineKeyframe,
@@ -147,6 +148,37 @@ test("renders path, text, image, and group to SVG and HTML", () => {
   assert(svg.includes("<path") && svg.includes("<image") && svg.includes("Render&#160;kernel"), "should render kernel elements");
   assert(svg.includes('stroke-width="1"'), "path stroke should default to width 1 when stroke is set");
   assert(renderToHtml(doc).includes("Sketchmark Kernel Visual"), "should render HTML shell");
+});
+
+test("renders a self-contained interactive embed HTML shell", () => {
+  const doc: VisualDocument = {
+    version: 1,
+    canvas: { width: 240, height: 140, background: "#f8fafc", duration: 1, fps: 12 },
+    elements: [
+      {
+        id: "label",
+        type: "text",
+        text: "Embed preview",
+        x: 40,
+        y: 70,
+        fill: "#0f172a",
+        timeline: {
+          tracks: {
+            position: { keyframes: [[0, [40, 70]], [1, [180, 70]]], ease: "linear" }
+          }
+        }
+      }
+    ]
+  };
+  const html = renderToEmbedHtml(doc, { title: "Embed Demo", maxFrames: 16 });
+  assert(html.includes("Sketchmark Embed"), "should include embed chrome");
+  assert(html.includes("background: transparent;"), "should default embed chrome to a transparent background");
+  assert(html.includes("prefers-color-scheme: dark"), "should adapt embed chrome for dark mode");
+  assert(html.includes('data-export-format="svg"'), "should include export controls");
+  assert(html.includes('data-export-format="mp4"'), "should include mp4 export");
+  assert(html.includes("__SKETCHMARK_EMBED__"), "should expose a runtime controller");
+  assert(html.includes("loadMp4Muxer"), "should inline mp4 export runtime");
+  assert(html.includes("sketchmark-rendered"), "should notify host frames when ready");
 });
 
 test("resolves element-local timeline tracks", () => {

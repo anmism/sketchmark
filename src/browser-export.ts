@@ -1,8 +1,9 @@
 import { renderToHtml } from "./render/html";
+import { renderToEmbedHtml } from "./render/embed";
 import { renderToSvg } from "./render/svg";
 import type { VisualDocument } from "./types";
 
-export type BrowserExportFormat = "svg" | "png" | "jpg" | "html" | "json" | "mp4" | "webm";
+export type BrowserExportFormat = "svg" | "png" | "jpg" | "html" | "embed" | "json" | "mp4" | "webm";
 
 export type BrowserExportOptions = {
   format: BrowserExportFormat;
@@ -53,6 +54,15 @@ export async function exportVisualInBrowser(document: VisualDocument, options: B
 
   if (format === "html") {
     downloadBlob(new Blob([renderToHtml(document, { time })], { type: "text/html;charset=utf-8" }), `${title}.html`);
+    options.onProgress?.(100);
+    return;
+  }
+
+  if (format === "embed") {
+    downloadBlob(
+      new Blob([renderToEmbedHtml(options.sourceDocument ?? document, { title: options.title, time })], { type: "text/html;charset=utf-8" }),
+      `${title}.embed.html`
+    );
     options.onProgress?.(100);
     return;
   }
