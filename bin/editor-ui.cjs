@@ -2542,7 +2542,7 @@ function drawHandles(target) {
   let box;
   let matrix;
   try {
-    box = target.getBBox();
+    box = editorHandleBox(target.getBBox());
     matrix = elementMatrixInSvg(target, svg);
   } catch {
     return;
@@ -2612,7 +2612,7 @@ function targetCenterInParent(target) {
   const svg = target.ownerSVGElement || stage.querySelector("svg");
   if (!svg || !target.getBBox || !target.getCTM) return { x: 0, y: 0 };
   try {
-    const box = target.getBBox();
+    const box = editorHandleBox(target.getBBox());
     const targetMatrix = target.getCTM();
     const parent = target.parentNode && target.parentNode.getCTM ? target.parentNode : svg;
     const parentMatrix = parent.getCTM ? parent.getCTM() : null;
@@ -2621,6 +2621,23 @@ function targetCenterInParent(target) {
   } catch {
     return { x: 0, y: 0 };
   }
+}
+function editorHandleBox(box) {
+  const minSize = 18;
+  const x = Number(box && box.x || 0);
+  const y = Number(box && box.y || 0);
+  const width = Math.max(0, Number(box && box.width || 0));
+  const height = Math.max(0, Number(box && box.height || 0));
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const stableWidth = width < minSize ? minSize : width;
+  const stableHeight = height < minSize ? minSize : height;
+  return {
+    x: centerX - stableWidth / 2,
+    y: centerY - stableHeight / 2,
+    width: stableWidth,
+    height: stableHeight
+  };
 }
 function matrixPoint(svg, matrix, x, y) {
   const point = svg.createSVGPoint();
