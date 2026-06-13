@@ -208,6 +208,18 @@ export function imageRoundedClip(element: Pick<ImageElement, "x" | "y" | "width"
   return { type: "path", d: roundedRectClipPath(element.x, element.y, element.width, element.height, radius) };
 }
 
+export {
+  deleteElement as remove,
+  findElementById as find,
+  insertElementPreset as insertPreset,
+  listElementReferences as listReferences,
+  listTimelineTracks as listTracks,
+  removeTimelineKeyframe as removeKeyframe,
+  reorderElement as reorder,
+  setElementProperty as setProperty,
+  setTimelineKeyframe as setKeyframe
+};
+
 function visitElements(elements: VisualElement[], visit: (element: VisualElement, path: number[], depth: number) => void, prefix: number[] = [], depth = 0): void {
   for (const [index, element] of elements.entries()) {
     const path = [...prefix, index];

@@ -699,6 +699,7 @@ async function deleteTreeElement(id) {
 }
 
 function renderTree() {
+  const elementsScroll = captureElementsTreeScroll();
   const canvas = doc && doc.canvas ? doc.canvas : {};
   const canvasSummary = Math.round(valueOr(canvas.width, 1)) + "x" + Math.round(valueOr(canvas.height, 1));
   const canvasBody =
@@ -785,6 +786,7 @@ function renderTree() {
     treeRoot.appendChild(row);
   }
   resizeElementsTree();
+  restoreElementsTreeScroll(elementsScroll);
 }
 
 function resizeElementsTree() {
@@ -801,6 +803,26 @@ function resizeElementsTree() {
   const paddingBottom = Number.parseFloat(styles.paddingBottom || "0") || 0;
   const available = treeRect.bottom - bodyRect.top - fixedRect.height - paddingBottom - 6;
   treeRoot.style.maxHeight = Math.max(72, Math.floor(available)) + "px";
+}
+
+function captureElementsTreeScroll() {
+  const treeRoot = document.getElementById("elementsTree");
+  return treeRoot ? { top: treeRoot.scrollTop, left: treeRoot.scrollLeft } : { top: 0, left: 0 };
+}
+
+function restoreElementsTreeScroll(scroll) {
+  const treeRoot = document.getElementById("elementsTree");
+  if (!treeRoot || !scroll) return;
+  const top = Math.max(0, Number(scroll.top) || 0);
+  const left = Math.max(0, Number(scroll.left) || 0);
+  treeRoot.scrollTop = top;
+  treeRoot.scrollLeft = left;
+  requestAnimationFrame(() => {
+    const nextRoot = document.getElementById("elementsTree");
+    if (!nextRoot) return;
+    nextRoot.scrollTop = top;
+    nextRoot.scrollLeft = left;
+  });
 }
 
 function bindCanvasInputs() {

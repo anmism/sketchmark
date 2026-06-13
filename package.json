@@ -30,10 +30,20 @@
       "require": "./dist/src/edit.js",
       "default": "./dist/src/edit.js"
     },
+    "./render": {
+      "types": "./dist/src/render/index.d.ts",
+      "require": "./dist/src/render/index.js",
+      "default": "./dist/src/render/index.js"
+    },
     "./editor": {
       "types": "./bin/editor-ui.d.ts",
       "require": "./bin/editor-ui.cjs",
       "default": "./bin/editor-ui.cjs"
+    },
+    "./preview": {
+      "types": "./bin/preview-ui.d.ts",
+      "require": "./bin/preview-ui.cjs",
+      "default": "./bin/preview-ui.cjs"
     },
     "./schema": {
       "default": "./schema/visual.schema.json"

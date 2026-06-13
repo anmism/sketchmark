@@ -15,6 +15,8 @@ Do not default to hand-writing only a generated `.visual.json` file for a new re
 - Optional host iframe page: `path/to/preview.host.html`
 - Schema: `schema/visual.schema.json`
 - CLI: `bin/sketchmark.cjs`
+- Package API: `sketchmark`, `sketchmark/render`, `sketchmark/edit`
+- UI API: `sketchmark/editor`, `sketchmark/preview`
 - Browser export entrypoint: `sketchmark/browser-export`
 
 ## Generate
@@ -40,7 +42,7 @@ That generator should usually be the source of truth, with `.visual.json`, `.emb
 In code:
 
 ```js
-const { validateVisualDocument } = require("../dist/src");
+const { validateVisualDocument } = require("sketchmark");
 const result = validateVisualDocument(doc);
 if (!result.ok) throw new Error(result.issues.map((i) => `${i.path}: ${i.message}`).join("\n"));
 ```
@@ -68,12 +70,31 @@ node bin/sketchmark.cjs --help
 Create a reusable embed in code:
 
 ```js
-const { renderToEmbedHtml } = require("../dist/src");
+const { render } = require("sketchmark");
 
-const html = renderToEmbedHtml(doc, {
+const html = render.embedHtml(doc, {
   title: "Agent Preview",
   maxFrames: 180
 });
+```
+
+Render or edit from a standalone Node project with the public package API:
+
+```js
+const { render, edit } = require("sketchmark");
+
+const svg = render.svg(doc, { time: 1 });
+const nextDoc = edit.setProperty(doc, "element-id", "x", 120);
+const keyedDoc = edit.setKeyframe(nextDoc, "element-id", "opacity", 0.5, 1);
+```
+
+For explicit subpath imports:
+
+```js
+const render = require("sketchmark/render");
+const edit = require("sketchmark/edit");
+const { editorHtml } = require("sketchmark/editor");
+const { previewHtml } = require("sketchmark/preview");
 ```
 
 Create the same output from a browser host:

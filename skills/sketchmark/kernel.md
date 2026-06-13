@@ -5,7 +5,10 @@
 - `sketchmark`
 - `sketchmark/presets`
 - `sketchmark/browser-export`
+- `sketchmark/render`
+- `sketchmark/edit`
 - `sketchmark/editor`
+- `sketchmark/preview`
 - `sketchmark/schema`
 - CLI: `sketchmark`
 
@@ -17,10 +20,27 @@
 - diagnostics
 - schema
 - keyframes
-- edit
+- edit namespace and direct edit helpers
 - animatable
-- render/svg
-- render/html
+- render namespace and direct render helpers
+
+Preferred package API:
+
+```js
+const { render, edit, validateVisualDocument } = require("sketchmark");
+
+const svg = render.svg(doc, { time: 1 });
+const html = render.html(doc);
+const embed = render.embedHtml(doc, { title: "Preview" });
+const nextDoc = edit.setProperty(doc, "element-id", "fill", "#22c55e");
+```
+
+UI entry points stay separate:
+
+```js
+const { editorHtml } = require("sketchmark/editor");
+const { previewHtml } = require("sketchmark/preview");
+```
 
 ## Document
 
