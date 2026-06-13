@@ -2194,7 +2194,9 @@ function scheduleSidebarKeyframe(property, valueReader) {
 function readNumberInput(id) {
   const input = document.getElementById(id);
   if (!input) return NaN;
-  const value = Number(input.value);
+  const raw = String(input.value ?? "").trim();
+  if (!raw) return NaN;
+  const value = Number(raw);
   return Number.isFinite(value) ? value : NaN;
 }
 
@@ -2227,7 +2229,7 @@ async function mutate(path, body, options) {
   if (refreshTree) renderTree();
   if (refreshInspector) renderInspector();
   if (refreshTimeline) renderTimeline();
-  requestDraw();
+  if (!options || options.requestDraw !== false) requestDraw();
 }
 
 stageWrap.addEventListener("wheel", (event) => {
@@ -2351,6 +2353,8 @@ stage.addEventListener("pointermove", (event) => {
   let y = drag.y;
   let rotation = drag.rotation;
   let scale = drag.scale;
+  let scaleX = drag.scaleX;
+  let scaleY = drag.scaleY;
   if (drag.mode === "move") {
     x = Math.round(drag.x + dx);
     y = Math.round(drag.y + dy);
@@ -2368,11 +2372,18 @@ stage.addEventListener("pointermove", (event) => {
     const nextDistance = Math.max(distance(drag.center, point), 1);
     const ratio = Math.max(0.05, nextDistance / startDistance);
     drag.changed = drag.changed || Math.abs(ratio - 1) > 0.005;
-    scale = Math.max(0.05, Math.round((drag.scale * ratio) * 100) / 100);
-    setInput("propScale", scale);
+    if (drag.usesAxisScale) {
+      scaleX = scaleComponentValue(drag.scaleX, ratio);
+      scaleY = scaleComponentValue(drag.scaleY, ratio);
+      setInput("propScaleX", scaleX);
+      setInput("propScaleY", scaleY);
+    } else {
+      scale = scaleComponentValue(drag.scale, ratio);
+      setInput("propScale", scale);
+    }
     previewDraggedTransform("translate(" + drag.center.x + " " + drag.center.y + ") scale(" + ratio + ") translate(" + (-drag.center.x) + " " + (-drag.center.y) + ")");
   }
-  drag.value = { x, y, rotation, scale };
+  drag.value = { x, y, rotation, scale, scaleX, scaleY };
   refreshHandles();
 });
 
@@ -2403,6 +2414,7 @@ function startDrag(event, target, mode) {
   const element = findElement(target.id);
   if (!element) return;
   const resolved = findResolvedElement(target.id) || element;
+  const scaleState = resolvedScaleState(resolved, element);
   drag = {
     id: target.id,
     target,
@@ -2412,7 +2424,10 @@ function startDrag(event, target, mode) {
     x: Number(resolved.x ?? element.x ?? 0),
     y: Number(resolved.y ?? element.y ?? 0),
     rotation: Number(resolved.rotation ?? element.rotation ?? 0),
-    scale: Number(resolved.scale ?? element.scale ?? 1),
+    scale: scaleState.scale,
+    scaleX: scaleState.scaleX,
+    scaleY: scaleState.scaleY,
+    usesAxisScale: scaleState.usesAxisScale,
     transform: target.getAttribute("transform") || "",
     changed: false,
     value: null
@@ -2430,13 +2445,18 @@ async function commitDrag(snapshot) {
   } else if (snapshot.mode === "rotate") {
     await commitEditedProperty(element, "rotation", snapshot.value.rotation);
   } else if (snapshot.mode === "scale") {
-    await commitEditedProperty(element, "scale", snapshot.value.scale);
+    if (snapshot.usesAxisScale) {
+      await commitEditedProperty(element, "scaleX", snapshot.value.scaleX, { refreshTree: false, refreshInspector: false, refreshTimeline: false, requestDraw: false });
+      await commitEditedProperty(element, "scaleY", snapshot.value.scaleY);
+    } else {
+      await commitEditedProperty(element, "scale", snapshot.value.scale);
+    }
   }
 }
 
-async function commitEditedProperty(element, property, value) {
+async function commitEditedProperty(element, property, value, options) {
   if (!ensureElementEditable(element.id)) return;
-  await mutate(apiPath("/keyframe"), { id: element.id, property, value, time: currentTime, curvePreset: "linear" });
+  await mutate(apiPath("/keyframe"), { id: element.id, property, value, time: currentTime, curvePreset: "linear" }, options);
 }
 
 function ensureElementEditable(id) {
@@ -2666,6 +2686,25 @@ function distance(a, b) {
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
 }
+function scaleComponentValue(value, ratio) {
+  const sign = Number(value) < 0 ? -1 : 1;
+  const next = Number(value) * Number(ratio);
+  const clamped = Math.max(0.05, Math.abs(Number.isFinite(next) ? next : sign * 0.05));
+  return Math.round(sign * clamped * 100) / 100;
+}
+function resolvedScaleState(resolved, element) {
+  const tracks = element && element.timeline && element.timeline.tracks ? element.timeline.tracks : {};
+  const usesAxisScale = resolved.scaleX !== undefined || resolved.scaleY !== undefined || element.scaleX !== undefined || element.scaleY !== undefined || tracks.scaleX || tracks.scaleY;
+  const baseScale = finiteNumber(resolved.scale ?? element.scale, 1);
+  const scaleX = finiteNumber(resolved.scaleX ?? element.scaleX, baseScale);
+  const scaleY = finiteNumber(resolved.scaleY ?? element.scaleY, baseScale);
+  return {
+    scale: baseScale,
+    scaleX,
+    scaleY,
+    usesAxisScale: Boolean(usesAxisScale)
+  };
+}
 function supportsPosition(element) {
   return element && ["path","point","text","image","group"].includes(element.type);
 }
@@ -2775,12 +2814,61 @@ function originPointValue(element) {
     const y = Number(element.origin[1]);
     if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
   }
+  if (element && element.type === "group") {
+    return [
+      finiteNumber(element.x, 0) + finiteNumber(element.width, 0) / 2,
+      finiteNumber(element.y, 0) + finiteNumber(element.height, 0) / 2
+    ];
+  }
   const x = Number(element && element.x);
   const y = Number(element && element.y);
+  if (element && (element.type === "text" || element.type === "point") && Number.isFinite(x) && Number.isFinite(y)) return [x, y];
+  const box = editorElementBox(element);
+  if (box) return [box.x + box.width / 2, box.y + box.height / 2];
   if (Number.isFinite(x) && Number.isFinite(y)) return [x, y];
   return [0, 0];
 }
 function valueOr(value, fallback) { return value === undefined ? fallback : value; }
+function editorElementBox(element) {
+  if (!element) return null;
+  const target = element.id ? stage.querySelector("#" + cssId(element.id)) : null;
+  if (target && target.getBBox) {
+    try {
+      const box = target.getBBox();
+      if (Number.isFinite(box.x) && Number.isFinite(box.y) && Number.isFinite(box.width) && Number.isFinite(box.height)) {
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      }
+    } catch {}
+  }
+  if (element.type === "image" || element.type === "group") {
+    const x = Number(element.x);
+    const y = Number(element.y);
+    const width = Number(element.width);
+    const height = Number(element.height);
+    if ([x, y, width, height].every(Number.isFinite)) return { x, y, width, height };
+  }
+  if (element.type === "path" && typeof element.d === "string") return pathDataBox(element.d);
+  return null;
+}
+function pathDataBox(data) {
+  const numbers = String(data || "").match(/-?\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?/gi);
+  if (!numbers || numbers.length < 2) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let index = 0; index < numbers.length - 1; index += 2) {
+    const x = Number(numbers[index]);
+    const y = Number(numbers[index + 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 function clipRadiusValue(element) {
   if (!element || !element.clip || typeof element.clip.d !== "string") return 0;
   const numbers = element.clip.d.match(/-?\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?/gi);
